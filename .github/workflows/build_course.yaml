@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +33,23 @@ jobs:
           name: course-material
           path: |
             _site/**
+
+      - name: Package site as zip
+        run: cd _site && zip -r ../course-material.zip .
+
+      - name: Update latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes 2>/dev/null || true
+          git tag -f latest
+          git push -f origin latest
+          gh release create latest course-material.zip \
+            --title "Latest Build" \
+            --notes "Auto-built course material from commit ${{ github.sha }}.
+
+          Download \`course-material.zip\`, unzip, and open \`index.html\`." \
+            --prerelease
 
   # Uncomment the deploy job below once GitHub Pages is enabled on the repo
   # deploy:
