@@ -32,26 +32,27 @@ jobs:
           path: |
             _site/**
 
-  deploy:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: course-material
-
-      - uses: actions/configure-pages@v2
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+  # Uncomment the deploy job below once GitHub Pages is enabled on the repo
+  # deploy:
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   permissions:
+  #     pages: write
+  #     id-token: write
+  #   environment:
+  #     name: github-pages
+  #     url: ${{ steps.deployment.outputs.page_url }}
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: course-material
+  #
+  #     - uses: actions/configure-pages@v2
+  #
+  #     - uses: actions/upload-pages-artifact@v3
+  #       with:
+  #         path: .
+  #
+  #     - id: deployment
+  #       uses: actions/deploy-pages@v4
