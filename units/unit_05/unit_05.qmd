@@ -1,0 +1,49 @@
+---
+title: "Unit 5: Machine Learning Foundations"
+engine: julia
+toc-title: "Unit 5: ML Foundations"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 5.1 Loss Functions and Optimization
+
+### Common Loss Functions
+
+*Content coming soon.*
+
+### Gradient Descent and Variants
+
+*Content coming soon.*
+
+### Optimizers in Practice
+
+*Content coming soon.*
+
+## 5.2 Training, Testing, and Validation
+
+### Data Splitting Strategies
+
+*Content coming soon.*
+
+### Overfitting and Underfitting
+
+*Content coming soon.*
+
+### Cross-Validation
+
+*Content coming soon.*
+
+## 5.3 Regularization Techniques
+
+### L1 and L2 Regularization
+
+*Content coming soon.*
+
+### Dropout and Early Stopping
+
+*Content coming soon.*
+
+### Bias-Variance Tradeoff
+
+*Content coming soon.*

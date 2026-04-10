@@ -1,0 +1,37 @@
+---
+title: "Appendix B: Julia Refresher"
+engine: julia
+toc-title: "Appendix B: Julia Refresher"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## Julia Basics
+
+### Installing and Running Julia
+
+*Content coming soon.*
+
+### Variables, Types, and Functions
+
+*Content coming soon.*
+
+## Data Structures and Packages
+
+### Arrays, Tuples, and Dictionaries
+
+*Content coming soon.*
+
+### The Package Manager
+
+*Content coming soon.*
+
+## Plotting and Visualization
+
+### CairoMakie Basics
+
+*Content coming soon.*
+
+### Common Plot Types
+
+*Content coming soon.*

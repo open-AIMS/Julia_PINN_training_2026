@@ -1,0 +1,41 @@
+---
+title: "Unit 4: PDEs for Ocean and Reef Modelling"
+engine: julia
+toc-title: "Unit 4: Ocean and Reef PDEs"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 4.1 Ocean Dynamics and Governing Equations
+
+### Navier-Stokes and Shallow Water Equations
+
+*Content coming soon.*
+
+### Advection-Diffusion in Ocean Currents
+
+*Content coming soon.*
+
+## 4.2 Reef Ecosystem Models
+
+### Coral Growth and Larval Dispersal
+
+*Content coming soon.*
+
+### Coupled Physical-Biological Models
+
+*Content coming soon.*
+
+## 4.3 Numerical Simulation of Ocean and Reef PDEs
+
+### Discretization Strategies for Geophysical Flows
+
+*Content coming soon.*
+
+### Visualization of Simulation Results
+
+*Content coming soon.*
+
+### Challenges and Open Problems
+
+*Content coming soon.*

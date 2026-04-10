@@ -1,0 +1,41 @@
+---
+title: "Appendix A: Python Adaptations"
+engine: python
+toc-title: "Appendix A: Python Adaptations"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## PyTorch Equivalents
+
+### Setting Up a PyTorch PINN
+
+*Content coming soon.*
+
+### Training Loop Comparison
+
+*Content coming soon.*
+
+## Key Differences Between Julia and Python Approaches
+
+### Performance Considerations
+
+*Content coming soon.*
+
+### AD Ecosystem Comparison
+
+*Content coming soon.*
+
+## Python PINN Libraries
+
+### DeepXDE
+
+*Content coming soon.*
+
+### NVIDIA Modulus
+
+*Content coming soon.*
+
+### Other Frameworks
+
+*Content coming soon.*

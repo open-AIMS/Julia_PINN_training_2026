@@ -1,0 +1,45 @@
+---
+title: "Unit 3: Numerical Methods for PDEs"
+engine: julia
+toc-title: "Unit 3: Numerical Methods"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 3.1 Finite Difference Methods
+
+### Discretization of Derivatives
+
+*Content coming soon.*
+
+### Explicit and Implicit Schemes
+
+*Content coming soon.*
+
+### Implementation in Julia
+
+*Content coming soon.*
+
+## 3.2 Spectral Methods
+
+### Fourier Spectral Methods
+
+*Content coming soon.*
+
+### Chebyshev Collocation
+
+*Content coming soon.*
+
+## 3.3 Convergence and Stability
+
+### CFL Condition
+
+*Content coming soon.*
+
+### Error Analysis
+
+*Content coming soon.*
+
+### Comparing Numerical Approaches
+
+*Content coming soon.*

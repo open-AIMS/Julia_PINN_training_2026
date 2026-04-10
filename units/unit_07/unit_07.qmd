@@ -1,0 +1,49 @@
+---
+title: "Unit 7: Deep Dive into Neural Networks"
+engine: julia
+toc-title: "Unit 7: NN Deep Dive"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 7.1 Network Architectures
+
+### Convolutional and Recurrent Networks
+
+*Content coming soon.*
+
+### Residual Connections and Skip Layers
+
+*Content coming soon.*
+
+### Choosing an Architecture
+
+*Content coming soon.*
+
+## 7.2 Automatic Differentiation in Depth
+
+### Forward Mode vs Reverse Mode
+
+*Content coming soon.*
+
+### Dual Numbers and Computational Graphs
+
+*Content coming soon.*
+
+### ForwardDiff.jl and Zygote.jl
+
+*Content coming soon.*
+
+## 7.3 AD for Scientific Computing
+
+### Differentiating Through Solvers
+
+*Content coming soon.*
+
+### Sensitivity Analysis
+
+*Content coming soon.*
+
+### Why AD is Critical for PINNs
+
+*Content coming soon.*

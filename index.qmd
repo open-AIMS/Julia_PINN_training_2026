@@ -1,0 +1,49 @@
+---
+title: "2026 PINNs Workshop"
+engine: julia
+toc-title: "2026 PINNs Workshop"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+[Last updated: {{< meta date >}}]{style="font-size: 0.85em; color: gray;"}
+
+Welcome to **2026 PINNs Workshop** — a hands-on course building up to Physics-Informed Neural Networks (PINNs) using Julia and Quarto notebooks.
+
+Starting from a high-level demo, the course walks through PDE formulation and numerical methods, machine learning and neural network foundations, and then brings it all together with PINN theory and implementation. The material is developed in collaboration with the [Australian Institute of Marine Science (AIMS)](https://www.aims.gov.au/).
+
+## [Unit 1: Overview and PINN Demo](units/unit_01/unit_01.qmd)
+A high-level overview of what PINNs are and what they can do.
+
+## [Unit 2: PDEs — Formulation and Classical Methods](units/unit_02/unit_02.qmd)
+Formulation, classification, and classical solution methods for partial differential equations.
+
+## [Unit 3: Numerical Methods for PDEs](units/unit_03/unit_03.qmd)
+Finite differences, spectral methods, and other numerical approaches.
+
+## [Unit 4: PDEs for Ocean and Reef Modelling](units/unit_04/unit_04.qmd)
+Applying PDE models to ocean dynamics and reef ecosystems.
+
+## [Unit 5: Machine Learning Foundations](units/unit_05/unit_05.qmd)
+Loss functions, training/testing, regularization, and core ML concepts.
+
+## [Unit 6: Neural Networks Fundamentals](units/unit_06/unit_06.qmd)
+Building and training neural networks in Julia with Lux.jl.
+
+## [Unit 7: Deep Dive into Neural Networks](units/unit_07/unit_07.qmd)
+Architectures and automatic differentiation — critical groundwork for PINNs.
+
+## [Unit 8: Physics-Informed Neural Networks](units/unit_08/unit_08.qmd)
+Theory and implementation of PINNs.
+
+## [Unit 9: Advanced PINN Techniques](units/unit_09/unit_09.qmd)
+Advanced techniques and applications of PINNs.
+
+## [Unit 10: Further Topics in Scientific Machine Learning](units/unit_10/unit_10.qmd)
+Broader landscape of scientific ML beyond PINNs.
+
+## [Appendix A: Python Adaptations](units/appendix_a/appendix_a.qmd) {.unnumbered}
+Equivalent implementations using PyTorch and related Python libraries.
+
+## [Appendix B: Julia Refresher](units/appendix_b/appendix_b.qmd) {.unnumbered}
+A quick refresher on Julia fundamentals for those new to the language.

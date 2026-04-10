@@ -1,0 +1,49 @@
+---
+title: "Unit 8: Physics-Informed Neural Networks"
+engine: julia
+toc-title: "Unit 8: PINNs"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 8.1 PINN Theory and Loss Formulation
+
+### The PINN Loss Function
+
+*Content coming soon.*
+
+### Residual Points and Collocation
+
+*Content coming soon.*
+
+### Incorporating Boundary and Initial Conditions
+
+*Content coming soon.*
+
+## 8.2 Implementing a Basic PINN
+
+### Solving the Heat Equation with a PINN
+
+*Content coming soon.*
+
+### Code Walkthrough
+
+*Content coming soon.*
+
+### Comparing PINN vs Numerical Solutions
+
+*Content coming soon.*
+
+## 8.3 Training Strategies and Diagnostics
+
+### Learning Rate Schedules
+
+*Content coming soon.*
+
+### Monitoring Convergence
+
+*Content coming soon.*
+
+### Common Failure Modes
+
+*Content coming soon.*

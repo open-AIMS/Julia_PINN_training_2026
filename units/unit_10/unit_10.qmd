@@ -1,0 +1,49 @@
+---
+title: "Unit 10: Further Topics in Scientific Machine Learning"
+engine: julia
+toc-title: "Unit 10: Further Topics"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 10.1 Neural Operators
+
+### DeepONet
+
+*Content coming soon.*
+
+### Fourier Neural Operator
+
+*Content coming soon.*
+
+### Operator Learning vs Function Learning
+
+*Content coming soon.*
+
+## 10.2 Hybrid and Data-Driven Methods
+
+### Neural ODEs and Neural SDEs
+
+*Content coming soon.*
+
+### Surrogate Models
+
+*Content coming soon.*
+
+### Combining Data and Physics
+
+*Content coming soon.*
+
+## 10.3 The SciML Ecosystem and Future Directions
+
+### Julia SciML Packages
+
+*Content coming soon.*
+
+### Open Challenges
+
+*Content coming soon.*
+
+### Where to Go from Here
+
+*Content coming soon.*

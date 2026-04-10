@@ -1,0 +1,45 @@
+---
+title: "Unit 6: Neural Networks Fundamentals"
+engine: julia
+toc-title: "Unit 6: Neural Networks"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 6.1 Perceptrons and Multilayer Networks
+
+### The Single Perceptron
+
+*Content coming soon.*
+
+### Feedforward Networks
+
+*Content coming soon.*
+
+### Backpropagation
+
+*Content coming soon.*
+
+## 6.2 Activation Functions and Universal Approximation
+
+### Common Activation Functions
+
+*Content coming soon.*
+
+### The Universal Approximation Theorem
+
+*Content coming soon.*
+
+## 6.3 Building Neural Networks with Lux.jl
+
+### Lux.jl Basics
+
+*Content coming soon.*
+
+### Defining and Training a Model
+
+*Content coming soon.*
+
+### Example: Function Approximation
+
+*Content coming soon.*

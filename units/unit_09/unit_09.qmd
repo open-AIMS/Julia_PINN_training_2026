@@ -1,0 +1,45 @@
+---
+title: "Unit 9: Advanced PINN Techniques"
+engine: julia
+toc-title: "Unit 9: Advanced PINNs"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 9.1 Adaptive Sampling and Weighting
+
+### Residual-Based Adaptive Refinement
+
+*Content coming soon.*
+
+### Loss Balancing Strategies
+
+*Content coming soon.*
+
+## 9.2 Multi-Scale and Multi-Physics PINNs
+
+### Handling Multiple Scales
+
+*Content coming soon.*
+
+### Coupled Systems of PDEs
+
+*Content coming soon.*
+
+### Domain Decomposition
+
+*Content coming soon.*
+
+## 9.3 Inverse Problems with PINNs
+
+### Parameter Estimation from Data
+
+*Content coming soon.*
+
+### Data Assimilation
+
+*Content coming soon.*
+
+### Applications to Ocean and Reef Models
+
+*Content coming soon.*

@@ -1,0 +1,41 @@
+---
+title: "Unit 1: Overview and PINN Demo"
+engine: julia
+toc-title: "Unit 1: Overview and PINN Demo"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 1.1 What are PINNs?
+
+### The Idea Behind Physics-Informed Learning
+
+*Content coming soon.*
+
+### Traditional vs Physics-Informed Approaches
+
+*Content coming soon.*
+
+## 1.2 A Simple PINN Demo
+
+### Problem Setup
+
+*Content coming soon.*
+
+### Implementation Walkthrough
+
+*Content coming soon.*
+
+### Results and Visualization
+
+*Content coming soon.*
+
+## 1.3 Why PINNs Matter
+
+### Applications in Science and Engineering
+
+*Content coming soon.*
+
+### Course Roadmap
+
+*Content coming soon.*

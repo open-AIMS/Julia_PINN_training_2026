@@ -1,0 +1,286 @@
+/*-- scss:defaults --*/
+
+// AIMS light blue color palette
+$navbar-blue: #0077b6;         // light blue for top banner
+$primary: #0077b6;             // blue for headings, links, accents
+$secondary: #2c3e50;
+$link-color: #0077b6;
+$body-color: #2c3e50;
+$body-bg: #ffffff;
+$font-size-root: 17px;
+$code-block-bg: #f7f9fb;
+$code-bg: #f0f4f7;
+
+/*-- scss:rules --*/
+
+// Navbar - light blue banner
+.navbar {
+  background-color: $navbar-blue !important;
+}
+
+// Hide search icon from navbar
+#quarto-search {
+  display: none !important;
+}
+
+// Bigger navbar logo
+.navbar-brand img.navbar-logo {
+  max-height: 55px !important;
+  height: 55px !important;
+}
+
+// Header styling
+.header-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5em 0 1em 0;
+  border-bottom: 2px solid $primary;
+  margin-bottom: 1.5em;
+}
+
+.header-container h1 {
+  font-size: 1.6em;
+  color: $primary;
+  margin-bottom: 0.2em;
+}
+
+.header-container p {
+  color: #6c757d;
+  font-size: 0.9em;
+  margin: 0;
+}
+
+.header-container a {
+  color: $primary;
+  text-decoration: none;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// Main content width
+$content-max-width: 1600px;
+$toc-width: 250px;
+
+#quarto-content {
+  max-width: none;
+}
+
+// Widen the main body column and reduce right margin
+.page-columns .content {
+  max-width: $content-max-width;
+}
+
+#quarto-content > .page-columns > .page-body {
+  max-width: none;
+}
+
+.col-body-outset, .col-page, .col-body {
+  max-width: none !important;
+}
+
+// Ensure TOC stays on the left
+#quarto-sidebar {
+  width: $toc-width;
+}
+
+// Heading styles
+h1, .h1 {
+  color: $primary;
+  border-bottom: 1px solid lighten($primary, 50%);
+  padding-bottom: 0.3em;
+}
+
+h2, .h2 {
+  color: $secondary;
+  margin-top: 2em;
+}
+
+h3, .h3 {
+  color: darken($secondary, 5%);
+}
+
+// Code blocks
+div.sourceCode {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin: 1em 0;
+}
+
+pre.sourceCode {
+  padding: 1em;
+  font-size: 0.82em;
+}
+
+// Collapsible code preview: show ~3 lines grayed,
+// click to expand
+div.cell-code.code-collapsible {
+  position: relative;
+  max-height: 3.6em;
+  overflow: hidden;
+  cursor: pointer;
+  transition: max-height 0.3s ease;
+
+  pre.sourceCode {
+    opacity: 0.35;
+    transition: opacity 0.3s ease;
+  }
+
+  &::after {
+    content: '▸ Expand code';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2em;
+    line-height: 2em;
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: #000000;
+    background: linear-gradient(
+      rgba($code-block-bg, 0),
+      rgba($code-block-bg, 0.95) 40%
+    );
+    pointer-events: none;
+  }
+
+  &.code-expanded {
+    max-height: 5000px;
+
+    pre.sourceCode {
+      opacity: 1;
+    }
+
+    &::after {
+      content: '▾ Collapse code';
+      position: relative;
+      height: auto;
+      display: block;
+      background: none;
+      padding-top: 0.2em;
+    }
+  }
+}
+
+code {
+  font-size: 0.85em;
+}
+
+// Inline code
+p code, li code {
+  background-color: $code-bg;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+
+// Cell output
+.cell-output pre {
+  background-color: #fafbfc;
+  border-left: 3px solid $primary;
+  padding: 0.8em 1em;
+  font-size: 0.82em;
+}
+
+// Callout customization
+.callout {
+  border-radius: 6px;
+  margin: 1.5em 0;
+}
+
+// Tables
+table {
+  margin: 1.5em 0;
+  border-collapse: collapse;
+  width: 100%;
+
+  th {
+    background-color: lighten($primary, 45%);
+    color: $secondary;
+    font-weight: 600;
+    padding: 0.6em 1em;
+    border-bottom: 2px solid $primary;
+  }
+
+  td {
+    padding: 0.5em 1em;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  tr:hover td {
+    background-color: #f7f9fb;
+  }
+}
+
+// TOC styling
+#TOC {
+  font-size: 0.9em;
+
+  #toc-title {
+    color: $primary;
+    font-weight: 600;
+    font-size: 1.05em;
+    padding-bottom: 0.4em;
+    border-bottom: 2px solid $primary;
+    margin-bottom: 0.5em;
+  }
+
+  a {
+    color: $secondary;
+    &:hover {
+      color: $primary;
+    }
+  }
+}
+
+// Math display
+.math.display {
+  margin: 1.5em 0;
+  overflow-x: auto;
+}
+
+// Figures
+figure {
+  margin: 1.5em 0;
+  text-align: center;
+
+  figcaption {
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-top: 0.5em;
+  }
+}
+
+// Hide published date from title block
+.quarto-title-meta-contents .date,
+.quarto-title-meta div:has(.date) {
+  display: none !important;
+}
+
+// Unit name below module title in TOC
+.toc-unit-name {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: $secondary;
+  margin-bottom: 0.8em;
+}
+
+// Last updated label below TOC
+.toc-last-updated {
+  font-size: 0.75em;
+  color: #999;
+  padding-top: 1em;
+  margin-top: 1em;
+  border-top: 1px solid #e2e8f0;
+}
+
+// Footer
+.footer-container {
+  max-width: 1100px;
+  margin: 3em auto 1em auto;
+  padding-top: 1em;
+  border-top: 1px solid #e2e8f0;
+  color: #6c757d;
+  font-size: 0.85em;
+}

@@ -1,0 +1,45 @@
+---
+title: "Unit 2: PDEs — Formulation and Classical Methods"
+engine: julia
+toc-title: "Unit 2: PDEs"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+## 2.1 PDE Classification and Examples
+
+### What is a PDE?
+
+*Content coming soon.*
+
+### Elliptic, Parabolic, and Hyperbolic PDEs
+
+*Content coming soon.*
+
+### Classic Examples: Heat, Wave, Laplace
+
+*Content coming soon.*
+
+## 2.2 Boundary and Initial Conditions
+
+### Types of Boundary Conditions
+
+*Content coming soon.*
+
+### Well-Posedness
+
+*Content coming soon.*
+
+## 2.3 Classical Solution Techniques
+
+### Separation of Variables
+
+*Content coming soon.*
+
+### Fourier Series Methods
+
+*Content coming soon.*
+
+### Green's Functions
+
+*Content coming soon.*

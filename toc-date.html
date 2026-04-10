@@ -1,0 +1,88 @@
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var toc = document.getElementById("TOC");
+
+  if (toc) {
+    // Make TOC title clickable to scroll to top
+    var tocTitle = document.getElementById("toc-title");
+    if (tocTitle) {
+      tocTitle.style.cursor = "pointer";
+      tocTitle.addEventListener("click", function() {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+
+    // Add last update date
+    var dateEl = document.querySelector("p.date");
+    if (dateEl) {
+      var div = document.createElement("div");
+      div.className = "toc-last-updated";
+      div.textContent = "Last update: " + dateEl.textContent.trim();
+      toc.appendChild(div);
+    }
+  }
+
+  // Collapsible code blocks: preview first ~3 lines
+  document.querySelectorAll("div.cell-code").forEach(function(el) {
+    var pre = el.querySelector("pre");
+    if (!pre) return;
+    if (pre.scrollHeight <= 90) return;
+    el.classList.add("code-collapsible");
+    el.addEventListener("click", function() {
+      var rect = el.getBoundingClientRect();
+      var offsetBefore = rect.top;
+      el.classList.toggle("code-expanded");
+      var offsetAfter = el.getBoundingClientRect().top;
+      window.scrollBy(0, offsetAfter - offsetBefore);
+    });
+  });
+
+  // Previous/Next navigation for unit pages
+  var path = location.pathname;
+  var match = path.match(/unit_(\d+)\.html$/);
+  if (!match) return;
+  var unit = parseInt(match[1]);
+
+  var baseDir = path.replace(/units\/unit_\d+\/unit_\d+\.html$/, "");
+  var unitPath = function(u) {
+    var s = String(u).padStart(2, "0");
+    return baseDir + "units/unit_" + s + "/unit_" + s + ".html";
+  };
+
+  var nav = document.createElement("div");
+  nav.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:0.5em 1em; margin-bottom:1em; background:#e8f4f8; border-radius:6px; font-size:0.9em;";
+
+  var indexLink = '<a href="' + baseDir + 'index.html" style="color:#0077b6; text-decoration:none;">Course Overview</a>';
+  nav.innerHTML = '<div class="nav-prev"></div><div>' + indexLink + '</div><div class="nav-next"></div>';
+
+  function probeLink(candidates, container, label) {
+    if (candidates.length === 0) return;
+    var href = candidates.shift();
+    fetch(href, { method: "HEAD" }).then(function(r) {
+      if (r.ok) {
+        container.innerHTML = '<a href="' + href + '" style="color:#0077b6; text-decoration:none;">' + label + '</a>';
+      } else if (candidates.length > 0) {
+        probeLink(candidates, container, label);
+      }
+    }).catch(function() {
+      if (candidates.length > 0) probeLink(candidates, container, label);
+    });
+  }
+
+  var prevDiv = nav.querySelector(".nav-prev");
+  var nextDiv = nav.querySelector(".nav-next");
+
+  if (unit > 1) {
+    prevDiv.innerHTML = '<a href="' + unitPath(unit - 1) + '" style="color:#0077b6; text-decoration:none;">&larr; Previous</a>';
+  }
+  probeLink([unitPath(unit + 1)], nextDiv, "Next &rarr;");
+
+  var titleBlock = document.querySelector(".quarto-title-meta") || document.querySelector(".quarto-title");
+  if (titleBlock) {
+    titleBlock.parentNode.insertBefore(nav, titleBlock.nextSibling);
+  } else {
+    var content = document.querySelector("#quarto-content") || document.body;
+    content.prepend(nav);
+  }
+});
+</script>

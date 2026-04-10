@@ -1,0 +1,43 @@
+project:
+  type: website
+  output-dir: _site
+
+execute:
+    error: true
+    echo: true
+    enabled: true
+    daemon: 300
+
+julia:
+    exeflags: ["--project=@.", "--threads=1"]
+
+website:
+  title: "2026 PINNs Workshop"
+  navbar:
+    logo: images/aims-logo.svg
+    logo-alt: "AIMS"
+    logo-href: /index.html
+    title-href: /index.html
+
+format:
+  html:
+    theme:
+      - cosmo
+      - styles.scss
+    html-math-method: katex
+    anchor-sections: true
+    smooth-scroll: true
+    respect-user-color-scheme: true
+    toc: true
+    toc-depth: 1
+    toc-expand: 2
+    toc-location: left
+    toc-title: Contents
+    number-sections: false
+    code-copy: true
+    fig-format: svg
+    fig-width: 8
+    fig-height: 6
+    highlight-style: github
+    include-after-body: toc-date.html
+    link-external-newwindow: true
