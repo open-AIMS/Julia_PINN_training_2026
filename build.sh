@@ -51,14 +51,9 @@ if [ "$1" = "clean" ]; then
 fi
 
 if [ $# -eq 0 ]; then
-    # Build everything
+    # Build everything (full project render for TOC/navigation)
     echo "Building entire course..."
-    quarto render "$ROOT/index.qmd"
-    for f in "$ROOT"/units/unit_*/unit_*.qmd "$ROOT"/units/appendix_*/appendix_*.qmd; do
-        [ -f "$f" ] || continue
-        echo "  Rendering $(basename "$f") ..."
-        quarto render "$f"
-    done
+    quarto render
     echo "Done. Output in $SITE"
     if $OPEN; then
         open "$SITE"
