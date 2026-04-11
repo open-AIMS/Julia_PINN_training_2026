@@ -66,22 +66,33 @@ $toc-width: 250px;
   max-width: none;
 }
 
-// Widen the main body column and reduce right margin
-.page-columns .content {
-  max-width: $content-max-width;
-}
-
-#quarto-content > .page-columns > .page-body {
-  max-width: none;
+// Override Quarto grid to widen content body
+.page-columns {
+  grid-template-columns: [screen-start] 1.5em [screen-start-inset page-start page-start-inset] 0 [body-start-outset] 0 [body-start] 1em [body-content-start] 1fr [body-content-end] 1em [body-end body-end-outset page-end-inset page-end] 0 [screen-end-inset] 1.5em [screen-end] !important;
 }
 
 .col-body-outset, .col-page, .col-body {
   max-width: none !important;
 }
 
-// Ensure TOC stays on the left
-#quarto-sidebar {
+// Move TOC from right margin to left side
+#quarto-margin-sidebar {
+  position: fixed;
+  left: 0;
+  top: auto;
   width: $toc-width;
+  padding: 1em 1em 1em 1.5em;
+  order: -1;
+}
+
+// Hide the empty site-nav sidebar
+#quarto-sidebar {
+  display: none !important;
+}
+
+// Adjust content to account for left TOC
+#quarto-content {
+  padding-left: $toc-width;
 }
 
 // Heading styles

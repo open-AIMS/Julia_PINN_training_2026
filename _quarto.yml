@@ -18,6 +18,7 @@ website:
     logo-alt: "AIMS"
     logo-href: /index.html
     title-href: /index.html
+  sidebar: false
 
 format:
   html:
@@ -29,11 +30,11 @@ format:
     smooth-scroll: true
     respect-user-color-scheme: true
     toc: true
-    toc-depth: 1
+    toc-depth: 2
     toc-expand: 2
-    toc-location: left
     toc-title: Contents
-    number-sections: false
+    number-sections: true
+    number-depth: 1
     code-copy: true
     fig-format: svg
     fig-width: 8
