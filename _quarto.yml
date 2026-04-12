@@ -41,4 +41,5 @@ format:
     fig-height: 6
     highlight-style: github
     include-after-body: toc-date.html
+    embed-resources: true
     link-external-newwindow: true

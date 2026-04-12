@@ -10,15 +10,72 @@ date-format: "DD/MM/YYYY"
 
 ### What is a PDE?
 
-*Content coming soon.*
+A **partial differential equation (PDE)** is a relationship between an unknown function of several variables and its partial derivatives. In general form:
+
+$$F\!\left(x_1, \ldots, x_n, \, u, \, \frac{\partial u}{\partial x_1}, \ldots, \frac{\partial^2 u}{\partial x_1^2}, \ldots\right) = 0$$
+
+The **order** of a PDE is the highest derivative that appears. We focus on second-order PDEs in two variables $(x, t)$ or $(x, y)$, which cover most of the physics relevant to PINNs.
 
 ### Elliptic, Parabolic, and Hyperbolic PDEs
 
-*Content coming soon.*
+The general second-order linear PDE in two variables has the form:
+
+$$a \, u_{xx} + 2b \, u_{xy} + c \, u_{yy} + \text{lower-order terms} = 0$$
+
+where the coefficients $a$, $b$, $c$ may depend on position. The character of solutions depends entirely on the **discriminant** $\Delta = b^2 - ac$:
+
+| Type | Condition | Behaviour | Canonical example |
+|------|-----------|-----------|-------------------|
+| **Elliptic** | $b^2 - ac < 0$ | Steady-state, smooth | Laplace: $u_{xx} + u_{yy} = 0$ |
+| **Parabolic** | $b^2 - ac = 0$ | Diffusion, smoothing | Heat: $u_t = \alpha \, u_{xx}$ |
+| **Hyperbolic** | $b^2 - ac > 0$ | Wave propagation | Wave: $u_{tt} = c^2 \, u_{xx}$ |
+
+This classification matters because it determines:
+
+- What **boundary/initial conditions** are needed for a well-posed problem
+- How **information propagates** through the domain
+- Which **numerical methods** are appropriate (Unit 3)
+- How **PINNs** should be configured (Units 8–9)
 
 ### Classic Examples: Heat, Wave, Laplace
 
-*Content coming soon.*
+**The Heat (Diffusion) Equation** — parabolic
+
+$$\frac{\partial u}{\partial t} = \alpha \frac{\partial^2 u}{\partial x^2}$$
+
+Models how temperature $u(x,t)$ evolves over time. The diffusion coefficient $\alpha > 0$ controls the rate. The second spatial derivative measures *curvature*: hills flatten, valleys fill in, and sharp features smooth out. Information propagates infinitely fast (in theory) but with exponentially decaying influence.
+
+**The Wave Equation** — hyperbolic
+
+$$\frac{\partial^2 u}{\partial t^2} = c^2 \frac{\partial^2 u}{\partial x^2}$$
+
+Models vibrating strings, sound, and water waves. The wave speed $c$ determines how fast disturbances travel. Unlike diffusion, waves preserve their shape — an initial bump splits into two pulses traveling in opposite directions at speed $c$. Information travels along **characteristics** $x \pm ct = \text{const}$.
+
+**Laplace's Equation** — elliptic
+
+$$\frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = 0$$
+
+Models steady-state temperature, electrostatic potential, and incompressible irrotational flow. There is no time variable — the solution is entirely determined by boundary conditions. Solutions are maximally smooth and satisfy the **mean value property**: the value at any point equals the average over any surrounding circle.
+
+### Basic Physical Phenomena
+
+Most PDEs in science and engineering are built from three fundamental mechanisms:
+
+**Diffusion** — spreading and smoothing. A quantity (heat, concentration) moves from regions of high value to low, driven by spatial curvature. The prototype is the heat equation $u_t = \alpha \, u_{xx}$. Sharp features blur over time.
+
+**Advection** — transport by a flow. A quantity is carried along by a velocity field without changing shape. The prototype is $u_t + c \, u_x = 0$, whose solution is simply $u(x,t) = u_0(x - ct)$ — the initial profile sliding at speed $c$.
+
+**Reaction** — local growth or decay. A quantity changes in place due to sources, sinks, or chemical kinetics. The simplest form is $u_t = f(u)$, an ODE at each point.
+
+Real-world models combine these:
+
+| Equation | Mechanisms | Example application |
+|----------|-----------|-------------------|
+| $u_t = \alpha \, u_{xx}$ | Diffusion | Heat conduction |
+| $u_t + c \, u_x = 0$ | Advection | Pollutant in a river |
+| $u_t = \alpha \, u_{xx} + c \, u_x$ | Advection-diffusion | Nutrient dispersal in ocean currents |
+| $u_t = \alpha \, u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement, chemical patterns |
+| $u_t + c \, u_x = \alpha \, u_{xx} + f(u)$ | All three | Population dynamics in a flowing medium |
 
 ## 2.2 Boundary and Initial Conditions
 
@@ -37,6 +94,14 @@ date-format: "DD/MM/YYYY"
 *Content coming soon.*
 
 ### Fourier Series Methods
+
+*Content coming soon.*
+
+### Method of Characteristics
+
+*Content coming soon.*
+
+### Laplace Transform
 
 *Content coming soon.*
 

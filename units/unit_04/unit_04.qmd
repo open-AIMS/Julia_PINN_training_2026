@@ -8,13 +8,87 @@ date-format: "DD/MM/YYYY"
 
 ## 4.1 Ocean Dynamics and Governing Equations
 
-### Navier-Stokes and Shallow Water Equations
+### Navier-Stokes and the Lid-Driven Cavity
 
-*Content coming soon.*
+The incompressible Navier-Stokes equations govern fluid motion:
+
+$$\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = -\frac{\nabla p}{\rho} + \nu \nabla^2 \mathbf{u}, \qquad \nabla \cdot \mathbf{u} = 0$$
+
+The Reynolds number $\text{Re} = UL/\nu$ measures inertia vs viscosity. The classic **lid-driven cavity** problem illustrates these equations: a square box with a moving lid drives a recirculating flow. We solve it using **Chorin's projection method** (fractional step).
+
+```{julia}
+#| eval: false
+
+using Plots
+
+N  = 41;  L = 1.0;  Re = 100.0;  U = 1.0
+ν  = U * L / Re
+dx = L / (N - 1);  dy = dx
+dt = min(0.25 * dx^2 / ν, 0.25 * dx / U)
+nsteps = 3000
+
+u = zeros(N, N);  v = zeros(N, N);  p = zeros(N, N)
+
+function solve_pressure!(p, rhs, dx, dy; maxiter=100)
+    for _ in 1:maxiter
+        p_old = copy(p)
+        for i in 2:(N-1), j in 2:(N-1)
+            p[i,j] = 0.5 * ((p_old[i+1,j] + p_old[i-1,j]) * dy^2 +
+                             (p_old[i,j+1] + p_old[i,j-1]) * dx^2 -
+                             rhs[i,j] * dx^2 * dy^2) / (dx^2 + dy^2)
+        end
+        p[1,:] .= p[2,:];  p[N,:] .= p[N-1,:]
+        p[:,1] .= p[:,2];  p[:,N] .= p[:,N-1]
+    end
+end
+
+for step in 1:nsteps
+    u_star = copy(u);  v_star = copy(v)
+    for i in 2:(N-1), j in 2:(N-1)
+        dudx = (u[i+1,j] - u[i-1,j]) / (2dx)
+        dudy = (u[i,j+1] - u[i,j-1]) / (2dy)
+        dvdx = (v[i+1,j] - v[i-1,j]) / (2dx)
+        dvdy = (v[i,j+1] - v[i,j-1]) / (2dy)
+        lapu = (u[i+1,j]-2u[i,j]+u[i-1,j])/dx^2 + (u[i,j+1]-2u[i,j]+u[i,j-1])/dy^2
+        lapv = (v[i+1,j]-2v[i,j]+v[i-1,j])/dx^2 + (v[i,j+1]-2v[i,j]+v[i,j-1])/dy^2
+        u_star[i,j] = u[i,j] + dt*(-(u[i,j]*dudx + v[i,j]*dudy) + ν*lapu)
+        v_star[i,j] = v[i,j] + dt*(-(u[i,j]*dvdx + v[i,j]*dvdy) + ν*lapv)
+    end
+    u_star[:,1] .= 0; v_star[:,1] .= 0; u_star[:,N] .= U; v_star[:,N] .= 0
+    u_star[1,:] .= 0; v_star[1,:] .= 0; u_star[N,:] .= 0; v_star[N,:] .= 0
+
+    rhs = zeros(N, N)
+    for i in 2:(N-1), j in 2:(N-1)
+        rhs[i,j] = (1/dt)*((u_star[i+1,j]-u_star[i-1,j])/(2dx) +
+                            (v_star[i,j+1]-v_star[i,j-1])/(2dy))
+    end
+    solve_pressure!(p, rhs, dx, dy)
+
+    for i in 2:(N-1), j in 2:(N-1)
+        u[i,j] = u_star[i,j] - dt*(p[i+1,j]-p[i-1,j])/(2dx)
+        v[i,j] = v_star[i,j] - dt*(p[i,j+1]-p[i,j-1])/(2dy)
+    end
+    u[:,1] .= 0; v[:,1] .= 0; u[:,N] .= U; v[:,N] .= 0
+    u[1,:] .= 0; v[1,:] .= 0; u[N,:] .= 0; v[N,:] .= 0
+end
+
+ω = zeros(N, N)
+for i in 2:(N-1), j in 2:(N-1)
+    ω[i,j] = (v[i+1,j]-v[i-1,j])/(2dx) - (u[i,j+1]-u[i,j-1])/(2dy)
+end
+
+xs = range(0, L, length=N);  ys = range(0, L, length=N)
+speed = sqrt.(u.^2 .+ v.^2)
+
+p1 = heatmap(xs, ys, speed', title="Speed |u⃗|", color=:turbo, aspect_ratio=1)
+p2 = heatmap(xs, ys, ω', title="Vorticity ω", color=:RdBu, aspect_ratio=1,
+             clims=(-maximum(abs.(ω)), maximum(abs.(ω))))
+display(plot(p1, p2, layout=(1,2), size=(900,400)))
+```
 
 ### Advection-Diffusion in Ocean Currents
 
-*Content coming soon.*
+Pollutant dispersal, nutrient transport, and larval connectivity in the ocean are governed by advection-diffusion equations — the same convection-diffusion PDE from Unit 3, applied to oceanographic contexts.
 
 ## 4.2 Reef Ecosystem Models
 
@@ -26,15 +100,16 @@ date-format: "DD/MM/YYYY"
 
 *Content coming soon.*
 
-## 4.3 Numerical Simulation of Ocean and Reef PDEs
+## 4.3 The Shallow Water Equations
 
-### Discretization Strategies for Geophysical Flows
+### Governing Equations
 
-*Content coming soon.*
+The linearised shallow water equations are a coupled hyperbolic system for surface elevation $\eta$ and velocity $u$:
 
-### Visualization of Simulation Results
+$$\frac{\partial \eta}{\partial t} + H \frac{\partial u}{\partial x} = 0 \quad \text{(continuity)}$$
+$$\frac{\partial u}{\partial t} + g \frac{\partial \eta}{\partial x} = 0 \quad \text{(momentum)}$$
 
-*Content coming soon.*
+with wave speed $c = \sqrt{gH}$. A Gaussian bump in $\eta$ splits into two counter-propagating waves — we will solve this with a PINN in Unit 8.
 
 ### Challenges and Open Problems
 

@@ -10,36 +10,256 @@ date-format: "DD/MM/YYYY"
 
 ### Discretization of Derivatives
 
-*Content coming soon.*
+The core idea: replace continuous derivatives with algebraic approximations on a grid.
+
+- **Forward difference**: $\frac{\partial u}{\partial t} \approx \frac{u_i^{n+1} - u_i^n}{\Delta t}$
+- **Central difference**: $\frac{\partial^2 u}{\partial x^2} \approx \frac{u_{i+1}^n - 2u_i^n + u_{i-1}^n}{\Delta x^2}$
+
+The combination of forward-in-time and central-in-space (FTCS) is the simplest explicit scheme. Stability requires the CFL condition: $\alpha \Delta t / \Delta x^2 \leq 0.5$ for diffusion.
+
+### The Diffusion Equation (1D)
+
+The heat equation $\partial u/\partial t = \alpha \, \partial^2 u/\partial x^2$ is the simplest parabolic PDE. Where $u$ curves upward (a valley), heat flows in; where it curves downward (a hill), heat flows out. The net effect: bumps smooth out, sharp features blur.
+
+```{julia}
+#| eval: false
+
+using Plots
+
+# --- Parameters ---
+L  = 1.0;  nx = 101;  α = 0.01;  T = 5.0
+dx = L / (nx - 1)
+dt = 0.4 * dx^2 / α       # just under the CFL stability limit
+nt = ceil(Int, T / dt)
+x  = range(0, L, length=nx)
+
+# --- Initial condition: hot spot at x=0.75 ---
+u = exp.(-200 .* (x .- 0.75).^2)
+
+# Fixed temperature sources at boundaries and midpoint
+i_mid = (nx + 1) ÷ 2
+u[1] = 0.25;  u[nx] = 0.25;  u[i_mid] = 0.25
+
+# --- FTCS time stepping ---
+u_new = similar(u)
+anim = @animate for n in 0:nt
+    if n > 0
+        for i in 2:(nx-1)
+            u_new[i] = u[i] + α * dt / dx^2 * (u[i+1] - 2u[i] + u[i-1])
+        end
+        u_new[1] = 0.25;  u_new[nx] = 0.25;  u_new[i_mid] = 0.25
+        u, u_new = u_new, u
+    end
+    plot(x, u, title="Diffusion: heat sources at ends and middle",
+         xlabel="x", ylabel="u(x,t)", legend=false,
+         ylims=(0, 1.05), lw=2)
+    annotate!(0.75, 0.9, text("t = $(round(n*dt, digits=3))", 10))
+end every max(1, nt ÷ 100)
+
+gif(anim, "01_diffusion.gif", fps=8)
+```
+
+### The Diffusion Equation (2D)
+
+The natural extension: $\partial u/\partial t = \alpha \nabla^2 u$. Heat now spreads radially from hot spots.
+
+```{julia}
+#| eval: false
+
+using Plots
+
+L = 1.0;  nx = ny = 81;  α = 0.01;  T = 2.0
+dx = L / (nx - 1);  dy = dx
+dt = 0.4 / (α * (1/dx^2 + 1/dy^2))
+nt = ceil(Int, T / dt)
+x = range(0, L, length=nx);  y = range(0, L, length=ny)
+
+u = [exp(-200*((xi-0.75)^2 + (yj-0.75)^2)) for xi in x, yj in y]
+
+i_mid = (nx + 1) ÷ 2;  j_mid = (ny + 1) ÷ 2
+
+function apply_sources!(u)
+    u[1,1] = 0.3;  u[nx,1] = 0.3;  u[1,ny] = 0.3;  u[nx,ny] = 0.3
+    u[i_mid, j_mid] = 0.3
+end
+apply_sources!(u)
+
+frames = []
+save_interval = max(1, nt ÷ 80)
+
+for n in 0:nt
+    if n > 0
+        u_new = copy(u)
+        for i in 2:(nx-1), j in 2:(ny-1)
+            u_new[i,j] = u[i,j] +
+                α * dt / dx^2 * (u[i+1,j] + u[i-1,j] - 2u[i,j]) +
+                α * dt / dy^2 * (u[i,j+1] + u[i,j-1] - 2u[i,j])
+        end
+        u_new[1,:] .= u_new[2,:];  u_new[nx,:] .= u_new[nx-1,:]
+        u_new[:,1] .= u_new[:,2];  u_new[:,ny] .= u_new[:,ny-1]
+        apply_sources!(u_new)
+        u .= u_new
+    end
+    if n % save_interval == 0
+        push!(frames, (copy(u), n * dt))
+    end
+end
+
+anim = @animate for (snap, t) in frames
+    heatmap(x, y, snap', title="2D Diffusion — t = $(round(t, digits=3))",
+            xlabel="x", ylabel="y", color=:turbo, clims=(0, 1),
+            aspect_ratio=1, size=(500, 450))
+end
+gif(anim, "01b_diffusion_2d.gif", fps=10)
+```
 
 ### Explicit and Implicit Schemes
 
-*Content coming soon.*
+The FTCS scheme above is *explicit* — cheap per step but conditionally stable. *Implicit* schemes (e.g. Crank-Nicolson) require solving a linear system each step but are unconditionally stable, allowing much larger time steps.
 
-### Implementation in Julia
+## 3.2 The Advection and Wave Equations
 
-*Content coming soon.*
+### The Advection Equation
 
-## 3.2 Spectral Methods
+The simplest hyperbolic PDE: $\partial u/\partial t + c \, \partial u/\partial x = 0$. The solution is pure translation — the initial shape slides at speed $c$ without changing. The **upwind scheme** respects this directionality of information flow.
 
-### Fourier Spectral Methods
+```{julia}
+#| eval: false
 
-*Content coming soon.*
+using Plots
 
-### Chebyshev Collocation
+L = 2.0;  nx = 201;  c = 1.0;  T = 1.0
+dx = L / (nx - 1);  dt = 0.8 * dx / abs(c)
+nt = ceil(Int, T / dt);  x = range(0, L, length=nx)
 
-*Content coming soon.*
+u = exp.(-100 .* (x .- 0.5).^2)
+u_exact(t) = exp.(-100 .* (x .- 0.5 .- c*t).^2)
+
+anim = @animate for n in 0:nt
+    if n > 0
+        u_new = copy(u)
+        for i in 2:nx
+            u_new[i] = u[i] - c * dt / dx * (u[i] - u[i-1])
+        end
+        u_new[1] = 0.0;  u .= u_new
+    end
+    t = n * dt
+    plot(x, u, label="numerical", lw=2,
+         title="Advection equation", xlabel="x", ylabel="u(x,t)",
+         ylims=(-0.1, 1.1), legend=:topright)
+    plot!(x, u_exact(t), label="exact", ls=:dash, lw=2, color=:black)
+    annotate!(1.6, 0.95, text("t = $(round(t, digits=3))", 10))
+end every max(1, nt ÷ 100)
+
+gif(anim, "02_advection.gif", fps=8)
+```
+
+Notice the numerical solution smears compared to the exact one — this is **numerical diffusion**, an artefact of the first-order upwind scheme.
+
+### The Wave Equation
+
+$\partial^2 u/\partial t^2 = c^2 \, \partial^2 u/\partial x^2$ — the prototypical hyperbolic PDE. Unlike diffusion, waves preserve their shape. An initial bump splits into two half-amplitude pulses traveling in opposite directions.
+
+```{julia}
+#| eval: false
+
+using Plots
+
+L = 2.0;  nx = 401;  c = 1.0;  T = 1.5
+dx = L / (nx - 1);  dt = 0.8 * dx / c
+nt = ceil(Int, T / dt);  r = (c * dt / dx)^2
+x = range(0, L, length=nx)
+
+# Initial displacement (Gaussian bump), zero initial velocity
+u_prev = exp.(-300 .* (x .- 1.0).^2)
+
+# First time step (special, using zero initial velocity)
+u_curr = zeros(nx)
+for i in 2:(nx-1)
+    u_curr[i] = u_prev[i] + 0.5r * (u_prev[i+1] - 2u_prev[i] + u_prev[i-1])
+end
+
+snapshots = [(copy(u_prev), 0.0)]
+save_interval = max(1, nt ÷ 6)
+
+for n in 1:nt
+    u_next = zeros(nx)
+    for i in 2:(nx-1)
+        u_next[i] = 2u_curr[i] - u_prev[i] + r * (u_curr[i+1] - 2u_curr[i] + u_curr[i-1])
+    end
+    u_next[1] = 0.0;  u_next[nx] = 0.0
+    u_prev .= u_curr;  u_curr .= u_next
+    if n % save_interval == 0
+        push!(snapshots, (copy(u_curr), n * dt))
+    end
+end
+
+p = plot(title="Wave equation: bump splitting", xlabel="x", ylabel="u(x,t)",
+         legend=:topright, ylims=(-0.6, 1.1))
+for (snap, t) in snapshots
+    plot!(p, x, snap, label="t = $(round(t, digits=3))", lw=2)
+end
+display(p)
+```
 
 ## 3.3 Convergence and Stability
 
 ### CFL Condition
 
-*Content coming soon.*
+The Courant–Friedrichs–Lewy (CFL) condition ensures that the numerical domain of dependence contains the physical domain of dependence:
+
+- **Diffusion**: $\alpha \Delta t / \Delta x^2 \leq 0.5$
+- **Advection**: $c \Delta t / \Delta x \leq 1$
+- **Wave**: $c \Delta t / \Delta x \leq 1$
+
+Violating the CFL condition causes the solution to blow up exponentially.
 
 ### Error Analysis
 
-*Content coming soon.*
+Finite difference schemes introduce two types of error:
+
+- **Truncation error**: from replacing derivatives with finite approximations (controlled by grid refinement)
+- **Numerical diffusion/dispersion**: scheme-dependent artefacts (e.g. upwind smearing for advection)
 
 ### Comparing Numerical Approaches
 
-*Content coming soon.*
+The convection-diffusion equation $\partial u/\partial t + c \, \partial u/\partial x = \alpha \, \partial^2 u/\partial x^2$ combines both effects. The **Péclet number** $\text{Pe} = cL/\alpha$ determines which dominates.
+
+```{julia}
+#| eval: false
+
+using Plots
+
+L = 2.0;  nx = 201;  c = 1.0;  α = 0.005;  T = 0.8
+dx = L / (nx - 1)
+dt = min(0.8 * dx / abs(c), 0.4 * dx^2 / α)
+nt = ceil(Int, T / dt);  x = range(0, L, length=nx)
+Pe = c * L / α
+
+u = [0.3 ≤ xi ≤ 0.7 ? 1.0 : 0.0 for xi in x]
+
+snapshots = [(copy(u), 0.0)]
+save_interval = max(1, nt ÷ 5)
+
+for n in 1:nt
+    u_new = copy(u)
+    for i in 2:(nx-1)
+        advection = -c * (u[i] - u[i-1]) / dx
+        diffusion = α * (u[i+1] - 2u[i] + u[i-1]) / dx^2
+        u_new[i] = u[i] + dt * (advection + diffusion)
+    end
+    u_new[1] = 0.0;  u_new[nx] = 0.0;  u .= u_new
+    if n % save_interval == 0
+        push!(snapshots, (copy(u), n * dt))
+    end
+end
+
+p = plot(title="Convection-diffusion (Pe=$(round(Pe,digits=0)))",
+         xlabel="x", ylabel="u(x,t)", legend=:topright)
+for (snap, t) in snapshots
+    plot!(p, x, snap, label="t = $(round(t, digits=3))", lw=2)
+end
+display(p)
+```
+
+The pulse translates rightward (advection) while its edges smooth out (diffusion).

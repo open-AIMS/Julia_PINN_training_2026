@@ -10,37 +10,236 @@ date-format: "DD/MM/YYYY"
 
 ### The PINN Loss Function
 
-*Content coming soon.*
+A PINN approximates the solution $u(\mathbf{x}, t)$ with a neural network $u_\theta(\mathbf{x}, t)$. The total loss combines:
+
+$$\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_b \mathcal{L}_{\text{BC}} + \lambda_i \mathcal{L}_{\text{IC}}$$
+
+where:
+
+- $\mathcal{L}_{\text{PDE}} = \frac{1}{N_r} \sum_{i=1}^{N_r} |r(\mathbf{x}_i, t_i)|^2$ is the PDE residual at collocation points
+- $\mathcal{L}_{\text{BC}}$ and $\mathcal{L}_{\text{IC}}$ enforce boundary and initial conditions
 
 ### Residual Points and Collocation
 
-*Content coming soon.*
+Unlike classical methods that solve on a structured grid, PINNs evaluate the PDE residual at scattered **collocation points**. These can be placed on a grid (`GridTraining`) or sampled randomly. The gradients are computed via automatic differentiation — no finite differences needed.
 
 ### Incorporating Boundary and Initial Conditions
 
-*Content coming soon.*
+Boundary and initial conditions can be enforced:
 
-## 8.2 Implementing a Basic PINN
+- **Softly**: as additional loss terms (the NeuralPDE.jl approach)
+- **Hardly**: by constructing the network architecture to satisfy them exactly
 
-### Solving the Heat Equation with a PINN
+## 8.2 Implementing PINNs
 
-*Content coming soon.*
+### Solving the Diffusion Equation
 
-### Code Walkthrough
+We revisit the 1D diffusion equation from Unit 1, now with a deeper understanding of the components.
 
-*Content coming soon.*
+```{julia}
+#| eval: false
+
+using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
+using DomainSets: ClosedInterval
+using Plots
+
+@parameters x t
+@variables u(..)
+
+Dₜ  = Differential(t)
+Dₓₓ = Differential(x) ∘ Differential(x)
+
+α = 0.01
+
+eq = Dₜ(u(x, t)) ~ α * Dₓₓ(u(x, t))
+
+domains = [x ∈ ClosedInterval(0.0, 1.0), t ∈ ClosedInterval(0.0, 2.0)]
+
+bcs = [
+    u(x, 0)    ~ exp(-200 * (x - 0.5)^2),
+    u(0.0, t)  ~ 0.0,
+    u(1.0, t)  ~ 0.0,
+]
+
+@named pde_system = PDESystem(eq, bcs, domains, [x, t], [u(x, t)])
+
+chain = Lux.Chain(
+    Lux.Dense(2, 20, Lux.σ),
+    Lux.Dense(20, 20, Lux.σ),
+    Lux.Dense(20, 1),
+)
+
+discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.05]))
+prob = discretize(pde_system, discretization)
+
+iter = Ref(0)
+callback = function (p, l)
+    iter[] += 1
+    iter[] % 100 == 0 && println("  iter $(iter[]): loss = $(round(l, sigdigits=4))")
+    return false
+end
+
+res = Optimization.solve(prob, LBFGS(); maxiters=1500, callback=callback)
+
+phi = discretization.phi;  trained_params = res.u
+xs = range(0, 1, length=101)
+
+plt = plot(title="PINN: 1D diffusion", xlabel="x", ylabel="u(x,t)",
+           ylims=(-0.1, 1.1), lw=2)
+for t_val in [0.0, 0.1, 0.25, 0.5, 1.0, 2.0]
+    u_pred = [first(phi([xi, t_val], trained_params)) for xi in xs]
+    plot!(plt, xs, u_pred, label="t = $t_val")
+end
+display(plt)
+```
+
+### Laplace Equation on a Circular Domain
+
+A more interesting geometry: solve $\nabla^2 u = 0$ on a disk with $u(1, \theta) = \sin(3\theta)$. The exact solution is $u(r, \theta) = r^3 \sin(3\theta)$. The PINN naturally handles the circular domain without any mesh generation.
+
+```{julia}
+#| eval: false
+
+using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
+using DomainSets, Plots
+
+@parameters r θ
+@variables u(..)
+
+Dᵣ  = Differential(r);  Dᵣᵣ = Differential(r) ∘ Differential(r)
+Dθθ = Differential(θ) ∘ Differential(θ)
+
+# Laplace in polar coords, multiplied by r² to remove singularity
+eq = r^2 * Dᵣᵣ(u(r, θ)) + r * Dᵣ(u(r, θ)) + Dθθ(u(r, θ)) ~ 0
+
+R = 1.0;  r_min = 0.05
+
+domains = [r ∈ ClosedInterval(r_min, R), θ ∈ ClosedInterval(0.0, 2π)]
+
+bcs = [
+    u(R, θ)     ~ sin(3θ),
+    u(r_min, θ) ~ r_min^3 * sin(3θ),
+    u(r, 0.0)   ~ 0.0,
+    u(r, 2π)    ~ 0.0,
+]
+
+@named pde_system = PDESystem(eq, bcs, domains, [r, θ], [u(r, θ)])
+
+chain = Lux.Chain(
+    Lux.Dense(2, 32, Lux.tanh), Lux.Dense(32, 32, Lux.tanh),
+    Lux.Dense(32, 32, Lux.tanh), Lux.Dense(32, 1),
+)
+
+discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.1]))
+prob = discretize(pde_system, discretization)
+
+iter = Ref(0)
+callback = function (p, l)
+    iter[] += 1
+    iter[] % 100 == 0 && println("  iter $(iter[]): loss = $(round(l, sigdigits=4))")
+    return false
+end
+
+res = Optimization.solve(prob, LBFGS(); maxiters=3000, callback=callback)
+
+phi = discretization.phi;  trained_params = res.u
+n = 100;  xs = range(-R, R, length=n);  ys = range(-R, R, length=n)
+u_pred = fill(NaN, n, n);  u_exact = fill(NaN, n, n)
+
+for (i, yi) in enumerate(ys), (j, xj) in enumerate(xs)
+    ri = sqrt(xj^2 + yi^2)
+    if r_min ≤ ri ≤ R
+        θj = atan(yi, xj);  θj = θj < 0 ? θj + 2π : θj
+        u_pred[i,j]  = first(phi([ri, θj], trained_params))
+        u_exact[i,j] = ri^3 * sin(3θj)
+    end
+end
+
+p1 = heatmap(xs, ys, u_pred, title="PINN", aspect_ratio=:equal, color=:viridis, clims=(-1,1))
+p2 = heatmap(xs, ys, u_exact, title="Exact: r³sin(3θ)", aspect_ratio=:equal, color=:viridis, clims=(-1,1))
+p3 = heatmap(xs, ys, abs.(u_pred .- u_exact), title="Error", aspect_ratio=:equal, color=:hot)
+display(plot(p1, p2, p3, layout=(1,3), size=(1200,400)))
+```
 
 ### Comparing PINN vs Numerical Solutions
 
-*Content coming soon.*
+The PINN handles the circular domain mesh-free — a key advantage over finite differences which would require coordinate transformations or unstructured grids.
 
-## 8.3 Training Strategies and Diagnostics
+## 8.3 Shallow Water Equations with PINNs
 
-### Learning Rate Schedules
+### A Coupled Hyperbolic System
 
-*Content coming soon.*
+The 1D linearised shallow water equations (from Unit 4) solved with two separate networks — one for elevation $\eta$, one for velocity $u$. Inspired by [de Wolff et al. (2021)](https://arxiv.org/abs/2104.00615).
 
-### Monitoring Convergence
+```{julia}
+#| eval: false
+
+using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
+using DomainSets, Plots
+
+@parameters x t
+@variables η(..) u_vel(..)
+
+Dₜ = Differential(t);  Dₓ = Differential(x)
+
+g = 9.81;  H = 10.0   # gravity, mean depth → wave speed c ≈ 9.9 m/s
+
+eqs = [
+    Dₜ(η(x, t)) + H * Dₓ(u_vel(x, t)) ~ 0,    # continuity
+    Dₜ(u_vel(x, t)) + g * Dₓ(η(x, t)) ~ 0,     # momentum
+]
+
+domains = [x ∈ ClosedInterval(0.0, 2.0), t ∈ ClosedInterval(0.0, 0.05)]
+
+bcs = [
+    η(x, 0)        ~ exp(-100 * (x - 1.0)^2),   # Gaussian bump
+    u_vel(x, 0)    ~ 0.0,                         # at rest
+    u_vel(0.0, t)  ~ 0.0,                         # reflecting walls
+    u_vel(2.0, t)  ~ 0.0,
+]
+
+@named pde_system = PDESystem(eqs, bcs, domains, [x, t], [η(x, t), u_vel(x, t)])
+
+chain_η = Lux.Chain(Lux.Dense(2,32,tanh), Lux.Dense(32,32,tanh),
+                     Lux.Dense(32,32,tanh), Lux.Dense(32,1))
+chain_u = Lux.Chain(Lux.Dense(2,32,tanh), Lux.Dense(32,32,tanh),
+                     Lux.Dense(32,32,tanh), Lux.Dense(32,1))
+
+discretization = PhysicsInformedNN([chain_η, chain_u], GridTraining([0.02, 0.001]))
+prob = discretize(pde_system, discretization)
+
+iter = Ref(0)
+callback = function (p, l)
+    iter[] += 1
+    iter[] % 100 == 0 && println("  iter $(iter[]): loss = $(round(l, sigdigits=4))")
+    return false
+end
+
+res = Optimization.solve(prob, LBFGS(); maxiters=3000, callback=callback)
+
+phi = discretization.phi;  trained_params = res.u
+xs_eval = range(0, 2, length=200)
+ts_eval = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05]
+
+p1 = plot(title="η(x,t) — surface elevation", xlabel="x", ylabel="η",
+          ylims=(-0.3, 1.1), lw=2)
+for t_val in ts_eval
+    η_pred = [first(phi[1]([xi, t_val], trained_params.depvar.η)) for xi in xs_eval]
+    plot!(p1, xs_eval, η_pred, label="t = $t_val")
+end
+
+p2 = plot(title="u(x,t) — velocity", xlabel="x", ylabel="u", lw=2)
+for t_val in ts_eval
+    u_pred = [first(phi[2]([xi, t_val], trained_params.depvar.u_vel)) for xi in xs_eval]
+    plot!(p2, xs_eval, u_pred, label="t = $t_val")
+end
+
+display(plot(p1, p2, layout=(2,1), size=(800,600)))
+```
+
+The Gaussian bump splits into two counter-propagating waves — the same physics as the wave equation in Unit 3, but solved without any grid or time-stepping.
+
+### Training Strategies and Diagnostics
 
 *Content coming soon.*
 

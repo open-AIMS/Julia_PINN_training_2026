@@ -68,11 +68,7 @@ $toc-width: 250px;
 
 // Override Quarto grid to widen content body
 .page-columns {
-  grid-template-columns: [screen-start] 1.5em [screen-start-inset page-start page-start-inset] 0 [body-start-outset] 0 [body-start] 1em [body-content-start] 1fr [body-content-end] 1em [body-end body-end-outset page-end-inset page-end] 0 [screen-end-inset] 1.5em [screen-end] !important;
-}
-
-.col-body-outset, .col-page, .col-body {
-  max-width: none !important;
+  grid-template-columns: [screen-start] 1.5em [screen-start-inset page-start page-start-inset] 0 [body-start-outset] 0 [body-start] 1em [body-content-start] minmax(500px, 900px) [body-content-end] 1em [body-end body-end-outset page-end-inset page-end] 0 [screen-end-inset] 1.5em [screen-end] !important;
 }
 
 // Move TOC from right margin to left side
@@ -222,6 +218,13 @@ table {
   tr:hover td {
     background-color: #f7f9fb;
   }
+}
+
+// Force TOC to be visible (Bootstrap collapse hides it on file://)
+#TOC ul.collapse {
+  display: block !important;
+  visibility: visible !important;
+  height: auto !important;
 }
 
 // TOC styling
