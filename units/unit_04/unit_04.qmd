@@ -1,116 +1,144 @@
 ---
-title: "Unit 4: PDEs for Ocean and Reef Modelling"
+title: "Unit 4: Scientific Machine Learning and Physics-Informed Machine Learning"
 engine: julia
-toc-title: "Unit 4: Ocean and Reef PDEs"
+toc-title: "Unit 4: Sci-ML and PIML"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 4.1 Ocean Dynamics and Governing Equations
+A conceptual tour of the broader physics-aware ML landscape and a
+first encounter with **physics-informed machine learning (PIML)**. We
+cover hybrid physics+ML models, surrogate solvers, conservation-aware
+architectures, Hamiltonian and Lagrangian neural networks (briefly),
+and equation discovery via SINDy. The unit closes with the conceptual
+PINN setup that [Units 6–10](../unit_06/unit_06.qmd) then implement.
 
-### Navier-Stokes and the Lid-Driven Cavity
+## 4.1 The SciML Landscape
 
-The incompressible Navier-Stokes equations govern fluid motion:
+### Hybrid Physics + ML
 
-$$\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = -\frac{\nabla p}{\rho} + \nu \nabla^2 \mathbf{u}, \qquad \nabla \cdot \mathbf{u} = 0$$
+A hybrid model uses a known physical equation for the parts of the
+dynamics we understand and a neural network for the parts we don't.
+Example: a population model with known logistic growth and an
+unknown immigration term modelled by a small NN. The benefit over
+pure ML: data efficiency and out-of-distribution extrapolation. The
+benefit over pure physics: flexibility where the physics is
+genuinely unknown.
 
-The Reynolds number $\text{Re} = UL/\nu$ measures inertia vs viscosity. The classic **lid-driven cavity** problem illustrates these equations: a square box with a moving lid drives a recirculating flow. We solve it using **Chorin's projection method** (fractional step).
+### Surrogate Models for Expensive Simulations
 
-```{julia}
-#| eval: false
+A **surrogate** replaces an expensive PDE solver with a fast,
+learned approximation. Train it on a dataset of (input, solver
+output) pairs; use it for design optimisation, uncertainty
+quantification, or real-time inference. The catch: surrogates are
+only trustworthy *inside* the distribution they were trained on.
+Out-of-distribution inputs can produce confident-but-wrong outputs.
 
-using Plots
+### Conservation, Symmetries, and Inductive Biases
 
-N  = 41;  L = 1.0;  Re = 100.0;  U = 1.0
-ν  = U * L / Re
-dx = L / (N - 1);  dy = dx
-dt = min(0.25 * dx^2 / ν, 0.25 * dx / U)
-nsteps = 3000
+A neural network that *cannot* violate conservation of mass,
+energy, or momentum will generalise better than one that has to
+learn the constraint from data. Inductive biases that enforce
+conservation: hard architectural constraints (output a flux, then
+take its divergence), soft loss penalties, equivariant
+architectures. The pattern recurs throughout the unit: the more
+physics we bake in, the less data we need.
 
-u = zeros(N, N);  v = zeros(N, N);  p = zeros(N, N)
+## 4.2 Hamiltonian and Lagrangian Neural Networks
 
-function solve_pressure!(p, rhs, dx, dy; maxiter=100)
-    for _ in 1:maxiter
-        p_old = copy(p)
-        for i in 2:(N-1), j in 2:(N-1)
-            p[i,j] = 0.5 * ((p_old[i+1,j] + p_old[i-1,j]) * dy^2 +
-                             (p_old[i,j+1] + p_old[i,j-1]) * dx^2 -
-                             rhs[i,j] * dx^2 * dy^2) / (dx^2 + dy^2)
-        end
-        p[1,:] .= p[2,:];  p[N,:] .= p[N-1,:]
-        p[:,1] .= p[:,2];  p[:,N] .= p[:,N-1]
-    end
-end
+### A Brief Description
 
-for step in 1:nsteps
-    u_star = copy(u);  v_star = copy(v)
-    for i in 2:(N-1), j in 2:(N-1)
-        dudx = (u[i+1,j] - u[i-1,j]) / (2dx)
-        dudy = (u[i,j+1] - u[i,j-1]) / (2dy)
-        dvdx = (v[i+1,j] - v[i-1,j]) / (2dx)
-        dvdy = (v[i,j+1] - v[i,j-1]) / (2dy)
-        lapu = (u[i+1,j]-2u[i,j]+u[i-1,j])/dx^2 + (u[i,j+1]-2u[i,j]+u[i,j-1])/dy^2
-        lapv = (v[i+1,j]-2v[i,j]+v[i-1,j])/dx^2 + (v[i,j+1]-2v[i,j]+v[i,j-1])/dy^2
-        u_star[i,j] = u[i,j] + dt*(-(u[i,j]*dudx + v[i,j]*dudy) + ν*lapu)
-        v_star[i,j] = v[i,j] + dt*(-(u[i,j]*dvdx + v[i,j]*dvdy) + ν*lapv)
-    end
-    u_star[:,1] .= 0; v_star[:,1] .= 0; u_star[:,N] .= U; v_star[:,N] .= 0
-    u_star[1,:] .= 0; v_star[1,:] .= 0; u_star[N,:] .= 0; v_star[N,:] .= 0
+A **Hamiltonian Neural Network (HNN)** parametrises the Hamiltonian
+$H_\theta(q, p)$ of a system, then derives the dynamics
+$\dot q = \partial H / \partial p$,
+$\dot p = -\partial H / \partial q$ via autodiff. Energy is
+conserved by construction. **Lagrangian Neural Networks (LNNs)** do
+the analogous trick with the Lagrangian. Both belong to a family of
+architectures that bake symplectic structure or variational
+principles directly into the model.
 
-    rhs = zeros(N, N)
-    for i in 2:(N-1), j in 2:(N-1)
-        rhs[i,j] = (1/dt)*((u_star[i+1,j]-u_star[i-1,j])/(2dx) +
-                            (v_star[i,j+1]-v_star[i,j-1])/(2dy))
-    end
-    solve_pressure!(p, rhs, dx, dy)
+### A Tiny Pendulum Demo
 
-    for i in 2:(N-1), j in 2:(N-1)
-        u[i,j] = u_star[i,j] - dt*(p[i+1,j]-p[i-1,j])/(2dx)
-        v[i,j] = v_star[i,j] - dt*(p[i,j+1]-p[i,j-1])/(2dy)
-    end
-    u[:,1] .= 0; v[:,1] .= 0; u[:,N] .= U; v[:,N] .= 0
-    u[1,:] .= 0; v[1,:] .= 0; u[N,:] .= 0; v[N,:] .= 0
-end
+A simple pendulum has a known Hamiltonian
+$H(q, p) = p^2/2 + (1 - \cos q)$. Train an HNN on noisy trajectory
+data and watch it conserve energy long after a vanilla MLP would
+have drifted off the energy shell.
 
-ω = zeros(N, N)
-for i in 2:(N-1), j in 2:(N-1)
-    ω[i,j] = (v[i+1,j]-v[i-1,j])/(2dx) - (u[i,j+1]-u[i,j-1])/(2dy)
-end
+*Code placeholder.*
 
-xs = range(0, L, length=N);  ys = range(0, L, length=N)
-speed = sqrt.(u.^2 .+ v.^2)
+## 4.3 Equation Discovery: SINDy
 
-p1 = heatmap(xs, ys, speed', title="Speed |u⃗|", color=:turbo, aspect_ratio=1)
-p2 = heatmap(xs, ys, ω', title="Vorticity ω", color=:RdBu, aspect_ratio=1,
-             clims=(-maximum(abs.(ω)), maximum(abs.(ω))))
-display(plot(p1, p2, layout=(1,2), size=(900,400)))
-```
+### The Sparse Regression Idea
 
-### Advection-Diffusion in Ocean Currents
+**SINDy** (Sparse Identification of Nonlinear Dynamics) assumes the
+right-hand side of $\dot x = f(x)$ is a sparse combination of
+candidate terms — polynomials, trigonometric functions, products.
+Build a feature library $\Theta(x)$, regress $\dot X$ against
+$\Theta(X)$ with $\ell_1$ regularisation, read off the active
+terms. The output is a **symbolic equation**, not a black-box
+function — that's the headline win.
 
-Pollutant dispersal, nutrient transport, and larval connectivity in the ocean are governed by advection-diffusion equations — the same convection-diffusion PDE from Unit 3, applied to oceanographic contexts.
+### Building a Library of Candidate Terms
 
-## 4.2 Reef Ecosystem Models
+A standard library:
+$\{1, x_1, x_2, \ldots, x_1^2, x_1 x_2, \ldots, \sin x_1, \cos x_1, \ldots\}$.
+Domain knowledge guides which terms to include; including too many
+makes the regression unstable, too few makes recovery impossible.
+Numerical differentiation of $\dot X$ from time-series $X$ is a
+separate art (total-variation regularised, smoothed splines).
 
-### Coral Growth and Larval Dispersal
+### Worked Example: Recovering Lorenz from Data
 
-*Content coming soon.*
+Given trajectories of the Lorenz system $\dot x = \sigma(y - x)$,
+$\dot y = x(\rho - z) - y$, $\dot z = xy - \beta z$ with noise,
+SINDy with a polynomial library typically recovers the exact
+equations and the parameters $(\sigma, \rho, \beta)$ — a textbook
+demonstration that a sparse prior plus enough data is sometimes all
+you need.
 
-### Coupled Physical-Biological Models
+*Code placeholder.*
 
-*Content coming soon.*
+### When Discovery Beats Approximation
 
-## 4.3 The Shallow Water Equations
+SINDy wins when (1) the underlying equation is genuinely sparse in
+your library, (2) you care about *interpretability* — a 3-term
+equation is more useful than a 10-layer network, and (3) you have
+enough clean trajectory data to estimate derivatives. It loses when
+the dynamics are intrinsically high-dimensional or the right basis
+isn't in your library.
 
-### Governing Equations
+## 4.4 Physics-Informed Machine Learning: A Conceptual Preview
 
-The linearised shallow water equations are a coupled hyperbolic system for surface elevation $\eta$ and velocity $u$:
+### The Core Idea
 
-$$\frac{\partial \eta}{\partial t} + H \frac{\partial u}{\partial x} = 0 \quad \text{(continuity)}$$
-$$\frac{\partial u}{\partial t} + g \frac{\partial \eta}{\partial x} = 0 \quad \text{(momentum)}$$
+A neural network $u_\theta(\mathbf{x}, t)$ approximates the solution
+of a PDE. The loss has a **physics term** — the PDE residual
+evaluated by autodiff at scattered collocation points — plus
+boundary and initial condition terms and (optionally) a data term:
 
-with wave speed $c = \sqrt{gH}$. A Gaussian bump in $\eta$ splits into two counter-propagating waves — we will solve this with a PINN in Unit 8.
+$$\mathcal{L}(\theta) = \lambda_r\,\mathcal{L}_{\text{PDE}}
++ \lambda_b\,\mathcal{L}_{\text{BC}}
++ \lambda_i\,\mathcal{L}_{\text{IC}}
++ \lambda_d\,\mathcal{L}_{\text{data}}.$$
 
-### Challenges and Open Problems
+Minimising it simultaneously fits the data and respects the
+equation. No grid, no time-stepping, no mesh.
 
-*Content coming soon.*
+### What Makes PIML Different from Other Sci-ML Methods
+
+- *vs surrogates*: PIML doesn't need a precomputed dataset; the
+  equation itself supervises the network.
+- *vs equation discovery*: PIML assumes the equation is known,
+  asks for its solution (or its parameters).
+- *vs hybrid models*: PIML is a special case where the entire
+  solution is the "ML part" and the equation residual is the
+  "physics part".
+
+### What's Coming in Units 6–10
+
+[Unit 6](../unit_06/unit_06.qmd) implements PINNs on basic ODE and
+PDE models. [Unit 7](../unit_07/unit_07.qmd) provides the formal
+PDE foundations. [Unit 8](../unit_08/unit_08.qmd) addresses where
+naïve PINNs fail and how modern techniques fix them.
+[Units 9–10](../unit_09/unit_09.qmd) assemble the AIMS capstone —
+forward and inverse.

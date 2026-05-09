@@ -28,3 +28,12 @@ LocalPreferences.toml
 JuliaLocalPreferences.toml
 
 /.quarto/
+
+# Python virtualenv
+/.venv/
+__pycache__/
+*.pyc
+
+# Quarto build output
+/_site/
+/_freeze/

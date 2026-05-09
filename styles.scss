@@ -117,11 +117,46 @@ div.sourceCode {
 pre.sourceCode {
   padding: 1em;
   font-size: 0.82em;
+  position: relative;
+}
+
+// Julia code blocks: light purple tint, purple accent
+pre.sourceCode.julia {
+  background-color: #f5f0fa;
+  border-left: 4px solid #9558b2;
+
+  &::before {
+    content: "Julia";
+    position: absolute;
+    top: 0.35em;
+    right: 0.6em;
+    font-size: 0.7em;
+    font-weight: 700;
+    color: #9558b2;
+    letter-spacing: 0.05em;
+  }
+}
+
+// Python code blocks: light yellow tint, blue accent
+pre.sourceCode.python {
+  background-color: #fff8e1;
+  border-left: 4px solid #3776ab;
+
+  &::before {
+    content: "Python";
+    position: absolute;
+    top: 0.35em;
+    right: 0.6em;
+    font-size: 0.7em;
+    font-weight: 700;
+    color: #3776ab;
+    letter-spacing: 0.05em;
+  }
 }
 
 // Collapsible code preview: show ~3 lines grayed,
 // click to expand
-div.cell-code.code-collapsible {
+div.sourceCode.code-collapsible {
   position: relative;
   max-height: 3.6em;
   overflow: hidden;
@@ -297,4 +332,44 @@ figure {
   border-top: 1px solid #e2e8f0;
   color: #6c757d;
   font-size: 0.85em;
+}
+
+// Index page: bold TOC for navigation emphasis (set via inline script in index.qmd)
+body.index-page #TOC a {
+  font-weight: 700;
+  color: $secondary;
+
+  &:hover {
+    color: $primary;
+  }
+}
+
+body.index-page #TOC li {
+  margin-bottom: 0.35em;
+}
+
+// Prev/Next navigation pinned to the bottom of the TOC on unit pages
+.toc-nav {
+  margin-top: 1em;
+  padding-top: 0.8em;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  font-size: 0.88em;
+
+  a {
+    color: $primary;
+    text-decoration: none;
+    font-weight: 600;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .toc-nav-prev:empty,
+  .toc-nav-next:empty {
+    display: none;
+  }
 }

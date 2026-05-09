@@ -1,110 +1,136 @@
 ---
-title: "Unit 2: PDEs — Formulation and Classical Methods"
+title: "Unit 2: A Foundation in Machine Learning"
 engine: julia
-toc-title: "Unit 2: PDEs"
+toc-title: "Unit 2: ML Foundation"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 2.1 PDE Classification and Examples
+Before deep learning, what is machine learning? This unit covers
+supervised learning, loss, and generalisation — the ideas every later
+technique inherits. Random forests appear briefly as an example of a
+non-deep-learning approach (`MLJ.jl` in Julia, `scikit-learn` in
+Python), then we pivot toward deep learning in
+[Unit 3](../unit_03/unit_03.qmd). A short unit; the goal is shared
+vocabulary, not depth.
 
-### What is a PDE?
+## 2.1 What is Machine Learning?
 
-A **partial differential equation (PDE)** is a relationship between an unknown function of several variables and its partial derivatives. In general form:
+### Supervised Learning
 
-$$F\!\left(x_1, \ldots, x_n, \, u, \, \frac{\partial u}{\partial x_1}, \ldots, \frac{\partial^2 u}{\partial x_1^2}, \ldots\right) = 0$$
+Given labelled data $\{(x_i, y_i)\}_{i=1}^N$, learn a function $f$
+such that $f(x) \approx y$ on unseen inputs. $x$ might be a feature
+vector; $y$ might be continuous (regression) or discrete
+(classification). The art of supervised learning is choosing a
+function class — linear, tree-based, neural — and a fitting procedure
+that *generalises* beyond the training set.
 
-The **order** of a PDE is the highest derivative that appears. We focus on second-order PDEs in two variables $(x, t)$ or $(x, y)$, which cover most of the physics relevant to PINNs.
+### Loss, Risk, and Empirical Risk Minimisation
 
-### Elliptic, Parabolic, and Hyperbolic PDEs
+A **loss** $\ell(\hat y, y)$ measures how bad a single prediction is.
+The **true risk**
 
-The general second-order linear PDE in two variables has the form:
+$$R(f) = \mathbb{E}_{(x, y)}[\ell(f(x), y)]$$
 
-$$a \, u_{xx} + 2b \, u_{xy} + c \, u_{yy} + \text{lower-order terms} = 0$$
+is what we actually care about. Since we can't compute it, we
+minimise the **empirical risk**
 
-where the coefficients $a$, $b$, $c$ may depend on position. The character of solutions depends entirely on the **discriminant** $\Delta = b^2 - ac$:
+$$\hat R(f) = \frac{1}{N}\sum_{i=1}^N \ell(f(x_i), y_i)$$
 
-| Type | Condition | Behaviour | Canonical example |
-|------|-----------|-----------|-------------------|
-| **Elliptic** | $b^2 - ac < 0$ | Steady-state, smooth | Laplace: $u_{xx} + u_{yy} = 0$ |
-| **Parabolic** | $b^2 - ac = 0$ | Diffusion, smoothing | Heat: $u_t = \alpha \, u_{xx}$ |
-| **Hyperbolic** | $b^2 - ac > 0$ | Wave propagation | Wave: $u_{tt} = c^2 \, u_{xx}$ |
+instead. All of supervised learning is a story about how empirical
+risk does or doesn't approximate true risk.
 
-This classification matters because it determines:
+### Generalisation: Train, Validate, Test
 
-- What **boundary/initial conditions** are needed for a well-posed problem
-- How **information propagates** through the domain
-- Which **numerical methods** are appropriate (Unit 3)
-- How **PINNs** should be configured (Units 8–9)
+Split the data into **training** (fit the model), **validation**
+(choose hyperparameters), and **test** (estimate true risk). Never
+let the test set influence model choice. Generalisation gap = (test
+error) − (training error); high gap indicates overfitting.
 
-### Classic Examples: Heat, Wave, Laplace
+## 2.2 Beyond Deep Learning: A Random Forest Cameo
 
-**The Heat (Diffusion) Equation** — parabolic
+### Decision Trees in One Picture
 
-$$\frac{\partial u}{\partial t} = \alpha \frac{\partial^2 u}{\partial x^2}$$
+A decision tree partitions the input space by axis-aligned splits,
+with a constant prediction at each leaf. Greedy fitting: at each
+internal node, pick the feature and threshold that best reduce a
+loss criterion (variance for regression, Gini or entropy for
+classification). Trees are interpretable but high-variance — small
+data perturbations produce very different trees.
 
-Models how temperature $u(x,t)$ evolves over time. The diffusion coefficient $\alpha > 0$ controls the rate. The second spatial derivative measures *curvature*: hills flatten, valleys fill in, and sharp features smooth out. Information propagates infinitely fast (in theory) but with exponentially decaying influence.
+### A Random Forest, Side by Side in Julia and Python
 
-**The Wave Equation** — hyperbolic
+A 100-tree random forest classifying the iris dataset, evaluated by
+5-fold cross-validation. The Julia and Python versions are
+deliberately parallel to make the cross-ecosystem story visible from
+the start.
 
-$$\frac{\partial^2 u}{\partial t^2} = c^2 \frac{\partial^2 u}{\partial x^2}$$
+```{julia}
+using MLJ
+using DataFrames
 
-Models vibrating strings, sound, and water waves. The wave speed $c$ determines how fast disturbances travel. Unlike diffusion, waves preserve their shape — an initial bump splits into two pulses traveling in opposite directions at speed $c$. Information travels along **characteristics** $x \pm ct = \text{const}$.
+iris = load_iris()
+y, X = unpack(iris, ==(:target); rng=123)
+X = DataFrame(X)
 
-**Laplace's Equation** — elliptic
+RandomForest = @load RandomForestClassifier pkg=DecisionTree verbosity=0
+mach = machine(RandomForest(n_trees=100), X, y)
 
-$$\frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = 0$$
+evaluate!(mach, resampling=CV(nfolds=5), measure=accuracy)
+```
 
-Models steady-state temperature, electrostatic potential, and incompressible irrotational flow. There is no time variable — the solution is entirely determined by boundary conditions. Solutions are maximally smooth and satisfy the **mean value property**: the value at any point equals the average over any surrounding circle.
+```python
+from sklearn.datasets import load_iris
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 
-### Basic Physical Phenomena
+iris = load_iris()
+X, y = iris.data, iris.target
 
-Most PDEs in science and engineering are built from three fundamental mechanisms:
+clf = RandomForestClassifier(n_estimators=100, random_state=123)
+scores = cross_val_score(clf, X, y, cv=5, scoring="accuracy")
+print(f"Accuracy: {scores.mean():.3f} ± {scores.std():.3f}")
+```
 
-**Diffusion** — spreading and smoothing. A quantity (heat, concentration) moves from regions of high value to low, driven by spatial curvature. The prototype is the heat equation $u_t = \alpha \, u_{xx}$. Sharp features blur over time.
+{{< include output/iris_rf.md >}}
 
-**Advection** — transport by a flow. A quantity is carried along by a velocity field without changing shape. The prototype is $u_t + c \, u_x = 0$, whose solution is simply $u(x,t) = u_0(x - ct)$ — the initial profile sliding at speed $c$.
+Both report ~0.96 mean accuracy on iris. The point isn't the number
+— it's that the same problem in two ecosystems has the same shape.
+This template recurs through the workshop.
 
-**Reaction** — local growth or decay. A quantity changes in place due to sources, sinks, or chemical kinetics. The simplest form is $u_t = f(u)$, an ODE at each point.
+### When Classical ML Wins
 
-Real-world models combine these:
+Classical methods (random forests, gradient boosting, regularised
+linear models) still win when (a) the dataset is small (hundreds to
+thousands of rows), (b) features are tabular and well-engineered, or
+(c) interpretability matters. Deep learning's edge sharpens with
+high-dimensional unstructured inputs (images, text, audio) and large
+datasets — and with PDE residuals, as we'll see.
 
-| Equation | Mechanisms | Example application |
-|----------|-----------|-------------------|
-| $u_t = \alpha \, u_{xx}$ | Diffusion | Heat conduction |
-| $u_t + c \, u_x = 0$ | Advection | Pollutant in a river |
-| $u_t = \alpha \, u_{xx} + c \, u_x$ | Advection-diffusion | Nutrient dispersal in ocean currents |
-| $u_t = \alpha \, u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement, chemical patterns |
-| $u_t + c \, u_x = \alpha \, u_{xx} + f(u)$ | All three | Population dynamics in a flowing medium |
+## 2.3 Toward Deep Learning
 
-## 2.2 Boundary and Initial Conditions
+### From Hand-Crafted Features to Learned Representations
 
-### Types of Boundary Conditions
+Classical pipelines spent most of their effort on **feature
+engineering** — hand-crafting input transformations that made
+downstream learning easier. Deep learning replaces this with
+**learned representations**: stacked nonlinear transformations whose
+parameters are fit jointly with the prediction head. The win is
+automation; the cost is more data, more compute, and more failure
+modes.
 
-*Content coming soon.*
+### Function Approximation as a Lens
 
-### Well-Posedness
+A neural network is a parametrised family of functions
+$f_\theta : \mathbb{R}^n \to \mathbb{R}^m$. Training adjusts $\theta$
+to minimise empirical risk. Everything we'll do — including PINNs —
+is a special case of this picture, with the "loss" sometimes
+containing physics terms instead of just data terms.
 
-*Content coming soon.*
+### What Carries Over to PINNs
 
-## 2.3 Classical Solution Techniques
+Three ideas survive the journey from classical ML to PINNs:
 
-### Separation of Variables
-
-*Content coming soon.*
-
-### Fourier Series Methods
-
-*Content coming soon.*
-
-### Method of Characteristics
-
-*Content coming soon.*
-
-### Laplace Transform
-
-*Content coming soon.*
-
-### Green's Functions
-
-*Content coming soon.*
+1. **Loss minimisation** as the unifying training principle.
+2. **Generalisation** as the goal — a PINN that fits collocation points but violates physics elsewhere is overfitting.
+3. **Regularisation**, in the form of physics terms that anchor the solution to the equations.

@@ -1,45 +1,126 @@
 ---
-title: "Unit 6: Neural Networks Fundamentals"
+title: "Unit 6: PINNs on Basic Models"
 engine: julia
-toc-title: "Unit 6: Neural Networks"
+toc-title: "Unit 6: First PINN"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 6.1 Perceptrons and Multilayer Networks
+Our first hands-on PINN, in the simplest possible settings: a small
+collection of ODEs and the simplest PDE. The aim is to make the
+ingredients concrete — residual loss, initial conditions in the loss,
+collocation points, autodiff — and to spot a few failure modes before
+we tackle the formal PDE theory in
+[Unit 7](../unit_07/unit_07.qmd) and harder PDE PINNs in
+[Unit 8](../unit_08/unit_08.qmd).
 
-### The Single Perceptron
+## 6.1 The PINN Idea
 
-*Content coming soon.*
+### Residual Loss from a Differential Equation
 
-### Feedforward Networks
+For an ODE $\dot x = f(x, t)$, define a network $x_\theta(t)$ and
+the residual
 
-*Content coming soon.*
+$$r(t) = \dot x_\theta(t) - f(x_\theta(t), t),$$
 
-### Backpropagation
+with $\dot x_\theta$ computed by autodiff through the network. The
+**residual loss** is
 
-*Content coming soon.*
+$$\mathcal{L}_{\text{ODE}} = \frac{1}{N_r}\sum_{i=1}^{N_r} |r(t_i)|^2$$
 
-## 6.2 Activation Functions and Universal Approximation
+evaluated at scattered collocation points $\{t_i\}$. Minimising it
+pushes $x_\theta$ toward a solution of the ODE.
 
-### Common Activation Functions
+### Initial Conditions in the Loss
 
-*Content coming soon.*
+A residual alone has infinitely many solutions — every ODE has a
+one-parameter family of trajectories indexed by $x_0$. **Initial
+conditions** pin down which one we want. Add a term
 
-### The Universal Approximation Theorem
+$$\mathcal{L}_{\text{IC}} = |x_\theta(0) - x_0|^2$$
 
-*Content coming soon.*
+with weight $\lambda_{\text{IC}}$. The same idea applies to boundary
+conditions on PDEs. Tuning these weights is a major theme of
+[Unit 8](../unit_08/unit_08.qmd).
 
-## 6.3 Building Neural Networks with Lux.jl
+### Collocation Points and Sampling
 
-### Lux.jl Basics
+Where do you put the $\{t_i\}$? Options:
 
-*Content coming soon.*
+- **Uniform grid** — simple, biased toward regular regions.
+- **Random uniform** — eliminates grid bias.
+- **Latin hypercube** — better space coverage in higher dimensions.
+- **Adaptive** — sample more densely where the residual is high.
 
-### Defining and Training a Model
+For a first pass on a smooth ODE, a uniform grid of a few hundred
+points is plenty.
 
-*Content coming soon.*
+## 6.2 PINNs on ODEs
 
-### Example: Function Approximation
+### Harmonic Oscillator
 
-*Content coming soon.*
+$\ddot x + \omega^2 x = 0$, $x(0) = 1$, $\dot x(0) = 0$, with
+closed-form solution $x(t) = \cos(\omega t)$. The cleanest possible
+test case — second-order, smooth, periodic. A PINN trained on a
+single period typically nails it; trained on many periods you start
+to see spectral bias on the high-frequency oscillations.
+
+*Code placeholder.*
+
+### Damped Pendulum
+
+$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. The
+nonlinearity ($\sin\theta$) and dissipation make it a richer test.
+The PINN should match the trajectory toward the stable equilibrium.
+
+*Code placeholder.*
+
+### Lotka–Volterra (Forward and Inverse)
+
+**Forward**: given $(\alpha, \beta, \delta, \gamma)$ and initial
+populations, predict $x(t), y(t)$. **Inverse**: given noisy
+observations of $x(t), y(t)$, recover the parameters. The inverse
+setup foreshadows the AIMS capstone in
+[Unit 10](../unit_10/unit_10.qmd).
+
+*Code placeholder.*
+
+## 6.3 PINNs on the Simplest PDE: 1D Diffusion
+
+### The Heat Equation in One Dimension
+
+$\partial_t u = \alpha\,\partial_x^2 u$ on $x \in [0, L]$,
+$t \in [0, T]$, with Dirichlet boundaries
+$u(0, t) = u(L, t) = 0$ and a smooth initial condition
+$u(x, 0) = u_0(x)$. The simplest non-trivial PDE — parabolic,
+smoothing, well-posed — and the first true PDE PINN benchmark.
+
+### A First PDE PINN
+
+The network has two inputs $(x, t)$ and one output. Loss has three
+terms — residual, IC, BC — with collocation points scattered in
+$[0, L] \times [0, T]$. Train with L-BFGS for a few thousand
+iterations; compare to the analytic Fourier-series solution or a
+finite-difference reference.
+
+*Code placeholder — full version in [Unit 8](../unit_08/unit_08.qmd) §8.1.*
+
+### Failure Modes Already Visible
+
+Three pathologies show up even in this benign setting and motivate
+everything in Unit 8:
+
+- **Spectral bias** — the network learns low frequencies first;
+  sharp initial conditions take many iterations.
+- **Loss imbalance** — if $\lambda_{\text{IC}}$, $\lambda_{\text{BC}}$,
+  $\lambda_{\text{PDE}}$ are wrong by orders of magnitude, the
+  optimiser finds a solution that satisfies the easy term and ignores
+  the hard one.
+- **Causal violation** — time-dependent PINNs can fit the residual
+  at every $t$ simultaneously, including futures whose IC dependence
+  hasn't propagated, producing solutions that are locally consistent
+  but globally wrong.
+
+These three failure modes return on harder PDEs in
+[Unit 8](../unit_08/unit_08.qmd), where the modern fixes finally
+appear.

@@ -6,44 +6,114 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
+```{=html}
+<script>document.body.classList.add('index-page');</script>
+```
+
 [Last updated: {{< meta date >}}]{style="font-size: 0.85em; color: gray;"}
 
-Welcome to **2026 PINNs Workshop** — a hands-on course building up to Physics-Informed Neural Networks (PINNs) using Julia and Quarto notebooks.
+Welcome to **2026 PINNs Workshop** — a hands-on course building toward
+a real project: physics-informed inference of unknown drivers in a 1D
+vertical ocean column with shallow-water coupling, motivated by AIMS
+mooring data.
 
-Starting from a high-level demo, the course walks through PDE formulation and numerical methods, machine learning and neural network foundations, and then brings it all together with PINN theory and implementation. The material is developed in collaboration with the [Australian Institute of Marine Science (AIMS)](https://www.aims.gov.au/).
+Course material is **75% Julia, 25% Python**, developed in collaboration
+with the [Australian Institute of Marine Science (AIMS)](https://www.aims.gov.au/).
 
-## [Unit 1: Overview and PINN Demo](units/unit_01/unit_01.qmd)
-A high-level overview of what PINNs are and what they can do.
+## [Unit 1: Introduction](units/unit_01/unit_01.qmd)
 
-## [Unit 2: PDEs — Formulation and Classical Methods](units/unit_02/unit_02.qmd)
-Formulation, classification, and classical solution methods for partial differential equations.
+Sets the destination. Introduces the AIMS-motivated problem the course
+builds toward — physics-informed inference of unknown drivers in a 1D
+vertical ocean column with shallow-water coupling — and runs a live
+demo of the inverse PINN we'll re-derive together by Unit 10. Treat it
+as a preview: the foundations come next, and we return to this material
+at the end.
 
-## [Unit 3: Numerical Methods for PDEs](units/unit_03/unit_03.qmd)
-Finite differences, spectral methods, and other numerical approaches.
+## [Unit 2: A Foundation in Machine Learning](units/unit_02/unit_02.qmd)
 
-## [Unit 4: PDEs for Ocean and Reef Modelling](units/unit_04/unit_04.qmd)
-Applying PDE models to ocean dynamics and reef ecosystems.
+Before deep learning, what is machine learning? Supervised learning,
+loss, and generalisation — the ideas every later technique inherits.
+Random forests appear briefly as an example of a non-deep-learning
+approach (`MLJ.jl` in Julia, `scikit-learn` in Python), then we pivot
+toward deep learning. A short unit; the goal is shared vocabulary, not
+depth.
 
-## [Unit 5: Machine Learning Foundations](units/unit_05/unit_05.qmd)
-Loss functions, training/testing, regularization, and core ML concepts.
+## [Unit 3: From Neurons to Deep Networks](units/unit_03/unit_03.qmd)
 
-## [Unit 6: Neural Networks Fundamentals](units/unit_06/unit_06.qmd)
-Building and training neural networks in Julia with Lux.jl.
+Neural networks as flexible, trainable function approximators. Layers,
+activations, optimisers, and the autodiff engine that drives PINNs.
+Convolutional networks make a brief appearance to motivate inductive
+biases; ResNets set up the connection to Neural ODEs we pick up in
+Unit 5. Julia (`Lux.jl`) is primary; a `PyTorch` parallel seeds the
+cross-ecosystem story we revisit in Unit 10.
 
-## [Unit 7: Deep Dive into Neural Networks](units/unit_07/unit_07.qmd)
-Architectures and automatic differentiation — critical groundwork for PINNs.
+## [Unit 4: Scientific Machine Learning and Physics-Informed Machine Learning](units/unit_04/unit_04.qmd)
 
-## [Unit 8: Physics-Informed Neural Networks](units/unit_08/unit_08.qmd)
-Theory and implementation of PINNs.
+A conceptual tour of the broader physics-aware ML landscape and a
+first encounter with physics-informed machine learning (PIML). Hybrid
+physics+ML models, surrogate solvers, conservation-aware architectures,
+Hamiltonian and Lagrangian neural networks (briefly), and equation
+discovery via SINDy. The unit closes with the conceptual PINN setup
+that Units 6–10 then implement.
 
-## [Unit 9: Advanced PINN Techniques](units/unit_09/unit_09.qmd)
-Advanced techniques and applications of PINNs.
+## [Unit 5: Learning Dynamics with Neural Differential Equations](units/unit_05/unit_05.qmd)
 
-## [Unit 10: Further Topics in Scientific Machine Learning](units/unit_10/unit_10.qmd)
-Broader landscape of scientific ML beyond PINNs.
+Ordinary differential equations as models of dynamics, framed through
+universal approximation rather than classical numerics — no
+Runge–Kutta theory, no stiff-solver internals. We follow the
+ResNet-to-Neural-ODE bridge from Unit 3 and arrive at Universal
+Differential Equations: known physics + learnable closure. Worked
+examples include a damped pendulum with unknown friction and a
+Lotka–Volterra inverse variant.
 
-## [Appendix A: Python Adaptations](units/appendix_a/appendix_a.qmd) {.unnumbered}
-Equivalent implementations using PyTorch and related Python libraries.
+## [Unit 6: PINNs on Basic Models](units/unit_06/unit_06.qmd)
 
-## [Appendix B: Julia Refresher](units/appendix_b/appendix_b.qmd) {.unnumbered}
-A quick refresher on Julia fundamentals for those new to the language.
+Our first hands-on PINN, in the simplest possible settings: a small
+collection of ODEs (harmonic oscillator, damped pendulum, Lotka–Volterra
+forward and inverse) and the simplest PDE (1D diffusion). The aim is
+to make the ingredients concrete — residual loss, initial conditions
+in the loss, collocation points, autodiff — and to spot a few failure
+modes (spectral bias, loss imbalance, causal violation) before
+tackling formal PDE theory in Unit 7 and harder PDE PINNs in Unit 8.
+
+## [Unit 7: Partial Differential Equations from First Principles](units/unit_07/unit_07.qmd)
+
+Formal foundations of PDEs: classification (elliptic, parabolic,
+hyperbolic), boundary and initial conditions, well-posedness. The
+three canonical mechanisms — diffusion, advection, reaction — appear
+as the building blocks for everything that follows. The unit closes
+with finite-difference numerics and the linearised shallow water
+equations as a worked nonlinear example we revisit in the capstone.
+
+## [Unit 8: When PINNs Meet PDEs](units/unit_08/unit_08.qmd)
+
+Vanilla PINNs work on some PDEs and fail surprisingly often on
+others. We diagnose the failure modes (loss imbalance, spectral bias,
+causal violation) on a column heat equation and on shallow water, then
+walk through the modern fixes that mostly close the gap: causal
+training, Fourier feature embeddings, hard boundary-condition
+enforcement, adaptive loss weighting. By the end the toolkit needed
+for the capstone is in place.
+
+## [Unit 9: The Capstone, Forward](units/unit_09/unit_09.qmd)
+
+The full toolkit assembled on the AIMS capstone: a 1D vertical
+heat-transport column driven by a 2D shallow-water flow. This unit
+covers the **forward** problem — given the drivers, predict $T(z, t)$
+— with a finite-difference reference, a finite-volume shallow-water
+solver, and a forward PINN trained against both. The detailed model
+specification lives in the Project Specification.
+
+## [Unit 10: The Capstone, Inverse](units/unit_10/unit_10.qmd)
+
+The deliverable: given sparse, noisy thermistor-chain observations,
+recover an unknown driver — wind-stress envelope, vertical mixing
+profile, or surface-flux time series. This is where PINNs genuinely
+outperform classical solvers, and where the workshop output
+generalises directly to real mooring data. We close with a Python
+parallel using `DeepXDE` to compare ecosystems.
+
+## [Project Specification](units/unit_11/unit_11.qmd) {.unnumbered}
+
+Working document with the full model specification, forcing details,
+and the toy-task list. Referenced from Units 9–10.

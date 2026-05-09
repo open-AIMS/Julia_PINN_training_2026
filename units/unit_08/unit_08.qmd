@@ -1,40 +1,43 @@
 ---
-title: "Unit 8: Physics-Informed Neural Networks"
+title: "Unit 8: When PINNs Meet PDEs"
 engine: julia
-toc-title: "Unit 8: PINNs"
+toc-title: "Unit 8: PINNs Meet PDEs"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 8.1 PINN Theory and Loss Formulation
+Vanilla PINNs work on some PDEs and fail surprisingly often on others.
+We diagnose the failure modes (loss imbalance, spectral bias, causal
+violation) on a column heat equation and on shallow water, then walk
+through the modern fixes that mostly close the gap: causal training,
+Fourier feature embeddings, hard boundary-condition enforcement,
+adaptive loss weighting. By the end of the unit the toolkit needed for
+the [capstone](../unit_09/unit_09.qmd) is in place.
 
-### The PINN Loss Function
+## 8.1 Vanilla PINNs on PDEs
 
-A PINN approximates the solution $u(\mathbf{x}, t)$ with a neural network $u_\theta(\mathbf{x}, t)$. The total loss combines:
+### The PINN Loss
 
-$$\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_b \mathcal{L}_{\text{BC}} + \lambda_i \mathcal{L}_{\text{IC}}$$
+A PINN approximates the solution $u(\mathbf{x}, t)$ with a neural
+network $u_\theta(\mathbf{x}, t)$. The total loss combines a residual
+term, boundary terms, and (for time-dependent problems) an initial
+condition term:
 
-where:
+$$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
++ \lambda_b\,\mathcal{L}_{\text{BC}}
++ \lambda_i\,\mathcal{L}_{\text{IC}},$$
 
-- $\mathcal{L}_{\text{PDE}} = \frac{1}{N_r} \sum_{i=1}^{N_r} |r(\mathbf{x}_i, t_i)|^2$ is the PDE residual at collocation points
-- $\mathcal{L}_{\text{BC}}$ and $\mathcal{L}_{\text{IC}}$ enforce boundary and initial conditions
+with
+$\mathcal{L}_{\text{PDE}} = \frac{1}{N_r}\sum_{i=1}^{N_r}|r(\mathbf{x}_i, t_i)|^2$
+evaluated by autodiff at scattered **collocation points** — no grid,
+no time-stepping.
 
-### Residual Points and Collocation
+### Heat Equation: A Sanity Check
 
-Unlike classical methods that solve on a structured grid, PINNs evaluate the PDE residual at scattered **collocation points**. These can be placed on a grid (`GridTraining`) or sampled randomly. The gradients are computed via automatic differentiation — no finite differences needed.
-
-### Incorporating Boundary and Initial Conditions
-
-Boundary and initial conditions can be enforced:
-
-- **Softly**: as additional loss terms (the NeuralPDE.jl approach)
-- **Hardly**: by constructing the network architecture to satisfy them exactly
-
-## 8.2 Implementing PINNs
-
-### Solving the Diffusion Equation
-
-We revisit the 1D diffusion equation from Unit 1, now with a deeper understanding of the components.
+The 1D diffusion equation $\partial_t u = \alpha\,\partial_x^2 u$ on
+$[0, 1]\times[0, 2]$ with a Gaussian initial bump and zero boundaries.
+Vanilla PINNs handle this well — useful as the first concrete
+implementation.
 
 ```{julia}
 #| eval: false
@@ -53,7 +56,10 @@ Dₓₓ = Differential(x) ∘ Differential(x)
 
 eq = Dₜ(u(x, t)) ~ α * Dₓₓ(u(x, t))
 
-domains = [x ∈ ClosedInterval(0.0, 1.0), t ∈ ClosedInterval(0.0, 2.0)]
+domains = [
+    x ∈ ClosedInterval(0.0, 1.0),
+    t ∈ ClosedInterval(0.0, 2.0),
+]
 
 bcs = [
     u(x, 0)    ~ exp(-200 * (x - 0.5)^2),
@@ -71,31 +77,14 @@ chain = Lux.Chain(
 
 discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.05]))
 prob = discretize(pde_system, discretization)
-
-iter = Ref(0)
-callback = function (p, l)
-    iter[] += 1
-    iter[] % 100 == 0 && println("  iter $(iter[]): loss = $(round(l, sigdigits=4))")
-    return false
-end
-
-res = Optimization.solve(prob, LBFGS(); maxiters=1500, callback=callback)
-
-phi = discretization.phi;  trained_params = res.u
-xs = range(0, 1, length=101)
-
-plt = plot(title="PINN: 1D diffusion", xlabel="x", ylabel="u(x,t)",
-           ylims=(-0.1, 1.1), lw=2)
-for t_val in [0.0, 0.1, 0.25, 0.5, 1.0, 2.0]
-    u_pred = [first(phi([xi, t_val], trained_params)) for xi in xs]
-    plot!(plt, xs, u_pred, label="t = $t_val")
-end
-display(plt)
+res = Optimization.solve(prob, LBFGS(); maxiters=1500)
 ```
 
-### Laplace Equation on a Circular Domain
+### Laplace on a Disk: Where Mesh-Free Helps
 
-A more interesting geometry: solve $\nabla^2 u = 0$ on a disk with $u(1, \theta) = \sin(3\theta)$. The exact solution is $u(r, \theta) = r^3 \sin(3\theta)$. The PINN naturally handles the circular domain without any mesh generation.
+A clean elliptic example. The PINN handles the circular geometry
+mesh-free — a classical advantage over finite differences. Closed-form
+solution: $u(r, \theta) = r^3 \sin(3\theta)$.
 
 ```{julia}
 #| eval: false
@@ -109,20 +98,16 @@ using DomainSets, Plots
 Dᵣ  = Differential(r);  Dᵣᵣ = Differential(r) ∘ Differential(r)
 Dθθ = Differential(θ) ∘ Differential(θ)
 
-# Laplace in polar coords, multiplied by r² to remove singularity
 eq = r^2 * Dᵣᵣ(u(r, θ)) + r * Dᵣ(u(r, θ)) + Dθθ(u(r, θ)) ~ 0
 
 R = 1.0;  r_min = 0.05
-
 domains = [r ∈ ClosedInterval(r_min, R), θ ∈ ClosedInterval(0.0, 2π)]
-
 bcs = [
     u(R, θ)     ~ sin(3θ),
     u(r_min, θ) ~ r_min^3 * sin(3θ),
     u(r, 0.0)   ~ 0.0,
     u(r, 2π)    ~ 0.0,
 ]
-
 @named pde_system = PDESystem(eq, bcs, domains, [r, θ], [u(r, θ)])
 
 chain = Lux.Chain(
@@ -132,44 +117,19 @@ chain = Lux.Chain(
 
 discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.1]))
 prob = discretize(pde_system, discretization)
-
-iter = Ref(0)
-callback = function (p, l)
-    iter[] += 1
-    iter[] % 100 == 0 && println("  iter $(iter[]): loss = $(round(l, sigdigits=4))")
-    return false
-end
-
-res = Optimization.solve(prob, LBFGS(); maxiters=3000, callback=callback)
-
-phi = discretization.phi;  trained_params = res.u
-n = 100;  xs = range(-R, R, length=n);  ys = range(-R, R, length=n)
-u_pred = fill(NaN, n, n);  u_exact = fill(NaN, n, n)
-
-for (i, yi) in enumerate(ys), (j, xj) in enumerate(xs)
-    ri = sqrt(xj^2 + yi^2)
-    if r_min ≤ ri ≤ R
-        θj = atan(yi, xj);  θj = θj < 0 ? θj + 2π : θj
-        u_pred[i,j]  = first(phi([ri, θj], trained_params))
-        u_exact[i,j] = ri^3 * sin(3θj)
-    end
-end
-
-p1 = heatmap(xs, ys, u_pred, title="PINN", aspect_ratio=:equal, color=:viridis, clims=(-1,1))
-p2 = heatmap(xs, ys, u_exact, title="Exact: r³sin(3θ)", aspect_ratio=:equal, color=:viridis, clims=(-1,1))
-p3 = heatmap(xs, ys, abs.(u_pred .- u_exact), title="Error", aspect_ratio=:equal, color=:hot)
-display(plot(p1, p2, p3, layout=(1,3), size=(1200,400)))
+res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
-### Comparing PINN vs Numerical Solutions
+## 8.2 Why Naïve PINNs Fail
 
-The PINN handles the circular domain mesh-free — a key advantage over finite differences which would require coordinate transformations or unstructured grids.
+### Worked Example: Naïve Shallow Water (After de Wolff et al.)
 
-## 8.3 Shallow Water Equations with PINNs
-
-### A Coupled Hyperbolic System
-
-The 1D linearised shallow water equations (from Unit 4) solved with two separate networks — one for elevation $\eta$, one for velocity $u$. Inspired by [de Wolff et al. (2021)](https://arxiv.org/abs/2104.00615).
+The 1D linearised shallow water system from
+[Unit 7](../unit_07/unit_07.qmd), attempted with two networks (one
+for $\eta$, one for $u$). This is the case where de Wolff et al.
+(2021) reported a *negative* result: vanilla PINN underperformed a
+pure data-driven NN. We reproduce the failure to motivate the fixes
+in §8.3.
 
 ```{julia}
 #| eval: false
@@ -181,68 +141,115 @@ using DomainSets, Plots
 @variables η(..) u_vel(..)
 
 Dₜ = Differential(t);  Dₓ = Differential(x)
-
-g = 9.81;  H = 10.0   # gravity, mean depth → wave speed c ≈ 9.9 m/s
+g = 9.81;  H = 10.0   # wave speed c ≈ 9.9 m/s
 
 eqs = [
-    Dₜ(η(x, t)) + H * Dₓ(u_vel(x, t)) ~ 0,    # continuity
-    Dₜ(u_vel(x, t)) + g * Dₓ(η(x, t)) ~ 0,     # momentum
+    Dₜ(η(x, t)) + H * Dₓ(u_vel(x, t)) ~ 0,
+    Dₜ(u_vel(x, t)) + g * Dₓ(η(x, t)) ~ 0,
 ]
 
 domains = [x ∈ ClosedInterval(0.0, 2.0), t ∈ ClosedInterval(0.0, 0.05)]
 
 bcs = [
-    η(x, 0)        ~ exp(-100 * (x - 1.0)^2),   # Gaussian bump
-    u_vel(x, 0)    ~ 0.0,                         # at rest
-    u_vel(0.0, t)  ~ 0.0,                         # reflecting walls
+    η(x, 0)        ~ exp(-100 * (x - 1.0)^2),
+    u_vel(x, 0)    ~ 0.0,
+    u_vel(0.0, t)  ~ 0.0,
     u_vel(2.0, t)  ~ 0.0,
 ]
 
 @named pde_system = PDESystem(eqs, bcs, domains, [x, t], [η(x, t), u_vel(x, t)])
 
-chain_η = Lux.Chain(Lux.Dense(2,32,tanh), Lux.Dense(32,32,tanh),
-                     Lux.Dense(32,32,tanh), Lux.Dense(32,1))
-chain_u = Lux.Chain(Lux.Dense(2,32,tanh), Lux.Dense(32,32,tanh),
-                     Lux.Dense(32,32,tanh), Lux.Dense(32,1))
+chain_η = Lux.Chain(Lux.Dense(2, 32, tanh), Lux.Dense(32, 32, tanh),
+                    Lux.Dense(32, 32, tanh), Lux.Dense(32, 1))
+chain_u = Lux.Chain(Lux.Dense(2, 32, tanh), Lux.Dense(32, 32, tanh),
+                    Lux.Dense(32, 32, tanh), Lux.Dense(32, 1))
 
 discretization = PhysicsInformedNN([chain_η, chain_u], GridTraining([0.02, 0.001]))
 prob = discretize(pde_system, discretization)
-
-iter = Ref(0)
-callback = function (p, l)
-    iter[] += 1
-    iter[] % 100 == 0 && println("  iter $(iter[]): loss = $(round(l, sigdigits=4))")
-    return false
-end
-
-res = Optimization.solve(prob, LBFGS(); maxiters=3000, callback=callback)
-
-phi = discretization.phi;  trained_params = res.u
-xs_eval = range(0, 2, length=200)
-ts_eval = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05]
-
-p1 = plot(title="η(x,t) — surface elevation", xlabel="x", ylabel="η",
-          ylims=(-0.3, 1.1), lw=2)
-for t_val in ts_eval
-    η_pred = [first(phi[1]([xi, t_val], trained_params.depvar.η)) for xi in xs_eval]
-    plot!(p1, xs_eval, η_pred, label="t = $t_val")
-end
-
-p2 = plot(title="u(x,t) — velocity", xlabel="x", ylabel="u", lw=2)
-for t_val in ts_eval
-    u_pred = [first(phi[2]([xi, t_val], trained_params.depvar.u_vel)) for xi in xs_eval]
-    plot!(p2, xs_eval, u_pred, label="t = $t_val")
-end
-
-display(plot(p1, p2, layout=(2,1), size=(800,600)))
+res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
-The Gaussian bump splits into two counter-propagating waves — the same physics as the wave equation in Unit 3, but solved without any grid or time-stepping.
+### Loss Imbalance Between Residual and Boundary Terms
 
-### Training Strategies and Diagnostics
+The total loss
+$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
++ \lambda_b\,\mathcal{L}_{\text{BC}} + \lambda_i\,\mathcal{L}_{\text{IC}}$
+is a sum of terms whose magnitudes can differ by orders of magnitude.
+The optimiser drives the largest term to zero first; if that's a
+term you don't care about, the others stagnate. The classic failure
+mode: $\mathcal{L}_{\text{PDE}}$ is small but the BC is way off,
+producing a function that satisfies the equation in the interior
+but ignores the boundary.
 
-*Content coming soon.*
+### Spectral Bias
 
-### Common Failure Modes
+Standard MLPs with smooth activations are biased toward learning
+**low-frequency** components first (Rahaman et al., 2019; Tancik et
+al., 2020). High-frequency features — sharp initial conditions,
+oscillatory solutions, fine spatial structure — take many more
+iterations or never converge. For PINNs this means a Gaussian
+initial bump might smooth too fast, or a wavy solution might miss
+the right wavelength entirely.
 
-*Content coming soon.*
+### Causal Violation in Time-Dependent Problems
+
+For time-dependent problems, the PDE residual is evaluated at all
+$(\mathbf{x}_i, t_i)$ collocation points simultaneously. *Nothing
+in the loss* requires that the solution at $t_2$ be a *consequence*
+of the solution at $t_1 < t_2$. The optimiser can find a globally
+inconsistent solution whose residual is small everywhere but whose
+time-direction information flow is wrong — invisible to the loss
+but obvious in the prediction.
+
+## 8.3 Modern Fixes
+
+### Causal Training
+
+Wang et al. (2022): weight residual losses at later times by how
+well earlier times have already converged. Concretely,
+
+$$\lambda(t_i) = \exp\!\Bigl(-\epsilon \sum_{t_j < t_i} \mathcal{L}_{\text{PDE}}(t_j)\Bigr),$$
+
+so a time slice contributes only after earlier slices have been
+resolved. Trains the network in the right *temporal causal order*
+without explicit time-stepping.
+
+### Fourier Feature Embeddings
+
+Wrap each input in a Fourier feature transform
+
+$$\gamma(\mathbf{x}) = [\sin(B\mathbf{x}),\, \cos(B\mathbf{x})]$$
+
+with frequencies $B$ drawn from a distribution that includes the
+high frequencies you need (Tancik et al., 2020). The network sees
+high-frequency content in its input directly, breaking spectral
+bias. A simple recipe: $B \sim \mathcal{N}(0, \sigma^2 I)$ with
+$\sigma$ tuned per problem.
+
+### Hard Boundary Condition Enforcement
+
+Instead of penalising BC violations softly, **construct** the
+network output to satisfy them by construction. For Dirichlet BCs
+on $[0, 1]$ with $u(0, t) = u(1, t) = 0$, write
+
+$$u_\theta(x, t) = x(1 - x)\,N_\theta(x, t).$$
+
+Now $u_\theta = 0$ on the boundary regardless of $N_\theta$. The
+loss has one fewer term to balance, and the optimiser has fewer
+ways to fail. The trick generalises to other BC types via clever
+ansätze (Sukumar & Srivastava, 2022).
+
+### Adaptive Loss Weighting
+
+Tune $\lambda_r, \lambda_b, \lambda_i$ during training so all terms
+stay roughly balanced. Three families of approaches:
+
+- **Gradient-balancing** (McClenny & Braga-Neto, 2022) — match the
+  gradient norms of each term.
+- **NTK-based** (Wang et al., 2021) — use the neural tangent kernel
+  to compute target weights.
+- **Annealing** — start with one term dominant, gradually shift
+  weight to others.
+
+All beat hand-tuning. With these, the modern PINN is ready for the
+[capstone](../unit_09/unit_09.qmd).

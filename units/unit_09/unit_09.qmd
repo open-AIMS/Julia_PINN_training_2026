@@ -1,45 +1,112 @@
 ---
-title: "Unit 9: Advanced PINN Techniques"
+title: "Unit 9: The Capstone, Forward"
 engine: julia
-toc-title: "Unit 9: Advanced PINNs"
+toc-title: "Unit 9: Capstone Forward"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 9.1 Adaptive Sampling and Weighting
+The full toolkit assembled on the AIMS capstone: a 1D vertical heat-
+transport column driven by a 2D shallow-water flow. This unit covers
+the **forward** problem — given the drivers, predict $T(z, t)$ —
+with a finite-difference reference, a finite-volume shallow-water
+solver, and a forward PINN trained against both. The detailed model
+specification lives in [Unit 11](../unit_11/unit_11.qmd).
 
-### Residual-Based Adaptive Refinement
+## 9.1 The Coupled Model
 
-*Content coming soon.*
+### 1D Vertical Heat Transport
 
-### Loss Balancing Strategies
+The column model:
 
-*Content coming soon.*
+$$\frac{\partial T}{\partial t}
++ w(z, t)\,\frac{\partial T}{\partial z}
+= \frac{\partial}{\partial z}\!\left(\kappa(z, t)\,
+\frac{\partial T}{\partial z}\right) + \mathcal{S}(z, t)$$
 
-## 9.2 Multi-Scale and Multi-Physics PINNs
+on $z \in [-H, 0]$ with a surface flux BC at $z = 0$ and a
+fixed-temperature reservoir at $z = -H$. Full specification —
+including the diurnal forcing, the upwelling profile, and eddy
+diffusivity closures — is in
+[Unit 11](../unit_11/unit_11.qmd).
 
-### Handling Multiple Scales
+### 2D Shallow Water for Horizontal Flow
 
-*Content coming soon.*
+The linearised shallow water equations on a 2D domain produce
+horizontal velocity $\mathbf{u}_h(x, y, t)$ in response to a
+wind-stress forcing. We use these as the **driver** of the column's
+upwelling, not as a coupled-PDE PINN problem (that's the path de
+Wolff et al. found brittle). The SWE solve is offline; its output
+is a time series at the mooring location.
 
-### Coupled Systems of PDEs
+### Coupling: $w$ from $\nabla_h\!\cdot\!\mathbf{u}_h$
 
-*Content coming soon.*
+By incompressibility, $\partial_z w = -\nabla_h\!\cdot\!\mathbf{u}_h$.
+With $w(-H) = 0$ and the SWE flow uniform in depth,
 
-### Domain Decomposition
+$$w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t).$$
 
-*Content coming soon.*
+A simple linear-in-$z$ vertical velocity profile, computed offline
+from the SWE run and fed as a time series into the column model.
 
-## 9.3 Inverse Problems with PINNs
+## 9.2 Reference Solution
 
-### Parameter Estimation from Data
+### Finite-Difference Column Solver
 
-*Content coming soon.*
+A method-of-lines finite-difference reference for $T(z, t)$ — the
+ground truth we compare PINN predictions against. Uses
+`MethodOfLines.jl` with adaptive time-stepping; second-order central
+differences in $z$, with the surface Neumann condition imposed via
+a ghost cell.
 
-### Data Assimilation
+*Code placeholder.*
 
-*Content coming soon.*
+### Finite-Volume Shallow Water Solver
 
-### Applications to Ocean and Reef Models
+A staggered-grid finite-volume SWE reference, with wind-stress
+forcing and Coriolis. Run once for the storm scenario; output
+$\mathbf{u}_h(t)$ at the mooring location and pass as a time series
+to the column model.
 
-*Content coming soon.*
+*Code placeholder.*
+
+### A Synthetic Storm Scenario
+
+A Gaussian wind gust passing over the mooring on day 10, lasting
+3 days. Drives upwelling via SWE divergence, simultaneously enhances
+mixing (via stress-dependent $\kappa$) and reduces shortwave (via
+cloud cover). One physical event, three column-level driver
+perturbations — exactly the storm fingerprint problem from Unit 1.
+
+## 9.3 Forward PINN
+
+### Network and Loss
+
+A single MLP $T_\theta(z, t)$ trained against the column equation
+residual, the surface-flux BC, the bottom Dirichlet BC, and the IC.
+Hard BC enforcement at $z = -H$ via
+
+$$T_\theta(z, t) = T_{\text{deep}} + (z + H)\,N_\theta(z, t).$$
+
+Soft constraints elsewhere. Causal training (Unit 8 §8.3.1) for
+the time direction; Fourier features for the diurnal cycle.
+
+*Code placeholder.*
+
+### Training Against the Reference
+
+Compare against the `MethodOfLines.jl` reference at $L^2$ on
+$(z, t)$. Track the residual on a held-out test grid and the BC/IC
+misfit separately. The diurnal warm layer is the sharpest test —
+vanilla PINNs tend to smear it, the Unit 8 fixes preserve it.
+
+*Code placeholder.*
+
+### Diagnostics
+
+Per-section heat-budget closure: rate of change vs surface flux +
+advective + diffusive contributions. A correct PINN closes the
+budget point-wise. Spectral analysis of the residual to spot
+frequency content that's being missed. Comparison against the storm
+fingerprint — deeper sensors should cool first when upwelling
+dominates.

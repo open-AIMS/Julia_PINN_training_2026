@@ -1,49 +1,117 @@
 ---
-title: "Unit 10: Further Topics in Scientific Machine Learning"
+title: "Unit 10: The Capstone, Inverse"
 engine: julia
-toc-title: "Unit 10: Further Topics"
+toc-title: "Unit 10: Capstone Inverse"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 10.1 Neural Operators
+The deliverable: given sparse, noisy thermistor-chain observations,
+recover an unknown driver — wind-stress envelope, vertical mixing
+profile, or surface-flux time series. This is where PINNs genuinely
+outperform classical solvers, and where the workshop output
+generalises directly to real mooring data. We close with a Python
+parallel using `DeepXDE` to compare ecosystems.
 
-### DeepONet
+## 10.1 The Inverse Problem
 
-*Content coming soon.*
+### Recovering an Unknown Function from Sparse Data
 
-### Fourier Neural Operator
+Given temperature observations at five depths, hourly, plus
+knowledge of the column PDE and most drivers, infer the *unknown*
+driver as a function of time. Two networks: $T_\theta(z, t)$ for
+the field, $\tau_\phi(t)$ for the unknown wind-stress envelope.
+Joint training minimises
 
-*Content coming soon.*
+$$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}(T_\theta, \tau_\phi)
++ \lambda_d\,\mathcal{L}_{\text{data}}(T_\theta)
++ \lambda_{\text{reg}}\,\mathcal{R}(\tau_\phi)
++ \mathcal{L}_{\text{BC}} + \mathcal{L}_{\text{IC}}.$$
 
-### Operator Learning vs Function Learning
+### Joint Networks for Field and Driver
 
-*Content coming soon.*
+A subtle point: the field $T_\theta$ and the driver $\tau_\phi$
+have *different* domains and different smoothness expectations. Use
+separate networks with different architectures — for example, a
+tanh MLP for $T$ and a smaller MLP with low-frequency Fourier
+features for $\tau$. Train jointly with a single optimiser; the
+coupling happens through the residual loss, which contains both
+networks.
 
-## 10.2 Hybrid and Data-Driven Methods
+### Regularisation and Identifiability
 
-### Neural ODEs and Neural SDEs
+The inverse problem may be **ill-posed**: multiple drivers can
+produce the same observations. Regularisation — a smoothness
+penalty $\int |\tau_\phi'|^2\,dt$ or a sparsity prior — picks a
+unique solution. Without it, the optimiser exploits the ambiguity
+and lands somewhere uninformative. Quantifying *identifiability* —
+how much the data actually constrain the driver — is part of the
+analysis.
 
-*Content coming soon.*
+## 10.2 Worked Example: Recovering a Wind-Stress Envelope
 
-### Surrogate Models
+### Synthetic Mooring Data
 
-*Content coming soon.*
+Generate from the forward model in [Unit 9](../unit_09/unit_09.qmd)
+with $\tau(t)$ as the storm gust. Sample at five depths every hour
+for 30 days; add Gaussian noise $\sigma = 0.05\,°\text{C}$. The
+dataset is small (5 depths $\times$ 720 hours $\approx$ 3600 points)
+— exactly the regime where PINNs earn their keep.
 
-### Combining Data and Physics
+*Code placeholder.*
 
-*Content coming soon.*
+### Loss Construction
 
-## 10.3 The SciML Ecosystem and Future Directions
+The five-term loss above, with adaptive weighting (Unit 8 §8.3.4)
+to keep terms balanced through training. Hard BC enforcement at the
+bottom; soft surface flux. Causal training for the time direction.
+Smoothness regularisation on $\tau_\phi$ via an $H^1$ penalty.
 
-### Julia SciML Packages
+### Recovered Driver vs Truth
 
-*Content coming soon.*
+Plot the recovered $\tau_\phi(t)$ against the synthetic ground
+truth. With well-tuned regularisation, the storm window is
+recovered to within ~10% — the model can't pin down the gust
+amplitude perfectly because mixing and upwelling partially
+compensate, but the *timing* and *order of magnitude* are robust.
 
-### Open Challenges
+*Code placeholder.*
 
-*Content coming soon.*
+## 10.3 A Python Parallel with DeepXDE
+
+### Setting Up the Same Problem in DeepXDE
+
+`DeepXDE` is the Python equivalent of `NeuralPDE.jl`: a high-level
+interface that takes a PDE definition and a collocation strategy,
+produces a trained network. Re-implement the forward column problem
+in `DeepXDE` and compare.
+
+*Code placeholder.*
+
+### Cross-Ecosystem Comparison
+
+Strengths and weaknesses, honestly:
+
+- *Julia stack* — composes cleanly with classical SciML solvers,
+  faster autodiff for stiff problems, smaller ML community.
+- *Python stack* — broader ML community support, more ergonomic
+  when extending with bespoke loss terms, larger ecosystem of
+  pre-trained models and tutorials.
+
+Neither is strictly better. Pick by who's using it and what they
+already know.
 
 ### Where to Go from Here
 
-*Content coming soon.*
+Beyond the workshop:
+
+- **Real mooring data** — replace the synthetic observations with
+  AIMS records.
+- **Coupling with operational ocean models** — ROMS, MOM6 — for
+  realistic horizontal forcings.
+- **Uncertainty quantification** on the recovered driver, via
+  Bayesian PINNs or ensembles.
+- **Transfer to other reef sites** with different climatologies.
+
+Pointers to the operational ocean-modelling community and the PIML
+research community for next steps.

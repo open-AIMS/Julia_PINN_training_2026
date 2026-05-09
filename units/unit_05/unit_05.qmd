@@ -1,49 +1,127 @@
 ---
-title: "Unit 5: Machine Learning Foundations"
+title: "Unit 5: Learning Dynamics with Neural Differential Equations"
 engine: julia
-toc-title: "Unit 5: ML Foundations"
+toc-title: "Unit 5: Neural DEs"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-## 5.1 Loss Functions and Optimization
+Ordinary differential equations as models of dynamics, framed through
+universal approximation rather than classical numerics — no
+Runge–Kutta theory, no stiff-solver internals. We follow the
+ResNet-to-Neural-ODE bridge from
+[Unit 3](../unit_03/unit_03.qmd) and arrive at Universal Differential
+Equations: known physics + learnable closure. Worked examples include
+a damped pendulum with unknown friction and a Lotka–Volterra inverse
+variant.
 
-### Common Loss Functions
+## 5.1 ODEs as Models of Dynamics
 
-*Content coming soon.*
+### What an ODE Is
 
-### Gradient Descent and Variants
+An **ordinary differential equation** specifies the rate of change
+of a state $x(t) \in \mathbb{R}^n$ as a function of state and time:
 
-*Content coming soon.*
+$$\frac{dx}{dt} = f(x, t),\qquad x(0) = x_0.$$
 
-### Optimizers in Practice
+Given $f$ and $x_0$, the future is determined (modulo regularity
+conditions). ODEs model populations, mechanical systems, chemical
+kinetics, electrical circuits, neuron membrane dynamics — anywhere a
+few coupled time-varying quantities tell the story.
 
-*Content coming soon.*
+### Linear vs Nonlinear, Phase Space, Stability
 
-## 5.2 Training, Testing, and Validation
+**Linear** ODEs $\dot x = Ax$ have closed-form solutions and produce
+exponential or oscillatory behaviour. **Nonlinear** ODEs can have
+richer phenomena: limit cycles, multiple equilibria, chaos. The
+**phase space** view plots trajectories in state space rather than
+versus time — equilibria are points, limit cycles are loops, chaos
+fills regions. **Stability** of an equilibrium is read off from the
+linearisation: eigenvalues with negative real part mean attracting,
+positive means repelling.
 
-### Data Splitting Strategies
+### `DifferentialEquations.jl` as a Black-Box Reference
 
-*Content coming soon.*
+We use `DifferentialEquations.jl` as a high-quality numerical solver
+to produce ground-truth solutions, *without* engaging with its
+internals. Treat the solver as a function: hand it
+$(f, x_0, [t_0, t_f])$, get back $x(t)$. Classical ODE numerics
+(adaptive step control, stiff vs non-stiff, implicit methods) are
+deliberately out of scope.
 
-### Overfitting and Underfitting
+*Code placeholder.*
 
-*Content coming soon.*
+## 5.2 From ResNets to Neural ODEs
 
-### Cross-Validation
+### The Limit of Many Residual Layers
 
-*Content coming soon.*
+A ResNet step $h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell)$
+looks exactly like one step of explicit Euler on the ODE
+$\dot h = f_\theta(h)$. Take $\Delta t \to 0$ and depth
+$\to \infty$: the network *becomes* an ODE. **Neural ODE** (Chen et
+al., 2018): parametrise $f_\theta$ with a small NN, solve
+$\dot h = f_\theta(h)$ from input $h(0) = x$ to output
+$h(T) = $ prediction. The network is now a vector field, not a
+stack of layers.
 
-## 5.3 Regularization Techniques
+### Continuous-Depth Models
 
-### L1 and L2 Regularization
+Memory cost is constant in depth (the solver state replaces the
+layer activations). Adaptive solvers spend more compute on hard
+regions of input space. The model is automatically smooth in inputs
+— useful when smoothness is a meaningful prior. Costs: training is
+harder (you're training a vector field, not weights), and very stiff
+dynamics can blow up the solver budget.
 
-*Content coming soon.*
+### Adjoint Sensitivities (Briefly)
 
-### Dropout and Early Stopping
+Backpropagating through a numerical ODE solver via standard autodiff
+stores every intermediate state — memory-prohibitive for long
+trajectories. The **adjoint method** instead solves an auxiliary
+ODE backward in time to recover gradients with constant memory. The
+trade-off is some loss of numerical accuracy versus storing full
+forward states; the choice is problem-dependent.
 
-*Content coming soon.*
+### Training a Neural ODE
 
-### Bias-Variance Tradeoff
+A sketch: define a small MLP for $f_\theta$, integrate with
+`DifferentialEquations.jl`'s `solve`, take the L2 misfit between
+predicted and observed trajectories, and use the adjoint method (via
+`SciMLSensitivity.jl`) to get $\partial \mathcal{L} / \partial \theta$.
 
-*Content coming soon.*
+*Code placeholder.*
+
+## 5.3 Universal Differential Equations
+
+### Known Physics + Unknown Closure
+
+A **Universal Differential Equation (UDE)** is an ODE (or PDE)
+whose right-hand side mixes known terms and a small neural network
+for the unknown:
+
+$$\dot x = f_{\text{known}}(x, t) + f^{\text{NN}}_\theta(x, t).$$
+
+Train $\theta$ on observations of $x(t)$. The result is an ODE you
+can simulate, analyse, and reason about — with the NN filling in
+exactly the part that wasn't known.
+
+### Worked Example: Pendulum with Unknown Friction Term
+
+Standard damped pendulum:
+$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. Suppose the
+*friction* term $b\dot\theta$ is replaced by an unknown function
+$g_\theta(\dot\theta)$. Given trajectory data, recover
+$g_\theta(\cdot)$ as a small NN. The result is an interpretable
+hybrid model: the gravitational restoring force is hard-coded, the
+friction law is learned.
+
+*Code placeholder.*
+
+### Lotka–Volterra Inverse Variant
+
+Standard LV: $\dot x = \alpha x - \beta xy$,
+$\dot y = \delta xy - \gamma y$. **Inverse**: given trajectories,
+recover $(\alpha, \beta, \delta, \gamma)$ — or, if a term is
+unknown (say the predator–prey interaction), learn it as a small
+NN. A clean sandbox for inverse problems before we hit the AIMS
+column in Unit 10.
