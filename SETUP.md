@@ -76,7 +76,7 @@ Each script's stdout is wrapped in a Quarto cell-output block and saved to
 `units/unit_NN/output/<scriptname>.md`. The qmd embeds it with
 
 ```
-{{< include output/<scriptname>.md >}}
+{{</* include output/<scriptname>.md */>}}
 ```
 
 Plots: have your script save them to `units/unit_NN/output/<name>.png`

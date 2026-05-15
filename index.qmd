@@ -76,14 +76,14 @@ in the loss, collocation points, autodiff — and to spot a few failure
 modes (spectral bias, loss imbalance, causal violation) before
 tackling formal PDE theory in Unit 7 and harder PDE PINNs in Unit 8.
 
-## [Unit 7: Partial Differential Equations from First Principles](units/unit_07/unit_07.qmd)
+## [Unit 7: PDE Bootcamp](units/unit_07/unit_07.qmd)
 
-Formal foundations of PDEs: classification (elliptic, parabolic,
-hyperbolic), boundary and initial conditions, well-posedness. The
-three canonical mechanisms — diffusion, advection, reaction — appear
-as the building blocks for everything that follows. The unit closes
-with finite-difference numerics and the linearised shallow water
-equations as a worked nonlinear example we revisit in the capstone.
+A fast, intensive tour of the PDE essentials we'll need: classification
+(elliptic, parabolic, hyperbolic), boundary and initial conditions,
+well-posedness, the three canonical mechanisms (diffusion, advection,
+reaction), and finite-difference numerics. Closes with the linearised
+shallow water equations as a worked nonlinear example we revisit in
+the capstone.
 
 ## [Unit 8: When PINNs Meet PDEs](units/unit_08/unit_08.qmd)
 

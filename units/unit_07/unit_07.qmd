@@ -1,7 +1,7 @@
 ---
-title: "Unit 7: Partial Differential Equations from First Principles"
+title: "Unit 7: PDE Bootcamp"
 engine: julia
-toc-title: "Unit 7: PDEs"
+toc-title: "Unit 7: PDE Bootcamp"
 date: today
 date-format: "DD/MM/YYYY"
 ---
@@ -14,6 +14,39 @@ with finite-difference numerics and the linearised shallow water
 equations as a worked nonlinear example we revisit in the capstone.
 
 ## 7.1 PDE Classification and Well-Posedness
+
+We work in physical space-time throughout. Spatial coordinates are
+$x, y, z$; time is $t$. The unknown $u(x, y, z, t)$ stands in for
+whatever physical field a given equation models — temperature,
+pressure, concentration, displacement, electric potential. The
+Laplacian is
+
+$$\nabla^2 u = \frac{\partial^2 u}{\partial x^2}
+            + \frac{\partial^2 u}{\partial y^2}
+            + \frac{\partial^2 u}{\partial z^2};$$
+
+in 1D it reduces to $u_{xx}$, in 2D to $u_{xx} + u_{yy}$. Vector fields
+(velocity $\mathbf{u}(x, y, z, t)$, etc.) appear in the systems at the
+bottom of the table below.
+
+### Common PDE Models at a Glance
+
+A map of the PDEs we'll meet, grouped by character. Most of classical
+physics lives in this table; the rest of the unit is about how to read,
+classify, and solve them.
+
+| Name | Equation | Type | Typical application |
+|------|----------|------|---------------------|
+| **Laplace** | $\nabla^2 u = 0$ | Elliptic | Steady-state temperature, electrostatic potential |
+| **Poisson** | $\nabla^2 u = f$ | Elliptic | Potential with sources (gravity, charge) |
+| **Helmholtz** | $\nabla^2 u + k^2 u = 0$ | Elliptic | Standing waves, frequency-domain wave problems |
+| **Heat / diffusion** | $u_t = \alpha\,\nabla^2 u$ | Parabolic | Heat conduction, mass diffusion |
+| **Reaction–diffusion** | $u_t = \alpha\,\nabla^2 u + f(u)$ | Parabolic (nonlinear) | Pattern formation, population dynamics |
+| **Advection** | $u_t + c\,\partial_x u = 0$ | Hyperbolic (1st order) | Pure transport in a flow |
+| **Wave** | $u_{tt} = c^2\,\nabla^2 u$ | Hyperbolic | Vibrations, sound, electromagnetic waves |
+| **Advection–diffusion** | $u_t + c\,\partial_x u = \alpha\,u_{xx}$ | Mixed (parabolic + 1st-order hyperbolic) | Pollutant or heat in a flow |
+| **Burgers** | $u_t + u\,u_x = \nu\,u_{xx}$ | Nonlinear | Shock formation; simple fluid model |
+| **Shallow water** | $\eta_t + H\,\nabla\!\cdot\!\mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in [Unit 9](../unit_09/unit_09.qmd)) |
 
 ### Order, Linearity, and Type
 

@@ -126,10 +126,10 @@ res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 
 The 1D linearised shallow water system from
 [Unit 7](../unit_07/unit_07.qmd), attempted with two networks (one
-for $\eta$, one for $u$). This is the case where de Wolff et al.
-(2021) reported a *negative* result: vanilla PINN underperformed a
-pure data-driven NN. We reproduce the failure to motivate the fixes
-in §8.3.
+for $\eta$, one for $u$). This is the case where
+[de Wolff et al. (2021)](https://inria.hal.science/hal-03262684/document)
+reported a *negative* result: vanilla PINN underperformed a pure
+data-driven NN. We reproduce the failure to motivate the fixes in §8.3.
 
 ```{julia}
 #| eval: false
