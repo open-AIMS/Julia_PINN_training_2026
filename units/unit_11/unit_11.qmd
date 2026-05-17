@@ -107,14 +107,17 @@ each.
 ### Top, $z = 0$: surface heat flux
 
 $$
--\,\kappa\,\frac{\partial T}{\partial z}\bigg|_{z=0}
+\kappa\,\frac{\partial T}{\partial z}\bigg|_{z=0}
 \;=\; \frac{Q_{\text{np}}(t)}{\rho_0\, c_p}.
 $$
 
-In words: the diffusive heat flux *into* the ocean from the air-sea
-interface equals the *non-penetrative* part of the surface heat budget,
-divided by the volumetric heat capacity of seawater (so units come out as
-K·m/s, matching $\kappa\, \partial_z T$).
+In words: the downward diffusive heat flux *into* the ocean from the
+air-sea interface equals the *non-penetrative* part of the surface heat
+budget, divided by the volumetric heat capacity of seawater (so units
+come out as K·m/s, matching $\kappa\, \partial_z T$). With $z$ measured
+upward, $\partial_z T > 0$ corresponds to a warmer surface, and
+$\kappa\, \partial_z T$ is the *downward* heat flux — positive
+$Q_{\text{np}}$ heats the ocean by driving the surface temperature up.
 
 - **$Q_{\text{np}}(t)$** — net non-penetrative heat flux at the surface.
   Sum of: longwave radiation, sensible heat, latent heat (evaporation).

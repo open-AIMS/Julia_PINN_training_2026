@@ -8,16 +8,8 @@
 #   4. storm fingerprint (gust modulates w, κ, Q_SW around day 10)
 #
 # Run a scenario:
-#   include("column_fd.jl"); sol = run_scenario(scenario_1());
-#   plot_scn1(sol)
-#
-# NOTE on the surface BC sign convention: §11.4 writes
-#   -κ ∂T/∂z|₀ = Q_np/(ρ cp)
-# with the prose "Q_np > 0 = heat into ocean". Those two are inconsistent
-# (with Q_np = -Q_cool < 0, the formula yields surface warmer than deep
-# in steady state). We implement the formula *literally* so the analytic
-# check below matches; the physical interpretation should be reconciled
-# in the qmd before the PINN forward problem.
+#   include("column_fd.jl"); r = run_scenario(scenario_1());
+#   plot_scn1(r)
 
 using ModelingToolkit, MethodOfLines, OrdinaryDiffEq
 using OrdinaryDiffEqBDF: QNDF  # umbrella OrdinaryDiffEq no longer re-exports BDF solvers
@@ -104,7 +96,7 @@ function build_pde(scn, p=PARAMS)
     bcs = [
         T(z, 0.0)   ~ T0(z, p),
         T(-p.H, t)  ~ p.T_deep,
-        -κ_top * Dz(T(0.0, t)) ~ Qnp_sym / (p.ρ * p.cp),
+        κ_top * Dz(T(0.0, t)) ~ Qnp_sym / (p.ρ * p.cp),
     ]
 
     @named pde_system = PDESystem(eq, bcs, domains, [z, t], [T(z, t)])
@@ -173,11 +165,13 @@ scenario_4() = (
 )
 
 # ── analytic check for scenario 1 ───────────────────────────────────────
-# Steady state of (κ T_z)_z = 0 with T(-H)=T_deep and -κ T_z|₀ = Q_np/(ρcp):
-#   T(z) = T_deep + (Q_cool/(κ_m ρ cp)) · (z + H)
-# (Using Q_np = -Q_cool. See the BC-sign NOTE at the top.)
+# Steady state of (κ T_z)_z = 0 with T(-H)=T_deep and κ T_z|₀ = Q_np/(ρcp):
+#   T(z) = T_deep − (Q_cool/(κ_m ρ cp)) · (z + H)
+# (Using Q_np = -Q_cool < 0, so the surface is cooler than the deep
+# reservoir — heat flows up from depth to be lost at the air-sea
+# interface.)
 T_analytic_scn1(z, p=PARAMS) =
-    p.T_deep + p.Q_cool / (p.κ_m * p.ρ * p.cp) * (z + p.H)
+    p.T_deep - p.Q_cool / (p.κ_m * p.ρ * p.cp) * (z + p.H)
 
 # ── plotting ────────────────────────────────────────────────────────────
 # Extract the (Nz, Nt) matrix and grids from a run_scenario result,
