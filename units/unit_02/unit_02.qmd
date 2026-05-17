@@ -6,77 +6,115 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
-The long route into machine learning — from supervised learning and
-random forests through to deep networks, optimisers, and the autodiff
-engine that drives PINNs. Random forests appear briefly as the
-non-deep-learning baseline; the second half pivots to neural networks
-(`Lux.jl` primary, `PyTorch` parallel) and the optimisation /
-autodiff stack PINNs actually use.
+A walk from supervised learning and random forests through to neural
+networks, optimisation, and the autodiff stack that PINNs sit on.
+This unit follows the framing of *Mathematical Engineering of Deep
+Learning* (Nazarathy & Klok), chapters 2–5, with code in Julia
+(`MLJ.jl` for classical ML, `Lux.jl` for deep networks) and a
+`scikit-learn` / `PyTorch` cameo so the cross-ecosystem story stays
+alive.
 
-## 2.1 What is Machine Learning?
+A single unit can't cover everything — the goal here is *shared
+vocabulary* and a feel for which classical ideas survive the journey
+to PINNs. Deep-network theory and the modern PINN toolkit get their
+own treatment in [Unit 7](../unit_07/unit_07.qmd).
 
-### Supervised Learning
+## 2.1 Supervised learning fundamentals
 
-Given labelled data $\{(x_i, y_i)\}_{i=1}^N$, learn a function $f$
-such that $f(x) \approx y$ on unseen inputs. $x$ might be a feature
-vector; $y$ might be continuous (regression) or discrete
-(classification). The art of supervised learning is choosing a
-function class — linear, tree-based, neural — and a fitting procedure
-that *generalises* beyond the training set.
+### The setup
 
-### Loss, Risk, and Empirical Risk Minimisation
+Given labelled data $\{(x_i, y_i)\}_{i=1}^N$, learn a function
+$f: \mathbb{R}^n \to \mathcal{Y}$ such that $f(x) \approx y$ on
+unseen inputs. The output space $\mathcal{Y}$ is continuous
+(regression) or a finite set (classification). The art of supervised
+learning is choosing a **function class** — linear, tree-based,
+neural — and a **fitting procedure** that *generalises* beyond the
+training set.
 
-A **loss** $\ell(\hat y, y)$ measures how bad a single prediction is.
-The **true risk**
+### Loss, true risk, empirical risk
 
-$$R(f) = \mathbb{E}_{(x, y)}[\ell(f(x), y)]$$
+A **loss** $\ell(\hat y, y)$ measures how bad a single prediction
+is. The **true risk** is the population mean
 
-is what we actually care about. Since we can't compute it, we
-minimise the **empirical risk**
+$$R(f) = \mathbb{E}_{(x, y)\sim p}[\ell(f(x), y)].$$
 
-$$\hat R(f) = \frac{1}{N}\sum_{i=1}^N \ell(f(x_i), y_i)$$
+We can't compute it, so we minimise the **empirical risk**
 
-instead. All of supervised learning is a story about how empirical
-risk does or doesn't approximate true risk.
+$$\hat R(f) = \frac{1}{N}\sum_{i=1}^N \ell(f(x_i), y_i).$$
 
-### Generalisation: Train, Validate, Test
+All of supervised learning is a story about how, when, and *whether*
+$\hat R$ approximates $R$. PINNs are no exception — their "data"
+includes scattered collocation points where the loss is a PDE
+residual rather than a label, but the ERM picture survives intact
+([Unit 5](../unit_05/unit_05.qmd)).
 
-Split the data into **training** (fit the model), **validation**
-(choose hyperparameters), and **test** (estimate true risk). Never
-let the test set influence model choice. Generalisation gap = (test
-error) − (training error); high gap indicates overfitting.
+### Train, validate, test — and $k$-fold cross-validation
 
-## 2.2 Beyond Deep Learning: A Random Forest Cameo
+The standard split: **training** to fit, **validation** to pick
+hyperparameters, **test** to estimate true risk. Never let the test
+set influence model choice.
 
-### Decision Trees in One Picture
+When data is scarce, hold out one validation set at a time and
+rotate. That's **$k$-fold cross-validation**:
 
-A decision tree partitions the input space by axis-aligned splits,
-with a constant prediction at each leaf. Greedy fitting: at each
-internal node, pick the feature and threshold that best reduce a
-loss criterion (variance for regression, Gini or entropy for
-classification). Trees are interpretable but high-variance — small
-data perturbations produce very different trees.
+![$k$-fold cross-validation. Each row trains on the unshaded blocks and validates on the shaded one; cross-validated risk averages the $k$ held-out scores. (Figure from *Mathematical Engineering of Deep Learning*, §2.5.)](figures/figure2-11-kfold_cross_validation.svg)
 
-### A Random Forest, Side by Side in Julia and Python
+### Bias, variance, and model complexity
 
-A 100-tree random forest classifying the iris dataset, evaluated by
-5-fold cross-validation. The Julia and Python versions are
-deliberately parallel to make the cross-ecosystem story visible from
-the start.
+Holding $N$ fixed and sweeping the function class from simple to
+complex, training error decreases monotonically while test error is
+$U$-shaped: too simple under-fits (high bias), too complex over-fits
+(high variance). The minimum of the test-error curve marks the
+"right" complexity for that dataset size.
+
+![Test (orange) and training (blue) error vs. model complexity. The classical bias–variance trade-off: complexity beyond the right-hand side of the dotted line buys lower training error at the cost of higher test error. (Figure from *MEDL*, §2.7.)](figures/figure2-9-error_modelcomplexity.svg)
+
+For PINNs the same picture applies: the function class is set by the
+network architecture, "complexity" is roughly the parameter count,
+and the test set is replaced by held-out collocation points in the
+PDE domain.
+
+## 2.2 Random forests: a cross-language cameo
+
+Before deep learning takes over, one quick stop on the
+non-deep-learning side of the world.
+
+### Decision trees, ensembled
+
+A **decision tree** partitions the input space by axis-aligned
+splits, with a constant prediction at each leaf. Greedy fitting
+picks the split that reduces a loss criterion most at each node —
+variance for regression, Gini or entropy for classification. Trees
+are interpretable but **high-variance**: small data perturbations
+produce wildly different trees.
+
+A **random forest** mitigates the variance by averaging many trees
+trained on bootstrap resamples of the data, with each split
+considering only a random subset of features. The variance falls,
+generalisation goes up, interpretability becomes harder to maintain.
+Random forests are still a serious baseline on tabular problems —
+often the right tool when you have hundreds-to-thousands of rows and
+hand-designed features.
+
+### Iris in Julia (`MLJ.jl`)
 
 ```{julia}
+#| eval: false
+
 using MLJ
 using DataFrames
 
 iris = load_iris()
-y, X = unpack(iris, ==(:target); rng=123)
+y, X = unpack(iris, ==(:target); rng = 123)
 X = DataFrame(X)
 
 RandomForest = @load RandomForestClassifier pkg=DecisionTree verbosity=0
-mach = machine(RandomForest(n_trees=100), X, y)
+mach = machine(RandomForest(n_trees = 100), X, y)
 
-evaluate!(mach, resampling=CV(nfolds=5), measure=accuracy)
+evaluate!(mach, resampling = CV(nfolds = 5), measure = accuracy)
 ```
+
+### Iris in Python (`scikit-learn`)
 
 ```python
 from sklearn.datasets import load_iris
@@ -91,158 +129,308 @@ scores = cross_val_score(clf, X, y, cv=5, scoring="accuracy")
 print(f"Accuracy: {scores.mean():.3f} ± {scores.std():.3f}")
 ```
 
+The Python script runs as a sidecar — `./build.sh execute 2` writes
+its captured output to `output/iris_rf.md`, included below:
+
 {{< include output/iris_rf.md >}}
 
-Both report ~0.96 mean accuracy on iris. The point isn't the number
-— it's that the same problem in two ecosystems has the same shape.
-This template recurs through the workshop.
+Both report ≈ 0.96 mean accuracy. The point isn't the number; it's
+that the same problem in two ecosystems has the **same shape** —
+load data, choose a model, cross-validate, report. This template
+recurs through the workshop.
 
-### When Classical ML Wins
+### When classical ML wins
 
-Classical methods (random forests, gradient boosting, regularised
-linear models) still win when (a) the dataset is small (hundreds to
-thousands of rows), (b) features are tabular and well-engineered, or
-(c) interpretability matters. Deep learning's edge sharpens with
-high-dimensional unstructured inputs (images, text, audio) and large
-datasets — and with PDE residuals, as we'll see.
+Random forests (and gradient boosting, and regularised linear
+models) still beat neural networks when:
 
-## 2.3 Toward Deep Learning
+- the dataset is **small** (hundreds to thousands of rows),
+- the features are **tabular and well-engineered**, or
+- **interpretability** matters and you can pay the per-tree
+  inspection cost.
 
-### From Hand-Crafted Features to Learned Representations
+Deep learning's edge sharpens with high-dimensional unstructured
+inputs (images, text, audio), large datasets, and — as we'll see in
+[Unit 5](../unit_05/unit_05.qmd) onwards — *PDE residuals*.
 
-Classical pipelines spent most of their effort on **feature
-engineering** — hand-crafting input transformations that made
-downstream learning easier. Deep learning replaces this with
-**learned representations**: stacked nonlinear transformations whose
-parameters are fit jointly with the prediction head. The win is
-automation; the cost is more data, more compute, and more failure
-modes.
+## 2.3 From logistic regression to a neural network
 
-### Function Approximation as a Lens
+### Bernoulli likelihood and the sigmoid
 
-A neural network is a parametrised family of functions
-$f_\theta : \mathbb{R}^n \to \mathbb{R}^m$. Training adjusts $\theta$
-to minimise empirical risk. Everything we'll do — including PINNs —
-is a special case of this picture, with the "loss" sometimes
-containing physics terms instead of just data terms.
+For binary classification, model
+$P(y = 1 \mid x) = \sigma(w^\top x + b)$ with the sigmoid
+$\sigma(z) = 1/(1 + e^{-z})$. Maximising the Bernoulli likelihood
+over training data is equivalent to minimising the **binary
+cross-entropy**
 
-## 2.4 Neural Networks
+$$\mathcal{L}(w, b) =
+-\tfrac{1}{N}\sum_i \bigl[y_i \log \hat p_i + (1-y_i) \log (1-\hat p_i)\bigr],$$
 
-### Layers, Activations, MLPs
+where $\hat p_i = \sigma(w^\top x_i + b)$. That single-layer
+$x \mapsto \sigma(w^\top x + b)$ is the simplest neural network — a
+linear map followed by a smooth nonlinearity.
 
-A **multilayer perceptron (MLP)** alternates affine layers
-$h \mapsto Wh + b$ with elementwise nonlinearities $\sigma$:
+### Softmax for multiclass
 
-$$f_\theta(x) = W_L\,\sigma\!\bigl(W_{L-1}\,\sigma(\cdots W_1 x + b_1 \cdots)
-+ b_{L-1}\bigr) + b_L.$$
+Stack the binary case $K$ times and renormalise with the
+**softmax**
 
-Parameters $\theta = \{W_\ell, b_\ell\}$ are fit by minimising a
-loss. Common nonlinearities: ReLU $\max(0, x)$, tanh, the Swish
-family. **For PINNs** the choice of activation matters a lot: ReLU
-has zero second derivatives almost everywhere, which breaks the
-residual loss. Smooth activations like tanh or Swish are usually
-safer.
+$$\mathrm{softmax}(z)_k = \frac{e^{z_k}}{\sum_{j=1}^K e^{z_j}}.$$
 
-### Universal Approximation
+The model becomes $P(y = k \mid x) = \mathrm{softmax}(Wx + b)_k$,
+fit by **categorical cross-entropy**.
+
+![A logistic / softmax classifier as a one-layer neural network. The affine map $Wx + b$ feeds a softmax that outputs class probabilities. (Figure from *MEDL*, §3.3.)](figures/figure3-3-logistic_architecture.svg)
+
+### Logistic regression in `Lux.jl`
+
+```{julia}
+#| eval: false
+
+using Lux, Random
+
+rng = Random.default_rng()
+model = Lux.Chain(
+    Lux.Dense(4 => 3),          # 4 iris features → 3 classes
+    Lux.softmax,
+)
+
+ps, st = Lux.setup(rng, model)
+ŷ, st = model(rand(rng, Float32, 4, 16), ps, st)  # forward pass on a batch
+```
+
+The `Lux.jl` style separates the *model* (a pure function) from
+**parameters** `ps` and **state** `st` — the same explicit style
+that lets `NeuralPDE.jl` compose layers with collocation losses in
+[Unit 5](../unit_05/unit_05.qmd).
+
+### A `scikit-learn` parallel
+
+```python
+from sklearn.linear_model import LogisticRegression
+from sklearn.datasets import load_iris
+
+iris = load_iris()
+clf = LogisticRegression(max_iter=1000).fit(iris.data, iris.target)
+print(clf.score(iris.data, iris.target))
+```
+
+Two lines of Python; one model in Julia. Both produce a softmax
+classifier on iris. *What's different* is how the parameters are
+exposed — implicit in `scikit-learn`, explicit in `Lux.jl` — and
+that distinction matters once we start writing loss terms that need
+gradients with respect to the parameters.
+
+## 2.4 Feedforward networks
+
+### MLPs: depth $\times$ width
+
+A **multilayer perceptron (MLP)** stacks affine layers with
+elementwise nonlinearities $\sigma$ in between:
+
+$$f_\theta(x) = W_L\,\sigma\!\bigl(W_{L-1}\,\sigma(\cdots W_1 x + b_1 \cdots) + b_{L-1}\bigr) + b_L.$$
+
+A one-hidden-layer network is enough to demonstrate the architecture
+shape:
+
+![One hidden layer. The input vector flows through an affine map + nonlinearity to a hidden representation, then a final linear projection. (Figure from *MEDL*, §5.1.)](figures/figure5-1-a-one_hidden_layer.svg)
+
+Depth lets the network compose features; width gives it room to
+represent each:
+
+![A deeper feedforward network — same picture, repeated. (Figure from *MEDL*, §5.1.)](figures/figure5-1-b-deep_neural_network.svg)
+
+### Universal approximation
 
 A two-layer MLP with a non-polynomial activation can approximate any
 continuous function on a compact set to arbitrary accuracy, given
-enough hidden units (Hornik, 1991). The theorem is qualitative — it
-does *not* tell you how many units, how much data, or how to train.
-Depth, width, and architectural priors make the difference in
-practice.
+enough hidden units (Hornik, 1991; Cybenko, 1989). The theorem is
+**qualitative**: it doesn't tell you how many units, how much data,
+or how to train. Depth, architectural priors, and good optimisation
+make the practical difference.
 
-### Lux.jl in Practice
+### Activation choices (with a PINN aside)
 
-`Lux.jl` is a pure-Julia, explicit-parameter neural-network library
-designed to compose cleanly with the SciML ecosystem. Layers are
-pure functions of $(x, \theta, \text{state})$; parameters live
-separately from the model definition. This explicit style is what
-makes `NeuralPDE.jl` and the rest of the SciML stack work.
+Common nonlinearities:
 
-*Code placeholder.*
+- **Sigmoid / tanh** — smooth, bounded, classical. Saturate, so deep
+  networks gradient-vanish.
+- **ReLU** $\max(0, x)$ — cheap, non-saturating, the modern default
+  for vision / language tasks.
+- **Swish** $x\,\sigma(\beta x)$ — smooth ReLU; good default for
+  PINNs.
 
-## 2.5 Architectures Beyond MLPs
+For **PINNs** the second derivatives matter (they show up in the
+PDE residual). ReLU's second derivative is zero almost everywhere
+— useless for diffusion-type PDEs. Smooth activations (tanh, Swish,
+GELU) are the safe default; we use Swish throughout
+[Units 5–7](../unit_05/unit_05.qmd).
 
-### Convolutional Networks (Brief)
+## 2.5 Optimisation and autodiff
 
-CNNs replace dense $W$ with **convolutional layers** that share
-weights across spatial positions. The inductive biases —
-translation-equivariance, locality, weight sharing — turn an
-intractable MLP on grid-structured data into a tractable model. We
-mention them because CNN-based PINNs and *neural operators*
-(DeepONet, FNO) are the natural extensions when the field has
-spatial structure that an MLP would have to relearn from scratch.
+### Computational graphs and backprop
 
-### Residual Networks
+Every neural-network loss is the output of a finite computation
+graph — a DAG whose nodes are tensors and whose edges are
+elementary operations.
 
-A **ResNet** adds skip connections:
-$h_{\ell+1} = h_\ell + \mathcal{F}(h_\ell)$. Two effects: (1)
-gradient flow stays clean during backprop, making deep networks
-trainable; (2) the network is biased toward learning *small
-perturbations* of the identity. Crucially, taking the limit of many
-small ResNet steps gives an ordinary differential equation — the
-bridge to **Neural ODEs** in [Unit 4](../unit_04/unit_04.qmd).
+![A small computational graph. Forward evaluation flows left-to-right; reverse-mode AD (backpropagation) populates gradients right-to-left. (Figure from *MEDL*, §4.4.)](figures/figure4-7-computational_graph.svg)
 
-### Choosing an Architecture
+**Backpropagation** is exactly reverse-mode automatic
+differentiation applied to that graph: one forward pass evaluates
+intermediate quantities, one backward pass propagates gradients
+using the chain rule. Cost is $O(\text{nodes})$ per gradient — i.e.,
+similar to one forward pass.
 
-For PINN-scale problems, sensible defaults are 4–8 dense layers,
-32–128 units wide, tanh or Swish activations, and careful weight
-initialisation (`Glorot` / `Kaiming`). Architectural complexity
-helps when the field has structure to exploit; for the AIMS column
-problem an MLP is enough.
+### Optimisers: SGD, momentum, Adam, L-BFGS
 
-## 2.6 Training, Autodiff, and a Python Parallel
+Given gradients $g_t = \nabla_\theta \mathcal{L}(\theta_t)$, the
+parameter update rules are:
 
-### Loss, Backpropagation, Optimisers (SGD, Adam, L-BFGS)
+- **SGD**: $\theta_{t+1} = \theta_t - \eta\, g_t$. Cheap, noisy,
+  the default for large-batch deep learning.
+- **SGD + momentum**: low-pass filter the gradients,
+  $v_{t+1} = \mu v_t + g_t$, then step with $v_{t+1}$. Helps
+  ravines and noisy gradients.
+- **Adam** — adaptive per-parameter step sizes via running estimates
+  of $\mathbb{E}[g]$ and $\mathbb{E}[g^2]$. The robust default for
+  medium-scale deep learning.
+- **L-BFGS** — quasi-Newton, no learning rate to tune; often the
+  *best* choice for the small-batch low-noise regime PINNs inhabit.
 
-**Backpropagation** is reverse-mode automatic differentiation
-applied to the chain rule of a deep network: compute
-$\partial \mathcal{L} / \partial \theta$ in one backward pass, with
-cost similar to one forward pass. **Optimisers** then take steps:
+Recipe for PINN training that recurs in [Units 5–7](../unit_05/unit_05.qmd):
+**Adam** for a few thousand iterations to escape bad
+initialisations, then **L-BFGS** for fine-tuning to a tight residual.
 
-- **SGD** — cheap, noisy, the default for large-batch deep learning.
-- **Adam** — adaptive per-parameter learning rates; a robust default
-  for medium-scale problems.
-- **L-BFGS** — quasi-Newton, often the *best* choice for the
-  small-batch low-noise regime PINNs inhabit.
+### Forward vs reverse mode (why PINNs need both)
 
-In practice PINNs are trained with Adam for a few thousand
-iterations to escape bad initialisations, then L-BFGS for
-fine-tuning.
+For a function $f: \mathbb{R}^n \to \mathbb{R}^m$:
 
-### Autodiff: Forward vs Reverse Mode, and Why It Matters for PINNs
+- **Forward mode** propagates derivatives along with values. Cost
+  scales with $n$ (inputs).
+- **Reverse mode** propagates derivatives backward. Cost scales with
+  $m$ (outputs).
 
-**Forward mode** propagates derivatives through the computation
-graph alongside values; **reverse mode** propagates them backward.
-Cost: forward $O(\text{inputs})$, reverse $O(\text{outputs})$.
+Standard deep learning is "many inputs, one scalar loss": $m = 1$,
+reverse mode wins. *PINNs* are different: the loss involves
+**spatial derivatives** of the network output evaluated at
+collocation points. Those derivatives go into the loss, and the
+final loss-gradient pass needs gradients of those *derivatives* —
+a derivative of a derivative.
 
-PINNs need both:
+Computing this efficiently means **forward-over-reverse**:
+forward-mode for the spatial derivative (one or two inputs),
+reverse-mode for the outer gradient over parameters. Getting the
+nesting right is what makes a PINN frame work; getting it wrong
+makes training 100× slower. `Lux.jl` + `Zygote.jl` + `ForwardDiff.jl`
+handle this composition cleanly, which is why the workshop uses
+that stack.
 
-- *Reverse* for parameter gradients $\partial \mathcal{L} / \partial \theta$.
-- *Forward* (or carefully nested reverse) for the **spatial
-  derivatives** of the network's output that go into the PDE
-  residual.
+## 2.6 Training a model in practice
 
-Mixing the two correctly — typically forward-over-reverse for
-second derivatives — is what makes a PINN frame work efficiently.
+A small iris classifier shows the full forward + loss + autodiff +
+optimiser loop end-to-end — same dataset as the random forest in
+§2.2 but with a deep model, so the comparison stays apples-to-apples.
+The Lux version runs as a sidecar (`./build.sh execute 2`); the
+PyTorch and `scikit-learn` blocks below are static, for the
+cross-ecosystem comparison.
 
-### A PyTorch Implementation of the Same Network
+### `Lux.jl` MLP on iris
 
-The `PyTorch` parallel keeps the cross-ecosystem comparison alive.
-Same architecture, same dataset, same training loop — different
-language and framework. Useful both as a sanity check and to make
-the workshop accessible to the (still much larger) Python ML
-community.
+```{.julia filename="units/unit_02/scripts/iris_lux.jl" code-fold="true" code-summary="Show the Julia source"}
+{{< include scripts/iris_lux.jl >}}
+```
 
-*Code placeholder.*
+Captured output (after `./build.sh execute 2`):
 
-## 2.7 What Carries Over to PINNs
+{{< include output/iris_lux.md >}}
 
-Three ideas survive the journey from classical ML to PINNs:
+### `scikit-learn` parallel
 
-1. **Loss minimisation** as the unifying training principle.
-2. **Generalisation** as the goal — a PINN that fits collocation
-   points but violates physics elsewhere is overfitting.
-3. **Regularisation**, in the form of physics terms that anchor the
-   solution to the equations.
+The same MLP architecture in `scikit-learn`'s `MLPClassifier`:
+
+```{.python}
+from sklearn.datasets import load_iris
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import cross_val_score
+
+X, y = load_iris(return_X_y=True)
+clf = MLPClassifier(
+    hidden_layer_sizes=(16,), activation="tanh",
+    solver="adam", max_iter=2000, random_state=123,
+)
+print(cross_val_score(clf, X, y, cv=5, scoring="accuracy").mean())
+```
+
+### `PyTorch` parallel
+
+And the same model with explicit autodiff in `PyTorch`:
+
+```{.python}
+import torch, torch.nn as nn
+from sklearn.datasets import load_iris
+import numpy as np
+
+X, y = load_iris(return_X_y=True)
+X = torch.tensor(X, dtype=torch.float32)
+y = torch.tensor(y, dtype=torch.long)
+
+model = nn.Sequential(nn.Linear(4, 16), nn.Tanh(), nn.Linear(16, 3))
+opt   = torch.optim.Adam(model.parameters(), lr=1e-2)
+loss  = nn.CrossEntropyLoss()
+
+for epoch in range(500):
+    opt.zero_grad()
+    L = loss(model(X), y)
+    L.backward()
+    opt.step()
+
+preds = model(X).argmax(dim=1)
+print(f"accuracy = {(preds == y).float().mean():.3f}")
+```
+
+All three follow the same skeleton — load data, define model, set
+optimiser, loop minibatches, compute loss, step. The Julia version
+makes the parameter state explicit; PyTorch and `scikit-learn` hide
+it. The only meaningful differences are surface-level. Pick by
+ecosystem.
+
+### Regularisation, batch norm, dropout
+
+Three standard knobs to keep training honest:
+
+- **Weight regularisation** — add $\lambda \|\theta\|^2$ to the loss
+  ($L_2$, "weight decay") to keep the parameters small.
+- **Batch normalisation** — normalise activations within each
+  mini-batch; lets you use higher learning rates and reduces
+  sensitivity to initialisation.
+- **Dropout** — randomly zero a fraction of activations during
+  training; equivalent to averaging over an ensemble of thinned
+  networks.
+
+![Dropout: at each training step, a random subset of hidden units is masked out; at test time all units are used with weights rescaled. (Figure from *MEDL*, §5.7.)](figures/figure5-11-dropout.svg)
+
+For PINNs the regularisation knobs you care about are *physics
+terms* in the loss rather than weight penalties or dropout — the
+PDE residual itself is a powerful regulariser, as we'll see from
+[Unit 5](../unit_05/unit_05.qmd) onward.
+
+## 2.7 What carries over to PINNs
+
+Three ideas from this unit survive the journey to physics-informed
+networks:
+
+1. **Loss minimisation** as the unifying training principle. PINNs
+   add residual terms to the loss but keep the empirical-risk
+   skeleton.
+2. **Generalisation** as the goal. A PINN that fits its collocation
+   points but violates physics elsewhere is *overfitting*; held-out
+   collocation samples play the role of the test set.
+3. **Regularisation by physics**. The PDE residual is a domain
+   prior — a regulariser sharper than any $L_2$ penalty, because
+   it actually encodes what the function *must* satisfy.
+
+With those in hand, [Unit 3](../unit_03/unit_03.qmd) lifts the
+function-approximation idea into a SciML landscape, and
+[Unit 4](../unit_04/unit_04.qmd) introduces the ODE side that PINNs
+will meet head-on in [Unit 5](../unit_05/unit_05.qmd).
