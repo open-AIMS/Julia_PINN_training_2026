@@ -6,44 +6,55 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Our first hands-on PINN, in the simplest possible settings: a small
-collection of ODEs and the simplest PDE. The aim is to make the
-ingredients concrete — residual loss, initial conditions in the loss,
-collocation points, autodiff — and to spot a few failure modes before
-we tackle the formal PDE theory in
-[Unit 6](../unit_06/unit_06.qmd) and harder PDE PINNs in
+Our first hands-on PINN, in the simplest possible settings. We do
+it **twice**:
+
+1. **From first principles** — a one-page implementation in
+   `Lux` + `Zygote` + `ForwardDiff` that you can read end-to-end.
+   No PINN library, no symbolic machinery; just a network, a
+   residual, and an optimiser. This is the inline code in §5.2.
+2. **With `NeuralPDE.jl`** — the same problem written declaratively
+   against a `ModelingToolkit` `PDESystem` and discretised in a
+   single line. Concise, scalable, the right tool for the AIMS
+   capstone — but harder to debug if you don't know the
+   first-principles version first. This is the sidecar in §5.3.
+
+We then push `NeuralPDE.jl` from the ODE up to the simplest PDE
+(1D diffusion, §5.4) and call out the failure modes that
+[Unit 7](../unit_07/unit_07.qmd) finally fixes.
+
+## 5.1 The PINN idea
+
+### Residual loss from a differential equation
+
+For an ODE $\dot{x} = f(x, t)$, define a network $x_\theta(t)$ —
+input time, output state — and the **residual**
+
+$$r_\theta(t) \;=\; \dot{x}_\theta(t) - f(x_\theta(t), t),$$
+
+with $\dot{x}_\theta$ computed by autodiff *through the network*.
+The **residual loss** is
+
+$$\mathcal{L}_{\text{ODE}}(\theta) \;=\;
+\frac{1}{N_r}\sum_{i=1}^{N_r} \bigl|r_\theta(t_i)\bigr|^2$$
+
+evaluated at scattered **collocation points** $\{t_i\}$. Minimising
+it pushes $x_\theta$ toward *a* solution of the ODE.
+
+### Initial conditions are what pin it down
+
+A residual alone has infinitely many solutions — the ODE is a one-
+parameter family indexed by $x_0$. The IC term
+
+$$\mathcal{L}_{\text{IC}}(\theta) \;=\; \bigl|x_\theta(0) - x_0\bigr|^2$$
+
+(with weight $\lambda_{\text{IC}}$) selects the trajectory we want.
+The same idea applies to boundary conditions on PDEs. The *weights*
+$\lambda_{\text{IC}}, \lambda_{\text{BC}}, \lambda_{\text{PDE}}$ are
+the main hyperparameter — tuning them well is a major theme of
 [Unit 7](../unit_07/unit_07.qmd).
 
-## 5.1 The PINN Idea
-
-### Residual Loss from a Differential Equation
-
-For an ODE $\dot x = f(x, t)$, define a network $x_\theta(t)$ and
-the residual
-
-$$r(t) = \dot x_\theta(t) - f(x_\theta(t), t),$$
-
-with $\dot x_\theta$ computed by autodiff through the network. The
-**residual loss** is
-
-$$\mathcal{L}_{\text{ODE}} = \frac{1}{N_r}\sum_{i=1}^{N_r} |r(t_i)|^2$$
-
-evaluated at scattered collocation points $\{t_i\}$. Minimising it
-pushes $x_\theta$ toward a solution of the ODE.
-
-### Initial Conditions in the Loss
-
-A residual alone has infinitely many solutions — every ODE has a
-one-parameter family of trajectories indexed by $x_0$. **Initial
-conditions** pin down which one we want. Add a term
-
-$$\mathcal{L}_{\text{IC}} = |x_\theta(0) - x_0|^2$$
-
-with weight $\lambda_{\text{IC}}$. The same idea applies to boundary
-conditions on PDEs. Tuning these weights is a major theme of
-[Unit 7](../unit_07/unit_07.qmd).
-
-### Collocation Points and Sampling
+### Collocation points
 
 Where do you put the $\{t_i\}$? Options:
 
@@ -55,72 +66,143 @@ Where do you put the $\{t_i\}$? Options:
 For a first pass on a smooth ODE, a uniform grid of a few hundred
 points is plenty.
 
-## 5.2 PINNs on ODEs
+## 5.2 A PINN from first principles
 
-### Harmonic Oscillator
+We solve $\dot{x}(t) = -x(t)$ with $x(0) = 1$ — the simplest
+non-trivial ODE — whose exact solution is $x(t) = e^{-t}$. Our PINN
+will be a 1 → 16 → 1 MLP with $\tanh$ activations. Three pieces of
+machinery:
 
-$\ddot x + \omega^2 x = 0$, $x(0) = 1$, $\dot x(0) = 0$, with
-closed-form solution $x(t) = \cos(\omega t)$. The cleanest possible
-test case — second-order, smooth, periodic. A PINN trained on a
-single period typically nails it; trained on many periods you start
-to see spectral bias on the high-frequency oscillations.
+- `Lux` for the model and its parameter container;
+- `ForwardDiff.derivative` to compute $\dot{x}_\theta(t)$ at
+  collocation points (a scalar-input function, so forward mode is
+  the right call);
+- `Zygote.gradient` to differentiate the *loss* with respect to
+  $\theta$. The composition is **forward-over-reverse**: forward
+  mode inside, reverse mode outside.
 
-*Code placeholder.*
+```{julia}
+using Lux, Random, Zygote, ForwardDiff, Optimisers, Plots
 
-### Damped Pendulum
+rng = Random.MersenneTwister(0)
+model = Lux.Chain(
+    Lux.Dense(1 => 16, tanh),
+    Lux.Dense(16 => 1),
+)
+ps, st = Lux.setup(rng, model)
 
-$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. The
-nonlinearity ($\sin\theta$) and dissipation make it a richer test.
-The PINN should match the trajectory toward the stable equilibrium.
+# scalar t → scalar x_θ(t)
+function x_θ(t, ps, st)
+    y, _ = model([t], ps, st)
+    y[1]
+end
 
-*Code placeholder.*
+# autodiff time derivative through the network (forward mode)
+dxdt(t, ps, st) = ForwardDiff.derivative(τ -> x_θ(τ, ps, st), t)
 
-### Lotka–Volterra (Forward and Inverse)
+ts = collect(range(0.0, 4.0; length = 64))   # collocation points
 
-**Forward**: given $(\alpha, \beta, \delta, \gamma)$ and initial
-populations, predict $x(t), y(t)$. **Inverse**: given noisy
-observations of $x(t), y(t)$, recover the parameters. The inverse
-setup foreshadows the AIMS capstone in
-[Unit 9](../unit_09/unit_09.qmd).
+function loss(ps)
+    L_res = sum(t -> (dxdt(t, ps, st) + x_θ(t, ps, st))^2, ts) / length(ts)
+    L_ic  = (x_θ(0.0, ps, st) - 1.0)^2
+    L_res + 100.0 * L_ic
+end
 
-*Code placeholder.*
+opt_state = Optimisers.setup(Optimisers.Adam(2e-2), ps)
+for epoch in 1:1500
+    g = first(Zygote.gradient(loss, ps))
+    opt_state, ps = Optimisers.update(opt_state, ps, g)
+end
 
-## 5.3 PINNs on the Simplest PDE: 1D Diffusion
+# compare to the exact solution
+tgrid  = range(0.0, 4.0; length = 200)
+exact  = exp.(-collect(tgrid))
+learnt = [x_θ(t, ps, st) for t in tgrid]
 
-### The Heat Equation in One Dimension
+plt = plot(tgrid, exact;  label = "exact e^(-t)",
+           xlabel = "t", ylabel = "x", lw = 2)
+plot!(plt, tgrid, learnt; label = "PINN", lw = 2, ls = :dash)
+```
 
-$\partial_t u = \alpha\,\partial_x^2 u$ on $x \in [0, L]$,
-$t \in [0, T]$, with Dirichlet boundaries
-$u(0, t) = u(L, t) = 0$ and a smooth initial condition
-$u(x, 0) = u_0(x)$. The simplest non-trivial PDE — parabolic,
-smoothing, well-posed — and the first true PDE PINN benchmark.
+Notice what this is, and what it isn't:
 
-### A First PDE PINN
+- There is **no time-stepping**. The PINN doesn't march forward in
+  time; it fits a function on the whole interval at once.
+- There is **no training data** — only the equation and the IC. The
+  collocation points are *unlabelled*.
+- The loss is **differentiable** because $\dot{x}_\theta$ is
+  computed by AD; if you could write the residual you can train.
 
-The network has two inputs $(x, t)$ and one output. Loss has three
-terms — residual, IC, BC — with collocation points scattered in
-$[0, L] \times [0, T]$. Train with L-BFGS for a few thousand
-iterations; compare to the analytic Fourier-series solution or a
-finite-difference reference.
+That last point is the whole game. Whatever differential equation
+you can encode as a residual `r(t, ps)`, the same loop trains a PINN
+for it. The difficulty in §§5.3-5.4 is *scaling* the bookkeeping:
+multiple BCs, multiple spatial dimensions, multiple loss terms.
+That's what `NeuralPDE.jl` automates.
 
-*Code placeholder — full version in [Unit 7](../unit_07/unit_07.qmd) §7.1.*
+## 5.3 The same ODE with `NeuralPDE.jl`
 
-### Failure Modes Already Visible
+`NeuralPDE.jl` turns a `ModelingToolkit.PDESystem` (equation +
+domains + BCs) and a `PhysicsInformedNN(chain, training_strategy)`
+discretisation into an `OptimizationProblem` that any `Optimization.jl`
+optimiser can solve. The same $\dot{x} = -x$ problem becomes:
 
-Three pathologies show up even in this benign setting and motivate
-everything in Unit 7:
+```{.julia code-fold="true" code-summary="`scripts/pinn_neuralpde_ode.jl` — full source"}
+{{< include scripts/pinn_neuralpde_ode.jl >}}
+```
 
-- **Spectral bias** — the network learns low frequencies first;
-  sharp initial conditions take many iterations.
-- **Loss imbalance** — if $\lambda_{\text{IC}}$, $\lambda_{\text{BC}}$,
-  $\lambda_{\text{PDE}}$ are wrong by orders of magnitude, the
-  optimiser finds a solution that satisfies the easy term and ignores
-  the hard one.
-- **Causal violation** — time-dependent PINNs can fit the residual
-  at every $t$ simultaneously, including futures whose IC dependence
-  hasn't propagated, producing solutions that are locally consistent
-  but globally wrong.
+Captured output from `./build.sh execute 5`:
 
-These three failure modes return on harder PDEs in
-[Unit 7](../unit_07/unit_07.qmd), where the modern fixes finally
-appear.
+{{< include output/pinn_neuralpde_ode.md >}}
+
+What the package buys you: a one-line residual derivation (no
+hand-rolled `dxdt`), built-in collocation strategies, and a clean
+path from `Optimization.solve` to `Adam`, `LBFGS`, or any other
+adapter in the SciML stack. What you pay: heavier precompile and a
+*lot* of symbolic machinery between your problem and the gradient
+that ends up training the network.
+
+## 5.4 The simplest PDE: 1D diffusion
+
+The 1D heat equation
+$\partial_t u = \alpha\,\partial_x^2 u$ on $(x, t) \in [0, 1]\times[0, 1]$
+with Dirichlet boundaries $u(0, t) = u(1, t) = 0$ and a Gaussian
+initial bump $u(x, 0) = \exp\!\bigl(-200(x - 0.5)^2\bigr)$. Parabolic,
+smoothing, well-posed — and the first proper PDE PINN benchmark.
+
+The implementation is structurally identical to §5.3, with one
+extra spatial coordinate and one extra BC pair:
+
+```{.julia code-fold="true" code-summary="`scripts/pinn_neuralpde_heat.jl` — full source"}
+{{< include scripts/pinn_neuralpde_heat.jl >}}
+```
+
+Captured output from `./build.sh execute 5`:
+
+{{< include output/pinn_neuralpde_heat.md >}}
+
+![PINN solution at three times vs. a finite-difference reference. The PINN matches the smoothing trend; the residual at the Gaussian peak is the visible discrepancy.](output/pinn_neuralpde_heat.png)
+
+## 5.5 Failure modes already visible
+
+Even on benign problems three pathologies show up that motivate
+everything in [Unit 7](../unit_07/unit_07.qmd):
+
+- **Spectral bias.** MLPs with smooth activations preferentially fit
+  low frequencies first (Rahaman et al., 2019). The Gaussian initial
+  bump in §5.4 — locally high curvature — is the slowest-converging
+  feature of the loss.
+- **Loss imbalance.** With residual, IC, and BC contributing terms
+  of very different magnitude, the optimiser zeroes the easiest one
+  first. The PINN can land on a solution that satisfies the equation
+  inside the domain but ignores the boundary, or fits the IC and the
+  PDE while drifting at the BC.
+- **Causal violation.** A time-dependent PINN can fit the residual at
+  every $t$ simultaneously, including futures whose dependence on the
+  IC hasn't propagated forward. The result is locally consistent at
+  each $(x, t)$ point but globally inconsistent as a *trajectory*.
+
+These three are the meat of [Unit 7](../unit_07/unit_07.qmd):
+adaptive loss weighting, Fourier feature embeddings, hard BC
+enforcement, and causal training. With those tools we can train
+PINNs on the AIMS column in [Unit 8 / Unit 9](../unit_08/unit_08.qmd);
+without them we can't.
