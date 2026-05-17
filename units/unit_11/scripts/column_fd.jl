@@ -187,7 +187,7 @@ function _grids(r)
 end
 
 "Final-time T(z) vs analytic steady state."
-function plot_scn1(r; outpath=joinpath(@__DIR__, "output", "scn1_steady.png"))
+function plot_scn1(r; outpath=joinpath(@__DIR__, "..", "output", "scn1_steady.png"))
     zg, tg, Tg = _grids(r)
     Tf = Tg[:, end]
     fig = Figure(size=(700, 500))
@@ -207,7 +207,7 @@ end
 
 "Near-surface (z, t) heatmap for scenario 2."
 function plot_scn2(r; zmax=10.0,
-                   outpath=joinpath(@__DIR__, "output", "scn2_diurnal.png"))
+                   outpath=joinpath(@__DIR__, "..", "output", "scn2_diurnal.png"))
     zg, tg, Tg = _grids(r)
     keep = zg .>= -zmax
     fig = Figure(size=(900, 450))
@@ -222,7 +222,7 @@ end
 
 "Five-mooring-depth time series + full (z,t) heatmap for scenarios 3–4."
 function plot_mooring(r; depths_m=(2.0, 10.0, 30.0, 60.0, 90.0),
-                      outpath=joinpath(@__DIR__, "output", "$(replace(r.scn.name, ' '=>'_'))_mooring.png"))
+                      outpath=joinpath(@__DIR__, "..", "output", "$(replace(r.scn.name, ' '=>'_'))_mooring.png"))
     zg, tg, Tg = _grids(r)
     days = tg ./ 86400.0
     fig = Figure(size=(1000, 700))
@@ -243,7 +243,10 @@ function plot_mooring(r; depths_m=(2.0, 10.0, 30.0, 60.0, 90.0),
 end
 
 # ── entry point when run as script ──────────────────────────────────────
+# Used by ./build.sh execute 11 to populate units/unit_11/output/.
 if abspath(PROGRAM_FILE) == @__FILE__
-    r1 = run_scenario(scenario_1())
-    plot_scn1(r1)
+    r1 = run_scenario(scenario_1());  plot_scn1(r1)
+    r2 = run_scenario(scenario_2());  plot_scn2(r2)
+    r3 = run_scenario(scenario_3());  plot_mooring(r3)
+    r4 = run_scenario(scenario_4());  plot_mooring(r4)
 end

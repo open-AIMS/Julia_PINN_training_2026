@@ -1,7 +1,7 @@
 ---
-title: "Unit 11: Project Exploration"
+title: "Project Specification"
 engine: julia
-toc-title: "Unit 11: Project Exploration"
+toc-title: "Project Specification"
 date: today
 date-format: "DD/MM/YYYY"
 ---
@@ -252,16 +252,22 @@ In order of increasing complexity. Each builds on the previous.
    *Expected:* a linear $T(z)$ profile balancing surface flux against the
    deep reservoir. Sanity check: analytic solution exists.
 
+   ![Scenario 1 output — `scenario_1()` from `scripts/column_fd.jl`. MOL final profile matches the analytic steady state to ≈ 4 × 10⁻³ °C.](output/scn1_steady.png)
+
 2. **Add the diurnal cycle.** Turn on the time-varying $Q_{\text{SW}}(t)$
    and the body source $\mathcal{S}$. Keep $w = 0$, $\kappa$ constant.
    *Expected:* a diurnal warm layer in the top few metres that warms in
    the afternoon and erodes overnight. Bulk profile barely changes over
    30 days.
 
+   ![Scenario 2 output — top-10 m heatmap with subtle diurnal bands superimposed on the slow relaxation toward the scenario-1 steady state.](output/scn2_diurnal.png)
+
 3. **Add upwelling.** Turn on $w(z)$ with $w_0 = 10^{-5}\,\text{m/s}$.
    *Expected:* cold water from depth invades the bulk; SST drops slowly
    over weeks. The diurnal warm layer survives but sits on top of cooler
    water.
+
+   ![Scenario 3 output — five-mooring traces (top) and full $(z, t)$ heatmap (bottom). SST drops 28 → 22 °C; mid-column warms via diffusion (Pe ≈ 1).](output/upwelling_mooring.png)
 
 4. **Vary mixing.** Switch $\kappa$ from constant to the profile closure
    with mixed-layer scale $h_m$. Try $h_m = 5, 20, 50$ m. *Expected:*
@@ -278,6 +284,8 @@ In order of increasing complexity. Each builds on the previous.
    surface stays close to baseline because cloud and stress cancel.
    Compare to "decoupled" runs that perturb only one driver at a time.
 
+   ![Scenario 4 output — `scenario_4()` uses prescribed Gaussian envelopes for the gust-driven upwelling and cloud cover, pending the SWE driver from §11.10. The storm bump is visible around day 10.](output/storm_fingerprint_mooring.png)
+
 6. **The mock story, inverse.** Generate synthetic mooring data from the
    forward scenario above with added noise
    ($\sigma = 0.05\,°\text{C}$). Hand the data to a PINN that knows the
@@ -289,12 +297,27 @@ In order of increasing complexity. Each builds on the previous.
 
 ## 11.9 Notebook-vs-code split
 
-This `.qmd` is the model document. Implementations live in sibling
-`.jl` files (kept out of the Quarto render so iteration is fast):
+This `.qmd` is the model document. Implementations live as sidecar
+scripts under `units/unit_11/scripts/` (kept out of the Quarto render
+so iteration is fast — see `SETUP.md`). Run them with
+`./build.sh execute 11`; outputs land in `units/unit_11/output/`
+and are embedded back into this page.
 
-- `column_fd.jl` — `MethodOfLines.jl` finite-difference reference solver.
-- `column_pinn_forward.jl` — PINN for the forward problem.
-- `column_pinn_inverse.jl` — inverse PINN for one unknown function.
-- `mock_story.jl` — driver script that runs scenarios 5 and 6.
+- `scripts/column_fd.jl` — `MethodOfLines.jl` finite-difference reference solver.
+- `scripts/column_pinn_forward.jl` — PINN for the forward problem *(TODO)*.
+- `scripts/column_pinn_inverse.jl` — inverse PINN for one unknown function *(TODO)*.
+- `scripts/mock_story.jl` — driver script that runs scenarios 5 and 6 *(TODO)*.
 
-Place them in `units/unit_11/` next to this file.
+## 11.10 Reference solver: `scripts/column_fd.jl`
+
+The MethodOfLines finite-difference reference for $T(z, t)$ — the
+ground truth we'll compare PINN predictions against. Folded for
+brevity; expand to read.
+
+```{.julia code-fold="true" code-summary="Show full source"}
+{{< include scripts/column_fd.jl >}}
+```
+
+Captured stdout from `./build.sh execute 11`:
+
+{{< include output/column_fd.md >}}

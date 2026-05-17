@@ -19,7 +19,27 @@ website:
     logo-alt: "AIMS"
     logo-href: /index.html
     title-href: /index.html
-  sidebar: false
+  sidebar:
+    style: floating
+    search: true
+    contents:
+      - text: Course Overview
+        href: index.qmd
+      - section: Curriculum
+        contents:
+          - units/unit_01/unit_01.qmd
+          - units/unit_02/unit_02.qmd
+          - units/unit_03/unit_03.qmd
+          - units/unit_04/unit_04.qmd
+          - units/unit_05/unit_05.qmd
+          - units/unit_06/unit_06.qmd
+          - units/unit_07/unit_07.qmd
+          - units/unit_08/unit_08.qmd
+          - units/unit_09/unit_09.qmd
+          - units/unit_10/unit_10.qmd
+      - section: Reference
+        contents:
+          - units/unit_11/unit_11.qmd
 
 format:
   html:
@@ -30,6 +50,7 @@ format:
     anchor-sections: true
     smooth-scroll: true
     respect-user-color-scheme: true
+    page-navigation: true
     toc: true
     toc-depth: 2
     toc-expand: 2
