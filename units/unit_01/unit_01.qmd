@@ -13,10 +13,10 @@ destination on day one before working through the foundations.
 
 ::: {.callout-note}
 This unit's demo is a stripped-down preview of
-[Unit 9](../unit_09/unit_09.qmd) and
-[Unit 10](../unit_10/unit_10.qmd). Code in §1.2 will be assembled once
+[Unit 8](../unit_08/unit_08.qmd) and
+[Unit 9](../unit_09/unit_09.qmd). Code in §1.2 will be assembled once
 those units are finalised. The full model specification lives in
-[Unit 11](../unit_11/unit_11.qmd).
+[Unit 10](../unit_10/unit_10.qmd).
 :::
 
 ## 1.1 The AIMS Column Problem
@@ -37,7 +37,7 @@ be pushed up from below by currents elsewhere. Inside the column,
 turbulent mixing redistributes heat vertically. The minimal model is
 a 1D vertical advection–diffusion equation for temperature
 $T(z, t)$ with surface and bottom boundary conditions — fully spelled
-out in [Unit 11](../unit_11/unit_11.qmd).
+out in [Unit 10](../unit_10/unit_10.qmd).
 
 ### Three Storm Hypotheses
 
@@ -48,7 +48,7 @@ Three competing explanations for the observed cooling:
 3. **Surface heating reduced** — cloud cover and evaporation cut the net flux into the ocean.
 
 Each hypothesis leaves a distinct fingerprint in the depth–time
-record. By Unit 10 we'll have a PINN that, given the mooring data,
+record. By Unit 9 we'll have a PINN that, given the mooring data,
 can identify which mechanism dominated.
 
 ## 1.2 Live Demo
@@ -61,7 +61,7 @@ finite-difference reference solver against a forward PINN trained on
 the same problem, both producing the diurnal warm layer riding on top
 of a slowly evolving thermocline.
 
-*Code placeholder — assembled from [Unit 9](../unit_09/unit_09.qmd).*
+*Code placeholder — assembled from [Unit 8](../unit_08/unit_08.qmd).*
 
 ### Inverse: Recovering a Hidden Driver
 
@@ -70,7 +70,7 @@ both upwelling and mixing — and try to recover it from the five
 mooring time series alone. The PINN treats the unknown driver as a
 small neural network trained jointly with the temperature field.
 
-*Code placeholder — assembled from [Unit 10](../unit_10/unit_10.qmd).*
+*Code placeholder — assembled from [Unit 9](../unit_09/unit_09.qmd).*
 
 ### Reading the Output
 
@@ -83,20 +83,20 @@ sparse data — exactly the setting AIMS researchers face.
 
 ### What You'll Learn Across Units 2–8
 
-[Units 2–3](../unit_02/unit_02.qmd) cover machine-learning basics and
-deep learning — the function-approximation toolkit. [Unit 4](../unit_04/unit_04.qmd)
+[Unit 2](../unit_02/unit_02.qmd) cover machine-learning basics and
+deep learning — the function-approximation toolkit. [Unit 3](../unit_03/unit_03.qmd)
 surveys the broader Sci-ML and physics-informed ML landscape.
-[Unit 5](../unit_05/unit_05.qmd) introduces ODEs through universal
-approximation (Neural ODEs, UDEs). [Unit 6](../unit_06/unit_06.qmd)
+[Unit 4](../unit_04/unit_04.qmd) introduces ODEs through universal
+approximation (Neural ODEs, UDEs). [Unit 5](../unit_05/unit_05.qmd)
 is your first PINN, on basic ODE and PDE models.
-[Unit 7](../unit_07/unit_07.qmd) covers formal PDE theory and
-classical numerics. [Unit 8](../unit_08/unit_08.qmd) covers modern
+[Unit 6](../unit_06/unit_06.qmd) covers formal PDE theory and
+classical numerics. [Unit 7](../unit_07/unit_07.qmd) covers modern
 PINN techniques for harder PDEs.
 
-### Returning to This Demo in Units 9–10
+### Returning to This Demo in Units 8–9
 
-[Unit 9](../unit_09/unit_09.qmd) builds the full forward column +
-shallow-water model. [Unit 10](../unit_10/unit_10.qmd) closes the loop
+[Unit 8](../unit_08/unit_08.qmd) builds the full forward column +
+shallow-water model. [Unit 9](../unit_09/unit_09.qmd) closes the loop
 by recovering an unknown driver from sparse mooring data — exactly
 the demo above, fully derived.
 
@@ -104,6 +104,6 @@ the demo above, fully derived.
 
 Julia is the primary language: `Lux.jl`, `NeuralPDE.jl`,
 `MethodOfLines.jl`, the broader SciML stack. Python parallels appear
-in Unit 2 (`scikit-learn`), Unit 3 (`PyTorch`), and Unit 10
+in Unit 2 (`scikit-learn` and `PyTorch`), and Unit 9
 (`DeepXDE`) so participants leave with a sense of the cross-ecosystem
 landscape.

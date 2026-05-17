@@ -37,9 +37,6 @@ website:
           - units/unit_08/unit_08.qmd
           - units/unit_09/unit_09.qmd
           - units/unit_10/unit_10.qmd
-      - section: Reference
-        contents:
-          - units/unit_11/unit_11.qmd
 
 format:
   html:

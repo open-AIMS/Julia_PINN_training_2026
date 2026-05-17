@@ -1,34 +1,119 @@
 ---
-title: "Unit 10: The Capstone, Inverse"
+title: "Unit 10: Project Solution"
 engine: julia
-toc-title: "Unit 10: Capstone Inverse"
+toc-title: "Unit 10: Project Solution"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-The deliverable: given sparse, noisy thermistor-chain observations,
-recover an unknown driver — wind-stress envelope, vertical mixing
-profile, or surface-flux time series. This is where PINNs genuinely
-outperform classical solvers, and where the workshop output
-generalises directly to real mooring data. We close with a Python
-parallel using `DeepXDE` to compare ecosystems.
+The capstone, solved. The science behind the model lives in
+[Unit 8](../unit_08/unit_08.qmd); the formal specification is in
+[Unit 9](../unit_09/unit_09.qmd); this unit is the *implementation*
+— a finite-difference reference, a forward PINN, an inverse PINN,
+and the diagnostics that tie the three together. Each toy task from
+[Unit 9](../unit_09/unit_09.qmd) §9.9 gets its output here.
 
-## 10.1 The Inverse Problem
+## 10.1 Finite-difference reference solver
 
-### Recovering an Unknown Function from Sparse Data
+A method-of-lines finite-difference reference for $T(z, t)$ — the
+ground truth we compare PINN predictions against. Uses
+`MethodOfLines.jl` with adaptive time-stepping; second-order
+central differences in $z$, with the surface Neumann condition
+imposed via a ghost cell. The full source listing is in §10.6;
+below we work through the four scenarios from
+[Unit 9](../unit_09/unit_09.qmd) §9.9 of increasing complexity.
 
-Given temperature observations at five depths, hourly, plus
-knowledge of the column PDE and most drivers, infer the *unknown*
-driver as a function of time. Two networks: $T_\theta(z, t)$ for
-the field, $\tau_\phi(t)$ for the unknown wind-stress envelope.
-Joint training minimises
+### Scenario 1 — pure diffusion to steady state
+
+$w = 0$, $\mathcal{S} = 0$, $\kappa$ constant, $Q_{\text{np}}$
+constant. After ~365 days the column reaches a near-steady state.
+
+![Scenario 1 output — `scenario_1()` from `scripts/column_fd.jl`. MOL final profile matches the analytic steady state to ≈ 4 × 10⁻³ °C.](output/scn1_steady.png)
+
+### Scenario 2 — diurnal cycle
+
+Adds $Q_{\text{SW}}(t)$ (smooth half-cosine, mean 400 W/m²) and the
+Beer–Lambert body source $\mathcal{S}$.
+
+![Scenario 2 output — top-10 m heatmap with subtle diurnal bands superimposed on the slow relaxation toward the scenario-1 steady state.](output/scn2_diurnal.png)
+
+### Scenario 3 — upwelling
+
+Adds the $w(z) = w_0 \sin(\pi(z+H)/H)$ profile with
+$w_0 = 10^{-5}\,\text{m/s}$.
+
+![Scenario 3 output — five-mooring traces (top) and full $(z, t)$ heatmap (bottom). SST drops 28 → 22 °C; mid-column warms via diffusion (Pe ≈ 1).](output/upwelling_mooring.png)
+
+### Scenario 4 — storm fingerprint (prescribed gust)
+
+Gaussian gust at $t_{\text{storm}} = 10$ days, $\sigma = 1$ day,
+modulating both $w_0$ (×5 at peak) and $Q_{\text{SW}}^{\max}$ (×0.5
+at peak via cloud cover). Real SWE-driven forcings will replace
+these envelopes in scenario 5 (mock story, forward).
+
+![Scenario 4 output — `scenario_4()` uses prescribed Gaussian envelopes for the gust-driven upwelling and cloud cover, pending the SWE driver. The storm bump is visible around day 10.](output/storm_fingerprint_mooring.png)
+
+## 10.2 Shallow water driver
+
+A staggered-grid finite-volume SWE reference, with wind-stress
+forcing and Coriolis. Run once for the storm scenario; output
+$\mathbf{u}_h(t)$ at the mooring location and pass as a time
+series to the column model. Replaces the prescribed gust envelopes
+of scenario 4 with a physically derived $w(t)$.
+
+*Code placeholder.*
+
+## 10.3 Forward PINN
+
+### Network and loss
+
+A single MLP $T_\theta(z, t)$ trained against the column equation
+residual, the surface-flux BC, the bottom Dirichlet BC, and the IC.
+Hard BC enforcement at $z = -H$ via
+
+$$T_\theta(z, t) = T_{\text{deep}} + (z + H)\,N_\theta(z, t).$$
+
+Soft constraints elsewhere. Causal training
+([Unit 7](../unit_07/unit_07.qmd) §7.3) for the time direction;
+Fourier features for the diurnal cycle.
+
+*Code placeholder.*
+
+### Training against the reference
+
+Compare against the `MethodOfLines.jl` reference at $L^2$ on
+$(z, t)$. Track the residual on a held-out test grid and the BC/IC
+misfit separately. The diurnal warm layer is the sharpest test —
+vanilla PINNs tend to smear it, the [Unit 7](../unit_07/unit_07.qmd)
+fixes preserve it.
+
+*Code placeholder.*
+
+### Diagnostics
+
+Per-section heat-budget closure: rate of change vs surface flux +
+advective + diffusive contributions. A correct PINN closes the
+budget point-wise. Spectral analysis of the residual to spot
+frequency content that's being missed. Comparison against the
+storm fingerprint — deeper sensors should cool first when upwelling
+dominates.
+
+## 10.4 Inverse PINN
+
+### The inverse problem
+
+Given temperature observations at the five mooring depths, hourly,
+plus knowledge of the column PDE and most drivers, infer the
+*unknown* driver as a function of time. Two networks:
+$T_\theta(z, t)$ for the field, $\tau_\phi(t)$ for the unknown
+wind-stress envelope. Joint training minimises
 
 $$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}(T_\theta, \tau_\phi)
 + \lambda_d\,\mathcal{L}_{\text{data}}(T_\theta)
 + \lambda_{\text{reg}}\,\mathcal{R}(\tau_\phi)
 + \mathcal{L}_{\text{BC}} + \mathcal{L}_{\text{IC}}.$$
 
-### Joint Networks for Field and Driver
+### Joint networks for field and driver
 
 A subtle point: the field $T_\theta$ and the driver $\tau_\phi$
 have *different* domains and different smoothness expectations. Use
@@ -38,7 +123,7 @@ features for $\tau$. Train jointly with a single optimiser; the
 coupling happens through the residual loss, which contains both
 networks.
 
-### Regularisation and Identifiability
+### Regularisation and identifiability
 
 The inverse problem may be **ill-posed**: multiple drivers can
 produce the same observations. Regularisation — a smoothness
@@ -48,26 +133,25 @@ and lands somewhere uninformative. Quantifying *identifiability* —
 how much the data actually constrain the driver — is part of the
 analysis.
 
-## 10.2 Worked Example: Recovering a Wind-Stress Envelope
+### Synthetic mooring data
 
-### Synthetic Mooring Data
-
-Generate from the forward model in [Unit 9](../unit_09/unit_09.qmd)
-with $\tau(t)$ as the storm gust. Sample at five depths every hour
-for 30 days; add Gaussian noise $\sigma = 0.05\,°\text{C}$. The
-dataset is small (5 depths $\times$ 720 hours $\approx$ 3600 points)
-— exactly the regime where PINNs earn their keep.
+Generate from the forward model in §10.3 with $\tau(t)$ as the
+storm gust. Sample at five depths every hour for 30 days; add
+Gaussian noise $\sigma = 0.05\,°\text{C}$. The dataset is small
+(5 depths × 720 hours ≈ 3600 points) — exactly the regime where
+PINNs earn their keep.
 
 *Code placeholder.*
 
-### Loss Construction
+### Loss construction
 
-The five-term loss above, with adaptive weighting (Unit 8 §8.3.4)
-to keep terms balanced through training. Hard BC enforcement at the
-bottom; soft surface flux. Causal training for the time direction.
-Smoothness regularisation on $\tau_\phi$ via an $H^1$ penalty.
+The five-term loss above, with adaptive weighting
+([Unit 7](../unit_07/unit_07.qmd) §7.3.4) to keep terms balanced
+through training. Hard BC enforcement at the bottom; soft surface
+flux. Causal training for the time direction. Smoothness
+regularisation on $\tau_\phi$ via an $H^1$ penalty.
 
-### Recovered Driver vs Truth
+### Recovered driver vs truth
 
 Plot the recovered $\tau_\phi(t)$ against the synthetic ground
 truth. With well-tuned regularisation, the storm window is
@@ -77,9 +161,7 @@ compensate, but the *timing* and *order of magnitude* are robust.
 
 *Code placeholder.*
 
-## 10.3 A Python Parallel with DeepXDE
-
-### Setting Up the Same Problem in DeepXDE
+## 10.5 A Python parallel with DeepXDE
 
 `DeepXDE` is the Python equivalent of `NeuralPDE.jl`: a high-level
 interface that takes a PDE definition and a collocation strategy,
@@ -88,7 +170,7 @@ in `DeepXDE` and compare.
 
 *Code placeholder.*
 
-### Cross-Ecosystem Comparison
+### Cross-ecosystem comparison
 
 Strengths and weaknesses, honestly:
 
@@ -101,7 +183,7 @@ Strengths and weaknesses, honestly:
 Neither is strictly better. Pick by who's using it and what they
 already know.
 
-### Where to Go from Here
+### Where to go from here
 
 Beyond the workshop:
 
@@ -115,3 +197,18 @@ Beyond the workshop:
 
 Pointers to the operational ocean-modelling community and the PIML
 research community for next steps.
+
+## 10.6 Reference solver source: `scripts/column_fd.jl`
+
+The MethodOfLines finite-difference reference for $T(z, t)$, kept
+as a sidecar script (see `SETUP.md`) so `quarto render` stays
+cheap. Run with `./build.sh execute 10`; outputs land in
+`output/`. Folded for brevity; expand to read.
+
+```{.julia code-fold="true" code-summary="Show full source"}
+{{< include scripts/column_fd.jl >}}
+```
+
+Captured stdout from `./build.sh execute 10`:
+
+{{< include output/column_fd.md >}}

@@ -1,43 +1,63 @@
 ---
-title: "Unit 9: The Capstone, Forward"
+title: "Unit 9: Project Specification"
 engine: julia
-toc-title: "Unit 9: Capstone Forward"
+toc-title: "Unit 9: Project Specification"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-The full toolkit assembled on the AIMS capstone: a 1D vertical heat-
-transport column driven by a 2D shallow-water flow. This unit covers
-the **forward** problem — given the drivers, predict $T(z, t)$ —
-with a finite-difference reference, a finite-volume shallow-water
-solver, and a forward PINN trained against both. The detailed model
-specification lives in [Unit 11](../unit_11/unit_11.qmd).
+The capstone project, written out concretely. The science behind
+every term sits in [Unit 8](../unit_08/unit_08.qmd); the solution —
+finite-difference reference, forward PINN, inverse PINN — is in
+[Unit 10](../unit_10/unit_10.qmd). This unit is the *spec*: every
+equation, every parameter, every toy task you'll need to reproduce
+the workshop.
 
-## 9.1 The Coupled Model
+## 9.1 Mock story
 
-### 1D Vertical Heat Transport
+You are a fictional oceanographer at a reef site offshore from
+Townsville. You have a thermistor chain moored at five depths (2 m,
+10 m, 30 m, 60 m, 90 m) sampling temperature every hour for 30
+days. After a storm passes, the deeper sensors record an unexpected
+cooling. Three hypotheses:
 
-The column model:
+1. The storm intensified **upwelling**, pumping cold water up from
+   below.
+2. The storm intensified **vertical mixing**, drawing heat away
+   from the surface faster.
+3. The storm caused **reduced surface heating** (cloud cover,
+   evaporation).
 
-$$\frac{\partial T}{\partial t}
-+ w(z, t)\,\frac{\partial T}{\partial z}
-= \frac{\partial}{\partial z}\!\left(\kappa(z, t)\,
-\frac{\partial T}{\partial z}\right) + \mathcal{S}(z, t)$$
+You want a model simple enough to test these hypotheses against the
+mooring data. The 1D column below — coupled to a 2D shallow-water
+driver — is that model.
 
-on $z \in [-H, 0]$ with a surface flux BC at $z = 0$ and a
-fixed-temperature reservoir at $z = -H$. Full specification —
-including the diurnal forcing, the upwelling profile, and eddy
-diffusivity closures — is in
-[Unit 11](../unit_11/unit_11.qmd).
+## 9.2 The coupled model
 
-### 2D Shallow Water for Horizontal Flow
+The 1D column is the central object. A 2D shallow-water solver
+lives alongside it to *drive* the column with a realistic vertical
+velocity, but does not itself receive any feedback from the column
+(the SWE solve is offline). The three pieces:
+
+### 1D vertical heat transport
+
+Imagine a vertical pipe of seawater, 100 m tall, sitting under the
+sea surface. Heat enters from the top (sun, atmosphere). Cold water
+can be pushed up from the bottom (currents elsewhere). Inside the
+pipe, turbulence stirs warm and cold water together. We track only
+one thing: the temperature $T$ as a function of depth $z$ and time
+$t$. We ignore everything horizontal — no horizontal currents
+*inside* the pipe, no horizontal temperature variation. One column,
+by itself.
+
+### 2D shallow water for horizontal flow
 
 The linearised shallow water equations on a 2D domain produce
 horizontal velocity $\mathbf{u}_h(x, y, t)$ in response to a
-wind-stress forcing. We use these as the **driver** of the column's
-upwelling, not as a coupled-PDE PINN problem (that's the path de
-Wolff et al. found brittle). The SWE solve is offline; its output
-is a time series at the mooring location.
+wind-stress forcing. We use these as the **driver** of the
+column's upwelling, not as a coupled-PDE PINN problem (that's the
+path de Wolff et al. found brittle). The SWE solve is offline; its
+output is a time series at the mooring location.
 
 ### Coupling: $w$ from $\nabla_h\!\cdot\!\mathbf{u}_h$
 
@@ -49,64 +69,241 @@ $$w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t).$$
 A simple linear-in-$z$ vertical velocity profile, computed offline
 from the SWE run and fed as a time series into the column model.
 
-## 9.2 Reference Solution
+## 9.3 The column equation
 
-### Finite-Difference Column Solver
+$$
+\underbrace{\frac{\partial T}{\partial t}}_{\text{(a) change in time}}
+\;+\;
+\underbrace{w(z,t)\,\frac{\partial T}{\partial z}}_{\text{(b) advection}}
+\;=\;
+\underbrace{\frac{\partial}{\partial z}\!\left(\kappa(z,t)\,\frac{\partial T}{\partial z}\right)}_{\text{(c) diffusion}}
+\;+\;
+\underbrace{\mathcal{S}(z,t)}_{\text{(d) sun heating}}
+$$
 
-A method-of-lines finite-difference reference for $T(z, t)$ — the
-ground truth we compare PINN predictions against. Uses
-`MethodOfLines.jl` with adaptive time-stepping; second-order central
-differences in $z$, with the surface Neumann condition imposed via
-a ghost cell.
+on the domain $z \in [-H, 0]$, $t \in [0, T_f]$, with $z = 0$ at
+the surface and $z = -H$ at the bottom. The four terms (a)–(d)
+were unpacked term-by-term in
+[Unit 8](../unit_08/unit_08.qmd) §8.3–§8.4; here we'll just write
+them down.
 
-*Code placeholder.*
+::: {.callout-note}
+## Sign convention for $w$
 
-### Finite-Volume Shallow Water Solver
+$w = \mathrm{d}z/\mathrm{d}t$. With $z$ measured *upward* from the
+surface (so $z < 0$ inside the ocean), $w > 0$ is upward motion of
+water. *Upwelling* — cold deep water rising — therefore
+corresponds to $w > 0$. The advection term $w \, \partial_z T$ then
+has the right physical sign.
+:::
 
-A staggered-grid finite-volume SWE reference, with wind-stress
-forcing and Coriolis. Run once for the storm scenario; output
-$\mathbf{u}_h(t)$ at the mooring location and pass as a time series
-to the column model.
+## 9.4 Boundary conditions
 
-*Code placeholder.*
+### Top, $z = 0$: surface heat flux
 
-### A Synthetic Storm Scenario
+$$
+\kappa\,\frac{\partial T}{\partial z}\bigg|_{z=0}
+\;=\; \frac{Q_{\text{np}}(t)}{\rho_0\, c_p}.
+$$
 
-A Gaussian wind gust passing over the mooring on day 10, lasting
-3 days. Drives upwelling via SWE divergence, simultaneously enhances
-mixing (via stress-dependent $\kappa$) and reduces shortwave (via
-cloud cover). One physical event, three column-level driver
-perturbations — exactly the storm fingerprint problem from Unit 1.
+The downward diffusive heat flux *into* the ocean from the air–sea
+interface equals the *non-penetrative* part of the surface heat
+budget, divided by the volumetric heat capacity of seawater (so
+units come out as K·m/s, matching $\kappa\, \partial_z T$). With
+$z$ measured upward, $\partial_z T > 0$ corresponds to a warmer
+surface, and $\kappa\, \partial_z T$ is the *downward* heat flux —
+positive $Q_{\text{np}}$ heats the ocean by driving the surface
+temperature up.
 
-## 9.3 Forward PINN
+- **$Q_{\text{np}}(t)$** — net non-penetrative heat flux at the
+  surface. Sum of: longwave radiation, sensible heat, latent heat
+  (evaporation). Units: W/m². Positive means heat *into* the ocean.
+- **$\rho_0$** — reference seawater density, $\approx 1025\,\text{kg/m}^3$.
+- **$c_p$** — specific heat of seawater, $\approx 4000\,\text{J/(kg·K)}$.
 
-### Network and Loss
+The penetrating shortwave $Q_{\text{SW}}$ is *not* in this BC — it
+lives inside $\mathcal{S}(z, t)$ as a body source instead.
 
-A single MLP $T_\theta(z, t)$ trained against the column equation
-residual, the surface-flux BC, the bottom Dirichlet BC, and the IC.
-Hard BC enforcement at $z = -H$ via
+### Bottom, $z = -H$: cold reservoir
 
-$$T_\theta(z, t) = T_{\text{deep}} + (z + H)\,N_\theta(z, t).$$
+$$
+T(-H, t) \;=\; T_{\text{deep}}.
+$$
 
-Soft constraints elsewhere. Causal training (Unit 8 §8.3.1) for
-the time direction; Fourier features for the diurnal cycle.
+A fixed-temperature reservoir, as motivated in
+[Unit 8](../unit_08/unit_08.qmd) §8.5. Alternative: zero-flux,
+$\partial_z T |_{-H} = 0$, if you prefer an insulating floor.
 
-*Code placeholder.*
+### Initial condition
 
-### Training Against the Reference
+$$
+T(z, 0) \;=\; T_0(z),
+\qquad
+T_0(z) = \tfrac12 (T_{\text{surface}} + T_{\text{deep}})
+       + \tfrac12 (T_{\text{surface}} - T_{\text{deep}})\,
+         \tanh\!\bigl((z - z_t)/\delta_t\bigr),
+$$
 
-Compare against the `MethodOfLines.jl` reference at $L^2$ on
-$(z, t)$. Track the residual on a held-out test grid and the BC/IC
-misfit separately. The diurnal warm layer is the sharpest test —
-vanilla PINNs tend to smear it, the Unit 8 fixes preserve it.
+with $z_t \approx -30\,\text{m}$ sitting the thermocline at 30 m
+depth and $\delta_t \approx 5\,\text{m}$ setting its sharpness.
 
-*Code placeholder.*
+## 9.5 Forcing functions
 
-### Diagnostics
+### Surface heat flux
 
-Per-section heat-budget closure: rate of change vs surface flux +
-advective + diffusive contributions. A correct PINN closes the
-budget point-wise. Spectral analysis of the residual to spot
-frequency content that's being missed. Comparison against the storm
-fingerprint — deeper sensors should cool first when upwelling
-dominates.
+A minimal diurnal model:
+
+$$
+Q_{\text{SW}}(t) \;=\; Q_{\text{SW}}^{\max}\,
+  \max\!\bigl(0,\, \cos(2\pi t / \tau_d)\bigr),
+\qquad
+Q_{\text{np}}(t) \;=\; -\,Q_{\text{cool}}.
+$$
+
+- **$\tau_d = 86400\,\text{s}$** — one day.
+- **$Q_{\text{SW}}^{\max}$** — peak noon shortwave (e.g. $800\,\text{W/m}^2$).
+- **$Q_{\text{cool}}$** — steady net cooling from longwave +
+  evaporation (e.g. $200\,\text{W/m}^2$).
+
+### Penetrating shortwave (the body source)
+
+Sunlight is absorbed exponentially with depth (Beer–Lambert):
+
+$$
+I(z, t) \;=\; Q_{\text{SW}}(t)\,e^{z/\zeta},
+\qquad
+\mathcal{S}(z, t) \;=\; \frac{1}{\rho_0\, c_p}\,\frac{\partial I}{\partial z}.
+$$
+
+- **$\zeta$** — light penetration scale (e.g. $\zeta \approx 10\,\text{m}$
+  for a single-band model; refined two-band Paulson–Simpson splits
+  this into a 0.35 m red band and a 23 m blue–green band).
+
+### Vertical velocity (upwelling)
+
+Prescribe a simple profile pinned to zero at top and bottom:
+
+$$
+w(z) \;=\; w_0\, \sin\!\bigl(\pi\,(z+H)/H\bigr),
+$$
+
+with $w_0 > 0$ giving upward motion. A typical magnitude is
+$w_0 \sim 10^{-5}\,\text{m/s}$, i.e. about 1 m/day.
+
+### Eddy diffusivity
+
+Three closures in increasing realism (pick one per experiment):
+
+1. **Constant**: $\kappa = \kappa_0$.
+2. **Profile**: $\kappa(z) = \kappa_b + (\kappa_m - \kappa_b)\,e^{z/h_m}$
+   — large near the surface (mixed layer of scale $h_m$), small at
+   depth.
+3. **Stratification-dependent**:
+   $\kappa(z, t) = \kappa_b + \kappa_0 / (1 + 5\,\mathrm{Ri})^2$,
+   with the Richardson number $\mathrm{Ri} = N^2 / (\partial_z U)^2$,
+   buoyancy frequency $N^2 = \alpha g\, \partial_z T$, and a
+   prescribed shear $\partial_z U$. Mixing is suppressed in stably
+   stratified water (see [Unit 8](../unit_08/unit_08.qmd) §8.5).
+
+## 9.6 Reference parameter values and dimensionless groups
+
+| Symbol | Value | Units | Meaning |
+|---|---|---|---|
+| $H$ | 100 | m | column depth |
+| $T_f$ | 30 days | s | simulation horizon |
+| $\rho_0$ | 1025 | kg/m³ | seawater density |
+| $c_p$ | 4000 | J/(kg·K) | specific heat |
+| $\alpha$ | $2\!\times\!10^{-4}$ | 1/K | thermal expansion |
+| $T_{\text{surface}}$ | 28 | °C | initial SST |
+| $T_{\text{deep}}$ | 18 | °C | deep reservoir |
+| $z_t,\, \delta_t$ | $-30$, 5 | m | thermocline depth, width |
+| $Q_{\text{SW}}^{\max}$ | 800 | W/m² | peak noon SW |
+| $Q_{\text{cool}}$ | 200 | W/m² | non-penetrative net cooling |
+| $\zeta$ | 10 | m | shortwave penetration scale |
+| $\kappa_b$ | $10^{-5}$ | m²/s | background diffusivity |
+| $\kappa_m$ | $10^{-3}$ | m²/s | mixed-layer diffusivity |
+| $h_m$ | 20 | m | mixed-layer scale |
+| $w_0$ | $10^{-5}$ | m/s | peak upwelling (~1 m/day) |
+
+The accompanying dimensionless groups —
+$\mathrm{Pe} = w_0 H / \kappa_m \approx 1$,
+$T_\kappa = H^2/\kappa_m \approx 116$ days,
+$\tau_d / T_\kappa \sim 10^{-2}$ — are tabulated and interpreted in
+[Unit 8](../unit_08/unit_08.qmd) §8.6.
+
+## 9.7 Forward problem
+
+> Given all four drivers ($w$, $\kappa$, $Q_{\text{np}}$,
+> $Q_{\text{SW}}$) as time series, predict $T(z, t)$ on the
+> 30-day window.
+
+Solved two ways, both in [Unit 10](../unit_10/unit_10.qmd):
+
+1. A `MethodOfLines.jl` finite-difference reference (ground truth).
+2. A forward PINN trained against the column equation residual, the
+   surface-flux BC, the bottom Dirichlet BC, and the IC — with the
+   modern fixes from [Unit 7](../unit_07/unit_07.qmd) (hard BC,
+   causal training, Fourier features).
+
+## 9.8 Inverse problem
+
+> Given sparse, noisy temperature observations at the five mooring
+> depths, and knowledge of the column PDE plus *most* of the
+> drivers, infer one unknown driver as a function of time.
+
+Concretely: synthetic mooring data with $\sigma = 0.05\,°\text{C}$
+noise, treating the storm-driven wind-stress envelope as the
+unknown. Both networks are trained jointly — $T_\theta(z, t)$ for
+the field and $\tau_\phi(t)$ for the unknown driver — with an $H^1$
+smoothness penalty to handle the inevitable ill-posedness. Full
+treatment in [Unit 10](../unit_10/unit_10.qmd).
+
+## 9.9 Toy tasks
+
+Build up to the full forward–inverse problem in stages. Each step
+isolates one mechanism, so when the full storm scenario lands you
+can read each contribution off the trace. Plots and code for these
+scenarios live in [Unit 10](../unit_10/unit_10.qmd).
+
+1. **Pure diffusion, steady forcing.** Set $w = 0$, $\mathcal{S} = 0$,
+   $\kappa$ constant, $Q_{\text{np}}$ constant. Solve to steady
+   state. *Expected:* a linear $T(z)$ profile balancing surface
+   flux against the deep reservoir. Sanity check: analytic solution
+   exists.
+
+2. **Add the diurnal cycle.** Turn on time-varying $Q_{\text{SW}}(t)$
+   and the body source $\mathcal{S}$. Keep $w = 0$, $\kappa$
+   constant. *Expected:* a diurnal warm layer in the top few
+   metres that warms in the afternoon and erodes overnight. Bulk
+   profile barely changes over 30 days.
+
+3. **Add upwelling.** Turn on $w(z)$ with
+   $w_0 = 10^{-5}\,\text{m/s}$. *Expected:* cold water from depth
+   invades the bulk; SST drops slowly over weeks. The diurnal warm
+   layer survives but sits on top of cooler water.
+
+4. **Vary mixing.** Switch $\kappa$ from constant to the profile
+   closure with mixed-layer scale $h_m$. Try $h_m = 5, 20, 50$ m.
+   *Expected:* deeper mixed layer $\Rightarrow$ thicker but cooler
+   warm layer at the surface, smoother thermocline.
+
+5. **The mock story, forward.** Run a *single* wind event in the 2D
+   shallow-water model — a Gaussian gust passing over the mooring
+   on day 10, lasting 3 days. Read off the time series $w(t)$,
+   $|\boldsymbol{\tau}|(t)$, and $Q_{\text{SW}}^{\max}(t)$ (cloud
+   cover tied to the gust) at the mooring location, and feed them
+   into the 1D column. Plot temperature traces at the five mooring
+   depths. *Expected:* deeper sensors cool first (upwelling
+   fingerprint), surface stays close to baseline because cloud and
+   stress cancel. Compare to "decoupled" runs that perturb only one
+   driver at a time.
+
+6. **The mock story, inverse.** Generate synthetic mooring data
+   from the forward scenario above with added noise
+   ($\sigma = 0.05\,°\text{C}$). Hand the data to a PINN that
+   knows the PDE structure of the 1D column and treats *one*
+   wind-driven forcing as unknown — for example, the time series
+   of stress amplitude $|\boldsymbol{\tau}|(t)$, which sets both
+   $w(t)$ via Ekman pumping and $\kappa_m(t)$ via a wind-mixing
+   closure. *Expected:* the PINN recovers the wind-event envelope
+   from temperature data alone.

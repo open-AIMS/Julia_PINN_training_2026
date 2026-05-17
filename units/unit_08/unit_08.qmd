@@ -1,255 +1,227 @@
 ---
-title: "Unit 8: When PINNs Meet PDEs"
+title: "Unit 8: The Science of Ocean PDE Modelling"
 engine: julia
-toc-title: "Unit 8: PINNs Meet PDEs"
+toc-title: "Unit 8: Ocean PDE Modelling"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Vanilla PINNs work on some PDEs and fail surprisingly often on others.
-We diagnose the failure modes (loss imbalance, spectral bias, causal
-violation) on a column heat equation and on shallow water, then walk
-through the modern fixes that mostly close the gap: causal training,
-Fourier feature embeddings, hard boundary-condition enforcement,
-adaptive loss weighting. By the end of the unit the toolkit needed for
-the [capstone](../unit_09/unit_09.qmd) is in place.
-
-## 8.1 Vanilla PINNs on PDEs
-
-### The PINN Loss
-
-A PINN approximates the solution $u(\mathbf{x}, t)$ with a neural
-network $u_\theta(\mathbf{x}, t)$. The total loss combines a residual
-term, boundary terms, and (for time-dependent problems) an initial
-condition term:
-
-$$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
-+ \lambda_b\,\mathcal{L}_{\text{BC}}
-+ \lambda_i\,\mathcal{L}_{\text{IC}},$$
-
-with
-$\mathcal{L}_{\text{PDE}} = \frac{1}{N_r}\sum_{i=1}^{N_r}|r(\mathbf{x}_i, t_i)|^2$
-evaluated by autodiff at scattered **collocation points** — no grid,
-no time-stepping.
-
-### Heat Equation: A Sanity Check
-
-The 1D diffusion equation $\partial_t u = \alpha\,\partial_x^2 u$ on
-$[0, 1]\times[0, 2]$ with a Gaussian initial bump and zero boundaries.
-Vanilla PINNs handle this well — useful as the first concrete
-implementation.
-
-```{julia}
-#| eval: false
-
-using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
-using DomainSets: ClosedInterval
-using Plots
-
-@parameters x t
-@variables u(..)
-
-Dₜ  = Differential(t)
-Dₓₓ = Differential(x) ∘ Differential(x)
-
-α = 0.01
-
-eq = Dₜ(u(x, t)) ~ α * Dₓₓ(u(x, t))
-
-domains = [
-    x ∈ ClosedInterval(0.0, 1.0),
-    t ∈ ClosedInterval(0.0, 2.0),
-]
-
-bcs = [
-    u(x, 0)    ~ exp(-200 * (x - 0.5)^2),
-    u(0.0, t)  ~ 0.0,
-    u(1.0, t)  ~ 0.0,
-]
-
-@named pde_system = PDESystem(eq, bcs, domains, [x, t], [u(x, t)])
-
-chain = Lux.Chain(
-    Lux.Dense(2, 20, Lux.σ),
-    Lux.Dense(20, 20, Lux.σ),
-    Lux.Dense(20, 1),
-)
-
-discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.05]))
-prob = discretize(pde_system, discretization)
-res = Optimization.solve(prob, LBFGS(); maxiters=1500)
-```
-
-### Laplace on a Disk: Where Mesh-Free Helps
-
-A clean elliptic example. The PINN handles the circular geometry
-mesh-free — a classical advantage over finite differences. Closed-form
-solution: $u(r, \theta) = r^3 \sin(3\theta)$.
-
-```{julia}
-#| eval: false
-
-using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
-using DomainSets, Plots
-
-@parameters r θ
-@variables u(..)
-
-Dᵣ  = Differential(r);  Dᵣᵣ = Differential(r) ∘ Differential(r)
-Dθθ = Differential(θ) ∘ Differential(θ)
-
-eq = r^2 * Dᵣᵣ(u(r, θ)) + r * Dᵣ(u(r, θ)) + Dθθ(u(r, θ)) ~ 0
-
-R = 1.0;  r_min = 0.05
-domains = [r ∈ ClosedInterval(r_min, R), θ ∈ ClosedInterval(0.0, 2π)]
-bcs = [
-    u(R, θ)     ~ sin(3θ),
-    u(r_min, θ) ~ r_min^3 * sin(3θ),
-    u(r, 0.0)   ~ 0.0,
-    u(r, 2π)    ~ 0.0,
-]
-@named pde_system = PDESystem(eq, bcs, domains, [r, θ], [u(r, θ)])
-
-chain = Lux.Chain(
-    Lux.Dense(2, 32, Lux.tanh), Lux.Dense(32, 32, Lux.tanh),
-    Lux.Dense(32, 32, Lux.tanh), Lux.Dense(32, 1),
-)
-
-discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.1]))
-prob = discretize(pde_system, discretization)
-res = Optimization.solve(prob, LBFGS(); maxiters=3000)
-```
-
-## 8.2 Why Naïve PINNs Fail
-
-### Worked Example: Naïve Shallow Water (After de Wolff et al.)
-
-The 1D linearised shallow water system from
-[Unit 7](../unit_07/unit_07.qmd), attempted with two networks (one
-for $\eta$, one for $u$). This is the case where
-[de Wolff et al. (2021)](https://inria.hal.science/hal-03262684/document)
-reported a *negative* result: vanilla PINN underperformed a pure
-data-driven NN. We reproduce the failure to motivate the fixes in §8.3.
-
-```{julia}
-#| eval: false
-
-using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
-using DomainSets, Plots
-
-@parameters x t
-@variables η(..) u_vel(..)
-
-Dₜ = Differential(t);  Dₓ = Differential(x)
-g = 9.81;  H = 10.0   # wave speed c ≈ 9.9 m/s
-
-eqs = [
-    Dₜ(η(x, t)) + H * Dₓ(u_vel(x, t)) ~ 0,
-    Dₜ(u_vel(x, t)) + g * Dₓ(η(x, t)) ~ 0,
-]
-
-domains = [x ∈ ClosedInterval(0.0, 2.0), t ∈ ClosedInterval(0.0, 0.05)]
-
-bcs = [
-    η(x, 0)        ~ exp(-100 * (x - 1.0)^2),
-    u_vel(x, 0)    ~ 0.0,
-    u_vel(0.0, t)  ~ 0.0,
-    u_vel(2.0, t)  ~ 0.0,
-]
-
-@named pde_system = PDESystem(eqs, bcs, domains, [x, t], [η(x, t), u_vel(x, t)])
-
-chain_η = Lux.Chain(Lux.Dense(2, 32, tanh), Lux.Dense(32, 32, tanh),
-                    Lux.Dense(32, 32, tanh), Lux.Dense(32, 1))
-chain_u = Lux.Chain(Lux.Dense(2, 32, tanh), Lux.Dense(32, 32, tanh),
-                    Lux.Dense(32, 32, tanh), Lux.Dense(32, 1))
-
-discretization = PhysicsInformedNN([chain_η, chain_u], GridTraining([0.02, 0.001]))
-prob = discretize(pde_system, discretization)
-res = Optimization.solve(prob, LBFGS(); maxiters=3000)
-```
-
-### Loss Imbalance Between Residual and Boundary Terms
-
-The total loss
-$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
-+ \lambda_b\,\mathcal{L}_{\text{BC}} + \lambda_i\,\mathcal{L}_{\text{IC}}$
-is a sum of terms whose magnitudes can differ by orders of magnitude.
-The optimiser drives the largest term to zero first; if that's a
-term you don't care about, the others stagnate. The classic failure
-mode: $\mathcal{L}_{\text{PDE}}$ is small but the BC is way off,
-producing a function that satisfies the equation in the interior
-but ignores the boundary.
-
-### Spectral Bias
-
-Standard MLPs with smooth activations are biased toward learning
-**low-frequency** components first (Rahaman et al., 2019; Tancik et
-al., 2020). High-frequency features — sharp initial conditions,
-oscillatory solutions, fine spatial structure — take many more
-iterations or never converge. For PINNs this means a Gaussian
-initial bump might smooth too fast, or a wavy solution might miss
-the right wavelength entirely.
-
-### Causal Violation in Time-Dependent Problems
-
-For time-dependent problems, the PDE residual is evaluated at all
-$(\mathbf{x}_i, t_i)$ collocation points simultaneously. *Nothing
-in the loss* requires that the solution at $t_2$ be a *consequence*
-of the solution at $t_1 < t_2$. The optimiser can find a globally
-inconsistent solution whose residual is small everywhere but whose
-time-direction information flow is wrong — invisible to the loss
-but obvious in the prediction.
-
-## 8.3 Modern Fixes
-
-### Causal Training
-
-Wang et al. (2022): weight residual losses at later times by how
-well earlier times have already converged. Concretely,
-
-$$\lambda(t_i) = \exp\!\Bigl(-\epsilon \sum_{t_j < t_i} \mathcal{L}_{\text{PDE}}(t_j)\Bigr),$$
-
-so a time slice contributes only after earlier slices have been
-resolved. Trains the network in the right *temporal causal order*
-without explicit time-stepping.
-
-### Fourier Feature Embeddings
-
-Wrap each input in a Fourier feature transform
-
-$$\gamma(\mathbf{x}) = [\sin(B\mathbf{x}),\, \cos(B\mathbf{x})]$$
-
-with frequencies $B$ drawn from a distribution that includes the
-high frequencies you need (Tancik et al., 2020). The network sees
-high-frequency content in its input directly, breaking spectral
-bias. A simple recipe: $B \sim \mathcal{N}(0, \sigma^2 I)$ with
-$\sigma$ tuned per problem.
-
-### Hard Boundary Condition Enforcement
-
-Instead of penalising BC violations softly, **construct** the
-network output to satisfy them by construction. For Dirichlet BCs
-on $[0, 1]$ with $u(0, t) = u(1, t) = 0$, write
-
-$$u_\theta(x, t) = x(1 - x)\,N_\theta(x, t).$$
-
-Now $u_\theta = 0$ on the boundary regardless of $N_\theta$. The
-loss has one fewer term to balance, and the optimiser has fewer
-ways to fail. The trick generalises to other BC types via clever
-ansätze (Sukumar & Srivastava, 2022).
-
-### Adaptive Loss Weighting
-
-Tune $\lambda_r, \lambda_b, \lambda_i$ during training so all terms
-stay roughly balanced. Three families of approaches:
-
-- **Gradient-balancing** (McClenny & Braga-Neto, 2022) — match the
-  gradient norms of each term.
-- **NTK-based** (Wang et al., 2021) — use the neural tangent kernel
-  to compute target weights.
-- **Annealing** — start with one term dominant, gradually shift
-  weight to others.
-
-All beat hand-tuning. With these, the modern PINN is ready for the
-[capstone](../unit_09/unit_09.qmd).
+A short, intuition-first tour of the ocean physics that powers the
+capstone — written for people fluent in PDEs and ML but not in
+oceanography. The goal is to read the equations in [Unit 9](../unit_09/unit_09.qmd)
+not as a list of symbols but as a familiar set of mechanisms in a
+new domain: temperature transported by flow, smeared by turbulence,
+heated by sunlight, exchanged with the atmosphere at one boundary
+and with the deep ocean at the other.
+
+## 8.1 Why oceans? Why PDEs?
+
+Oceans store and move heat at a rate that dominates the planet's
+climate. A back-of-the-envelope: the top 100 m of the ocean has
+roughly four times the heat capacity of the entire atmosphere above
+it. When the ocean exchanges heat with the air, *the air moves
+fast*. So the slow story of ocean heat transport sets the boundary
+condition for the fast story of weather — and getting it wrong
+matters.
+
+We model that transport with PDEs because the physical processes
+involved — advection by currents, diffusion by turbulence, surface
+fluxes, radiative absorption — are local and continuous. PDEs are
+the natural language for *something at each point in space changes
+in response to its neighbours and to external forcings*. The same
+mathematics describes heat in a metal rod, pollutant in a river,
+neutron flux in a reactor; switching to seawater is mostly a matter
+of choosing which terms to keep and which to drop.
+
+This unit is about which terms ocean modellers keep, and *why*.
+
+## 8.2 The column idealisation
+
+Real oceans are three-dimensional, full of eddies, fronts, and
+gyres. Modelling that in full takes a supercomputer. But many
+questions only require one slice:
+
+> What does temperature look like, as a function of depth, at a
+> *single horizontal location*, over a few weeks?
+
+That's the **column idealisation**. We treat the ocean as a stack
+of horizontal sheets at fixed $(x, y)$, with $T = T(z, t)$ and
+nothing depending on $(x, y)$ inside the column. Horizontal currents
+still exist — we don't pretend the ocean is at rest — but their
+*effect on the column* is summarised through one quantity: the
+vertical velocity $w(z, t)$ those horizontal flows induce via
+continuity.
+
+::: {.callout-note}
+## When the column idealisation breaks
+
+If you care about ocean fronts (sharp horizontal temperature
+gradients), eddies (rotating coherent structures), or coastlines
+(boundary effects), the column idealisation fails because the
+horizontal physics matters. The capstone problem — a mooring far
+from a coastline, far from a front — is exactly the regime where it
+works.
+:::
+
+The win is dimensionality: a 1D PDE in $(z, t)$ instead of a 3D
+system in $(x, y, z, t)$. The cost is that you have to *prescribe*
+or *derive* the vertical velocity rather than solve for it; the
+horizontal flow that drives it lives in a separate, lower-cost 2D
+model (the shallow water solver in [Unit 9](../unit_09/unit_09.qmd)).
+
+## 8.3 Advection and diffusion in fluids
+
+Two transport mechanisms move heat around the column.
+
+### Advection — temperature riding along with a moving fluid
+
+If a parcel of water is rising at speed $w > 0$, it carries its
+temperature with it. A *fixed sensor* at depth $z$ then sees the
+temperature of the parcel that *used to be* at depth $z - w \Delta t$.
+That's advection:
+
+$$\left.\frac{\partial T}{\partial t}\right|_{\text{advection}}
+= -w\,\frac{\partial T}{\partial z}.$$
+
+The minus sign is the same minus sign you see in the linear
+advection equation $u_t + cu_x = 0$ from [Unit 6](../unit_06/unit_06.qmd):
+rightward motion at fixed location feels like the field shifted
+leftward in space.
+
+In ocean terms: upwelling ($w > 0$) brings cold deep water up past
+your sensor; downwelling ($w < 0$) brings warm surface water down.
+Either way, *the parcel doesn't change temperature on the way* —
+advection just relocates it.
+
+### Diffusion — turbulent stirring as a Fickian closure
+
+Real ocean turbulence is chaotic on scales below ~1 m. We don't
+resolve it. What we *do* notice is that, averaged over a few
+minutes, turbulence mixes the column the way molecular diffusion
+mixes a gas — gradient-down, with an effective diffusivity $\kappa$
+many orders of magnitude larger than the molecular value:
+
+$$\left.\frac{\partial T}{\partial t}\right|_{\text{diffusion}}
+= \frac{\partial}{\partial z}\!\left(\kappa(z, t)\,\frac{\partial T}{\partial z}\right).$$
+
+This is the **Reynolds closure** applied to temperature: we replace
+unresolved fluctuations by an effective transport coefficient. The
+coefficient is large near the wind-driven surface (the *mixed
+layer*) and small at depth.
+
+The two mechanisms compete. The **Péclet number** $\mathrm{Pe} = wH /
+\kappa$ measures who wins on the column scale: $\mathrm{Pe} \gg 1$ is
+advection-dominated, $\mathrm{Pe} \ll 1$ is diffusion-dominated, and
+$\mathrm{Pe} \sim 1$ is the messy interesting case the AIMS column
+lives in (see §8.6).
+
+## 8.4 Surface energy budget
+
+Heat enters and leaves the ocean through the air-sea interface.
+Modelling that exchange properly is an entire field. For our
+purposes the budget splits into two parts:
+
+**Penetrating shortwave $Q_{\text{SW}}$.** Sunlight passes *through*
+the surface and is absorbed *inside* the water, exponentially with
+depth — red light absorbed in the top few centimetres, blue–green
+light reaching tens of metres. This is a **body source**, not a
+boundary flux.
+
+**Non-penetrating fluxes $Q_{\text{np}}$.** Longwave radiation,
+sensible heat, latent heat (evaporation). All act *at* the surface
+and add up to a single boundary flux. Cooling typically wins at
+night and on cloudy days; heating wins on still sunny afternoons.
+
+The boundary condition at $z = 0$ becomes a Neumann condition on
+the diffusive flux of temperature, sourced by $Q_{\text{np}}$. The
+penetrating shortwave shows up as a body source $\mathcal{S}(z, t)$
+in the equation interior. The full forms are in
+[Unit 9](../unit_09/unit_09.qmd) §9.4 and §9.5.
+
+::: {.callout-tip}
+## A useful intuition
+
+The ocean is a *heat capacitor* whose plates are the air–sea
+interface (top) and a deep reservoir (bottom). The capacitor charges
+when net surface flux is positive and discharges to the deep when it
+isn't. Diurnal forcing wiggles the charge state on a 24-hour
+timescale; storm events kick it on a 1–3 day timescale; seasonal
+forcing shifts it over months. *Each regime lives at a different
+depth* because the diffusive penetration depth scales as
+$\sqrt{\kappa\, \tau}$.
+:::
+
+## 8.5 Stratification, mixing, and the deep boundary
+
+Ocean temperature usually decreases with depth — warm sun-heated
+water on top, cold deep water below, with a sharp transition called
+the **thermocline** in between. This is **stable stratification**:
+buoyancy resists mixing because warm parcels want to rise.
+
+The eddy diffusivity $\kappa$ therefore isn't constant. In the
+mixed layer (above the thermocline, vigorously stirred by wind and
+breaking surface waves), $\kappa$ is large — $\mathcal{O}(10^{-3})$ m²/s.
+Below the thermocline, stratification suppresses mixing and $\kappa$
+collapses to a background $\mathcal{O}(10^{-5})$ m²/s. The transition
+between the two is parametrised by a **Richardson number**
+$\mathrm{Ri} = N^2 / (\partial_z U)^2$ comparing buoyancy frequency
+$N$ to shear $\partial_z U$ — stable when $\mathrm{Ri} > 1/4$.
+
+At the *bottom* of the column we need another boundary condition.
+We pick a simple one — a **fixed deep reservoir** $T(-H, t) = T_{\text{deep}}$
+— and treat it as exact. Physically: below the modelled column lies
+a much larger volume of cold deep water whose temperature responds
+on timescales irrelevant to ours. Dirichlet is a fair model;
+zero-flux (an insulating floor) is an alternative if the deep ocean
+beneath you is essentially a wall.
+
+## 8.6 Dimensionless regimes
+
+A few dimensionless groups carry most of the physics. They tell you
+*which* terms dominate in a given problem before you solve anything.
+
+| Group | Definition | Interpretation |
+|---|---|---|
+| Péclet $\mathrm{Pe}$ | $wH/\kappa$ | advection vs. diffusion across the column |
+| Diffusive time $T_\kappa$ | $H^2/\kappa$ | time for diffusion to mix the column |
+| Richardson $\mathrm{Ri}$ | $N^2/(\partial_z U)^2$ | stability of stratification against mixing |
+| Diurnal-to-diffusive | $\tau_d / T_\kappa$ | how localised the daily cycle stays in depth |
+| Storm-to-diffusive | $\tau_{\text{storm}} / T_\kappa$ | how deep a storm signal penetrates |
+
+For the AIMS column with $H = 100$ m, $\kappa_m = 10^{-3}$ m²/s,
+$w_0 = 10^{-5}$ m/s:
+
+- $\mathrm{Pe} \approx 1$ — balanced regime; both transport
+  mechanisms compete on equal footing.
+- $T_\kappa \approx 116$ days — a 30-day run only mixes a *fraction*
+  of the column.
+- $\tau_d / T_\kappa \sim 10^{-2}$ — the diurnal cycle is much
+  faster than bulk mixing, so it lives in a thin near-surface
+  layer.
+
+These three numbers explain almost every qualitative behaviour
+you'll see in the toy tasks in [Unit 9](../unit_09/unit_09.qmd) §9.8:
+why the diurnal warm layer is thin, why a 3-day storm leaves a
+fingerprint deeper than naive cooling would suggest, why SST cools
+slowly under upwelling, and why the steady state is reached only
+over many months.
+
+## 8.7 From concepts to the AIMS column
+
+The capstone in [Unit 9](../unit_09/unit_09.qmd) is the column
+idealisation written down concretely:
+
+- One PDE: $\partial_t T + w \partial_z T = \partial_z(\kappa
+  \partial_z T) + \mathcal{S}$.
+- Two boundary conditions: Neumann at the surface, Dirichlet at the
+  deep reservoir.
+- Four prescribed forcings: $w(z, t)$ (from a 2D shallow-water
+  solver), $\kappa(z, t)$ (closure), $Q_{\text{np}}(t)$
+  (non-penetrating fluxes), $Q_{\text{SW}}(t)$ (penetrating
+  shortwave, sourced via Beer–Lambert).
+- A reference parameter set tuned for a tropical-reef site.
+
+Everything else — the toy tasks, the storm scenario, the inverse
+problem — is choosing which parts of that setup to perturb. The
+"science" sits in §§8.2–8.6 above; the implementation sits in
+[Unit 10](../unit_10/unit_10.qmd).

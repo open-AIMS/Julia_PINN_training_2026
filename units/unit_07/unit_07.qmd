@@ -1,211 +1,255 @@
 ---
-title: "Unit 7: PDE Bootcamp"
+title: "Unit 7: When PINNs Meet PDEs"
 engine: julia
-toc-title: "Unit 7: PDE Bootcamp"
+toc-title: "Unit 7: PINNs Meet PDEs"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Formal foundations of PDEs: classification (elliptic, parabolic,
-hyperbolic), boundary and initial conditions, well-posedness. The
-three canonical mechanisms — diffusion, advection, reaction — appear
-as the building blocks for everything that follows. The unit closes
-with finite-difference numerics and the linearised shallow water
-equations as a worked nonlinear example we revisit in the capstone.
+Vanilla PINNs work on some PDEs and fail surprisingly often on others.
+We diagnose the failure modes (loss imbalance, spectral bias, causal
+violation) on a column heat equation and on shallow water, then walk
+through the modern fixes that mostly close the gap: causal training,
+Fourier feature embeddings, hard boundary-condition enforcement,
+adaptive loss weighting. By the end of the unit the toolkit needed for
+the [capstone](../unit_08/unit_08.qmd) is in place.
 
-## 7.1 PDE Classification and Well-Posedness
+## 7.1 Vanilla PINNs on PDEs
 
-We work in physical space-time throughout. Spatial coordinates are
-$x, y, z$; time is $t$. The unknown $u(x, y, z, t)$ stands in for
-whatever physical field a given equation models — temperature,
-pressure, concentration, displacement, electric potential. The
-Laplacian is
+### The PINN Loss
 
-$$\nabla^2 u = \frac{\partial^2 u}{\partial x^2}
-            + \frac{\partial^2 u}{\partial y^2}
-            + \frac{\partial^2 u}{\partial z^2};$$
+A PINN approximates the solution $u(\mathbf{x}, t)$ with a neural
+network $u_\theta(\mathbf{x}, t)$. The total loss combines a residual
+term, boundary terms, and (for time-dependent problems) an initial
+condition term:
 
-in 1D it reduces to $u_{xx}$, in 2D to $u_{xx} + u_{yy}$. Vector fields
-(velocity $\mathbf{u}(x, y, z, t)$, etc.) appear in the systems at the
-bottom of the table below.
+$$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
++ \lambda_b\,\mathcal{L}_{\text{BC}}
++ \lambda_i\,\mathcal{L}_{\text{IC}},$$
 
-### Common PDE Models at a Glance
+with
+$\mathcal{L}_{\text{PDE}} = \frac{1}{N_r}\sum_{i=1}^{N_r}|r(\mathbf{x}_i, t_i)|^2$
+evaluated by autodiff at scattered **collocation points** — no grid,
+no time-stepping.
 
-A map of the PDEs we'll meet, grouped by character. Most of classical
-physics lives in this table; the rest of the unit is about how to read,
-classify, and solve them.
+### Heat Equation: A Sanity Check
 
-| Name | Equation | Type | Typical application |
-|------|----------|------|---------------------|
-| **Laplace** | $\nabla^2 u = 0$ | Elliptic | Steady-state temperature, electrostatic potential |
-| **Poisson** | $\nabla^2 u = f$ | Elliptic | Potential with sources (gravity, charge) |
-| **Helmholtz** | $\nabla^2 u + k^2 u = 0$ | Elliptic | Standing waves, frequency-domain wave problems |
-| **Heat / diffusion** | $u_t = \alpha\,\nabla^2 u$ | Parabolic | Heat conduction, mass diffusion |
-| **Reaction–diffusion** | $u_t = \alpha\,\nabla^2 u + f(u)$ | Parabolic (nonlinear) | Pattern formation, population dynamics |
-| **Advection** | $u_t + c\,\partial_x u = 0$ | Hyperbolic (1st order) | Pure transport in a flow |
-| **Wave** | $u_{tt} = c^2\,\nabla^2 u$ | Hyperbolic | Vibrations, sound, electromagnetic waves |
-| **Advection–diffusion** | $u_t + c\,\partial_x u = \alpha\,u_{xx}$ | Mixed (parabolic + 1st-order hyperbolic) | Pollutant or heat in a flow |
-| **Burgers** | $u_t + u\,u_x = \nu\,u_{xx}$ | Nonlinear | Shock formation; simple fluid model |
-| **Shallow water** | $\eta_t + H\,\nabla\!\cdot\!\mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in [Unit 9](../unit_09/unit_09.qmd)) |
-
-### Order, Linearity, and Type
-
-A **partial differential equation (PDE)** is a relationship between an
-unknown function of several variables and its partial derivatives. In
-general form,
-
-$$F\!\left(x_1, \ldots, x_n,\, u,\,
-\frac{\partial u}{\partial x_1}, \ldots,
-\frac{\partial^2 u}{\partial x_1^2}, \ldots\right) = 0.$$
-
-The **order** of a PDE is the highest derivative that appears. We
-focus on second-order PDEs in two variables — they cover most of the
-physics relevant to PINNs.
-
-### Elliptic, Parabolic, Hyperbolic
-
-The general second-order linear PDE in two variables takes the form
-
-$$a\,u_{xx} + 2b\,u_{xy} + c\,u_{yy} + \text{lower-order terms} = 0,$$
-
-with coefficients that may depend on position. The character of
-solutions depends entirely on the **discriminant** $\Delta = b^2 - ac$:
-
-| Type | Condition | Behaviour | Canonical example |
-|------|-----------|-----------|-------------------|
-| **Elliptic** | $b^2 - ac < 0$ | Steady-state, smooth | Laplace: $u_{xx} + u_{yy} = 0$ |
-| **Parabolic** | $b^2 - ac = 0$ | Diffusion, smoothing | Heat: $u_t = \alpha\,u_{xx}$ |
-| **Hyperbolic** | $b^2 - ac > 0$ | Wave propagation | Wave: $u_{tt} = c^2\,u_{xx}$ |
-
-Classification matters because it determines what boundary/initial
-conditions are needed for well-posedness, how information propagates,
-and which numerical methods are appropriate.
-
-### Boundary and Initial Conditions
-
-The four common boundary-condition types:
-
-- **Dirichlet**: prescribe the value of $u$ on the boundary
-  ("the wall is held at temperature $T_{\text{wall}}$").
-- **Neumann**: prescribe the *normal derivative* $\partial_n u$
-  ("heat flux through the wall is $q$").
-- **Robin** (mixed): a linear combination
-  $\alpha u + \beta\,\partial_n u = g$. Common when the boundary
-  exchanges with an external medium.
-- **Periodic**: $u(x_{\text{left}}) = u(x_{\text{right}})$ — used
-  to model infinite domains by tiling.
-
-For time-dependent problems, an **initial condition**
-$u(\mathbf{x}, 0) = u_0(\mathbf{x})$ fixes the state at $t = 0$.
-Parabolic and hyperbolic PDEs need ICs; elliptic problems do not
-(they're steady-state).
-
-### Well-Posedness
-
-Hadamard's three criteria. A problem is **well-posed** if (1) a
-solution exists, (2) it is unique, (3) it depends continuously on
-the data (initial conditions, boundary conditions, source terms).
-Mismatching boundary conditions to PDE type produces ill-posed
-problems — for example, prescribing both $u$ and $\partial_n u$ on
-the same boundary of an elliptic equation generally has no solution.
-PINNs inherit this constraint: an ill-posed problem will train to a
-residual minimum that is not the (non-existent) classical solution.
-
-## 7.2 Mechanisms: Diffusion, Advection, Reaction
-
-### The Heat Equation
-
-$$\frac{\partial u}{\partial t} = \alpha\,\frac{\partial^2 u}{\partial x^2}.$$
-
-Models how temperature $u(x, t)$ evolves over time. The diffusion
-coefficient $\alpha > 0$ controls the rate. The second spatial
-derivative measures *curvature*: hills flatten, valleys fill in,
-sharp features smooth out.
-
-### Advection and Characteristics
-
-The simplest hyperbolic PDE,
-
-$$\frac{\partial u}{\partial t} + c\,\frac{\partial u}{\partial x} = 0,$$
-
-has solution $u(x, t) = u_0(x - ct)$ — the initial profile sliding
-at speed $c$. Information travels along **characteristics**
-$x - ct = \text{const}$.
-
-### Reaction-Diffusion
-
-Real-world models combine all three mechanisms:
-
-| Equation | Mechanisms | Example application |
-|----------|-----------|---------------------|
-| $u_t = \alpha\,u_{xx}$ | Diffusion | Heat conduction |
-| $u_t + c\,u_x = 0$ | Advection | Pollutant in a river |
-| $u_t + c\,u_x = \alpha\,u_{xx}$ | Advection + diffusion | Nutrient dispersal |
-| $u_t = \alpha\,u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement |
-
-## 7.3 Finite Differences and the Shallow Water Equations
-
-### Discretisation in Space and Time
-
-Replace continuous derivatives with algebraic approximations on a
-grid:
-
-- Forward time difference:
-  $\partial_t u \approx (u_i^{n+1} - u_i^n)/\Delta t$
-- Central second-derivative:
-  $\partial_x^2 u \approx (u_{i+1} - 2u_i + u_{i-1})/\Delta x^2$
-
-The forward-time, central-space (FTCS) scheme is the simplest
-explicit approach for the heat equation.
+The 1D diffusion equation $\partial_t u = \alpha\,\partial_x^2 u$ on
+$[0, 1]\times[0, 2]$ with a Gaussian initial bump and zero boundaries.
+Vanilla PINNs handle this well — useful as the first concrete
+implementation.
 
 ```{julia}
+#| eval: false
+
+using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
+using DomainSets: ClosedInterval
 using Plots
 
-L  = 1.0;  nx = 101;  α = 0.01;  T = 5.0
-dx = L / (nx - 1)
-dt = 0.4 * dx^2 / α       # just under the CFL stability limit
-nt = ceil(Int, T / dt)
-x  = range(0, L, length=nx)
+@parameters x t
+@variables u(..)
 
-u = exp.(-200 .* (x .- 0.75).^2)
-u[1] = 0.25;  u[nx] = 0.25
+Dₜ  = Differential(t)
+Dₓₓ = Differential(x) ∘ Differential(x)
 
-u_new = similar(u)
-for n in 1:nt
-    for i in 2:(nx-1)
-        u_new[i] = u[i] + α * dt / dx^2 * (u[i+1] - 2u[i] + u[i-1])
-    end
-    u_new[1] = 0.25;  u_new[nx] = 0.25
-    u, u_new = u_new, u
-end
+α = 0.01
 
-plot(x, u, label="t = $T", xlabel="x", ylabel="u(x, t)", lw=2)
+eq = Dₜ(u(x, t)) ~ α * Dₓₓ(u(x, t))
+
+domains = [
+    x ∈ ClosedInterval(0.0, 1.0),
+    t ∈ ClosedInterval(0.0, 2.0),
+]
+
+bcs = [
+    u(x, 0)    ~ exp(-200 * (x - 0.5)^2),
+    u(0.0, t)  ~ 0.0,
+    u(1.0, t)  ~ 0.0,
+]
+
+@named pde_system = PDESystem(eq, bcs, domains, [x, t], [u(x, t)])
+
+chain = Lux.Chain(
+    Lux.Dense(2, 20, Lux.σ),
+    Lux.Dense(20, 20, Lux.σ),
+    Lux.Dense(20, 1),
+)
+
+discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.05]))
+prob = discretize(pde_system, discretization)
+res = Optimization.solve(prob, LBFGS(); maxiters=1500)
 ```
 
-### CFL, Stability, Numerical Diffusion
+### Laplace on a Disk: Where Mesh-Free Helps
 
-The **Courant–Friedrichs–Lewy (CFL) condition** ensures the numerical
-domain of dependence contains the physical one:
+A clean elliptic example. The PINN handles the circular geometry
+mesh-free — a classical advantage over finite differences. Closed-form
+solution: $u(r, \theta) = r^3 \sin(3\theta)$.
 
-- Diffusion: $\alpha\,\Delta t / \Delta x^2 \leq 0.5$
-- Advection / wave: $|c|\,\Delta t / \Delta x \leq 1$
+```{julia}
+#| eval: false
 
-Violating CFL causes exponential blow-up. First-order upwind schemes
-introduce **numerical diffusion** (smearing) even at stable step sizes
-— a real artefact, not just a bug.
+using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
+using DomainSets, Plots
 
-### Worked Example: Linearised Shallow Water
+@parameters r θ
+@variables u(..)
 
-The 1D linearised shallow water equations couple surface elevation
-$\eta$ and depth-averaged velocity $u$:
+Dᵣ  = Differential(r);  Dᵣᵣ = Differential(r) ∘ Differential(r)
+Dθθ = Differential(θ) ∘ Differential(θ)
 
-$$\frac{\partial \eta}{\partial t} + H\,\frac{\partial u}{\partial x} = 0,
-\qquad
-\frac{\partial u}{\partial t} + g\,\frac{\partial \eta}{\partial x} = 0,$$
+eq = r^2 * Dᵣᵣ(u(r, θ)) + r * Dᵣ(u(r, θ)) + Dθθ(u(r, θ)) ~ 0
 
-with wave speed $c = \sqrt{gH}$. A Gaussian bump in $\eta$ splits into
-two counter-propagating waves. We revisit this system as a PINN in
-[Unit 8](../unit_08/unit_08.qmd) and as the horizontal driver for the
-column model in [Unit 9](../unit_09/unit_09.qmd).
+R = 1.0;  r_min = 0.05
+domains = [r ∈ ClosedInterval(r_min, R), θ ∈ ClosedInterval(0.0, 2π)]
+bcs = [
+    u(R, θ)     ~ sin(3θ),
+    u(r_min, θ) ~ r_min^3 * sin(3θ),
+    u(r, 0.0)   ~ 0.0,
+    u(r, 2π)    ~ 0.0,
+]
+@named pde_system = PDESystem(eq, bcs, domains, [r, θ], [u(r, θ)])
 
-*Reference finite-volume implementation — code coming soon.*
+chain = Lux.Chain(
+    Lux.Dense(2, 32, Lux.tanh), Lux.Dense(32, 32, Lux.tanh),
+    Lux.Dense(32, 32, Lux.tanh), Lux.Dense(32, 1),
+)
+
+discretization = PhysicsInformedNN(chain, GridTraining([0.05, 0.1]))
+prob = discretize(pde_system, discretization)
+res = Optimization.solve(prob, LBFGS(); maxiters=3000)
+```
+
+## 7.2 Why Naïve PINNs Fail
+
+### Worked Example: Naïve Shallow Water (After de Wolff et al.)
+
+The 1D linearised shallow water system from
+[Unit 6](../unit_06/unit_06.qmd), attempted with two networks (one
+for $\eta$, one for $u$). This is the case where
+[de Wolff et al. (2021)](https://inria.hal.science/hal-03262684/document)
+reported a *negative* result: vanilla PINN underperformed a pure
+data-driven NN. We reproduce the failure to motivate the fixes in §7.3.
+
+```{julia}
+#| eval: false
+
+using NeuralPDE, Lux, ModelingToolkit, Optimization, OptimizationOptimJL
+using DomainSets, Plots
+
+@parameters x t
+@variables η(..) u_vel(..)
+
+Dₜ = Differential(t);  Dₓ = Differential(x)
+g = 9.81;  H = 10.0   # wave speed c ≈ 9.9 m/s
+
+eqs = [
+    Dₜ(η(x, t)) + H * Dₓ(u_vel(x, t)) ~ 0,
+    Dₜ(u_vel(x, t)) + g * Dₓ(η(x, t)) ~ 0,
+]
+
+domains = [x ∈ ClosedInterval(0.0, 2.0), t ∈ ClosedInterval(0.0, 0.05)]
+
+bcs = [
+    η(x, 0)        ~ exp(-100 * (x - 1.0)^2),
+    u_vel(x, 0)    ~ 0.0,
+    u_vel(0.0, t)  ~ 0.0,
+    u_vel(2.0, t)  ~ 0.0,
+]
+
+@named pde_system = PDESystem(eqs, bcs, domains, [x, t], [η(x, t), u_vel(x, t)])
+
+chain_η = Lux.Chain(Lux.Dense(2, 32, tanh), Lux.Dense(32, 32, tanh),
+                    Lux.Dense(32, 32, tanh), Lux.Dense(32, 1))
+chain_u = Lux.Chain(Lux.Dense(2, 32, tanh), Lux.Dense(32, 32, tanh),
+                    Lux.Dense(32, 32, tanh), Lux.Dense(32, 1))
+
+discretization = PhysicsInformedNN([chain_η, chain_u], GridTraining([0.02, 0.001]))
+prob = discretize(pde_system, discretization)
+res = Optimization.solve(prob, LBFGS(); maxiters=3000)
+```
+
+### Loss Imbalance Between Residual and Boundary Terms
+
+The total loss
+$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
++ \lambda_b\,\mathcal{L}_{\text{BC}} + \lambda_i\,\mathcal{L}_{\text{IC}}$
+is a sum of terms whose magnitudes can differ by orders of magnitude.
+The optimiser drives the largest term to zero first; if that's a
+term you don't care about, the others stagnate. The classic failure
+mode: $\mathcal{L}_{\text{PDE}}$ is small but the BC is way off,
+producing a function that satisfies the equation in the interior
+but ignores the boundary.
+
+### Spectral Bias
+
+Standard MLPs with smooth activations are biased toward learning
+**low-frequency** components first (Rahaman et al., 2019; Tancik et
+al., 2020). High-frequency features — sharp initial conditions,
+oscillatory solutions, fine spatial structure — take many more
+iterations or never converge. For PINNs this means a Gaussian
+initial bump might smooth too fast, or a wavy solution might miss
+the right wavelength entirely.
+
+### Causal Violation in Time-Dependent Problems
+
+For time-dependent problems, the PDE residual is evaluated at all
+$(\mathbf{x}_i, t_i)$ collocation points simultaneously. *Nothing
+in the loss* requires that the solution at $t_2$ be a *consequence*
+of the solution at $t_1 < t_2$. The optimiser can find a globally
+inconsistent solution whose residual is small everywhere but whose
+time-direction information flow is wrong — invisible to the loss
+but obvious in the prediction.
+
+## 7.3 Modern Fixes
+
+### Causal Training
+
+Wang et al. (2022): weight residual losses at later times by how
+well earlier times have already converged. Concretely,
+
+$$\lambda(t_i) = \exp\!\Bigl(-\epsilon \sum_{t_j < t_i} \mathcal{L}_{\text{PDE}}(t_j)\Bigr),$$
+
+so a time slice contributes only after earlier slices have been
+resolved. Trains the network in the right *temporal causal order*
+without explicit time-stepping.
+
+### Fourier Feature Embeddings
+
+Wrap each input in a Fourier feature transform
+
+$$\gamma(\mathbf{x}) = [\sin(B\mathbf{x}),\, \cos(B\mathbf{x})]$$
+
+with frequencies $B$ drawn from a distribution that includes the
+high frequencies you need (Tancik et al., 2020). The network sees
+high-frequency content in its input directly, breaking spectral
+bias. A simple recipe: $B \sim \mathcal{N}(0, \sigma^2 I)$ with
+$\sigma$ tuned per problem.
+
+### Hard Boundary Condition Enforcement
+
+Instead of penalising BC violations softly, **construct** the
+network output to satisfy them by construction. For Dirichlet BCs
+on $[0, 1]$ with $u(0, t) = u(1, t) = 0$, write
+
+$$u_\theta(x, t) = x(1 - x)\,N_\theta(x, t).$$
+
+Now $u_\theta = 0$ on the boundary regardless of $N_\theta$. The
+loss has one fewer term to balance, and the optimiser has fewer
+ways to fail. The trick generalises to other BC types via clever
+ansätze (Sukumar & Srivastava, 2022).
+
+### Adaptive Loss Weighting
+
+Tune $\lambda_r, \lambda_b, \lambda_i$ during training so all terms
+stay roughly balanced. Three families of approaches:
+
+- **Gradient-balancing** (McClenny & Braga-Neto, 2022) — match the
+  gradient norms of each term.
+- **NTK-based** (Wang et al., 2021) — use the neural tangent kernel
+  to compute target weights.
+- **Annealing** — start with one term dominant, gradually shift
+  weight to others.
+
+All beat hand-tuning. With these, the modern PINN is ready for the
+[capstone](../unit_08/unit_08.qmd).

@@ -1,126 +1,144 @@
 ---
-title: "Unit 3: From Neurons to Deep Networks"
+title: "Unit 3: Scientific Machine Learning and Physics-Informed Machine Learning"
 engine: julia
-toc-title: "Unit 3: Deep Networks"
+toc-title: "Unit 3: Sci-ML and PIML"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Neural networks as flexible, trainable function approximators. We
-cover layers, activations, optimisers, and the autodiff engine that
-drives PINNs. Convolutional networks make a brief appearance to
-motivate inductive biases, and ResNets set up the connection to
-Neural ODEs we pick up in [Unit 5](../unit_05/unit_05.qmd). Julia
-(`Lux.jl`) is primary; a `PyTorch` parallel seeds the cross-ecosystem
-story we revisit in [Unit 10](../unit_10/unit_10.qmd).
+A conceptual tour of the broader physics-aware ML landscape and a
+first encounter with **physics-informed machine learning (PIML)**. We
+cover hybrid physics+ML models, surrogate solvers, conservation-aware
+architectures, Hamiltonian and Lagrangian neural networks (briefly),
+and equation discovery via SINDy. The unit closes with the conceptual
+PINN setup that [Units 5–9](../unit_05/unit_05.qmd) then implement.
 
-## 3.1 Neural Networks
+## 3.1 The SciML Landscape
 
-### Layers, Activations, MLPs
+### Hybrid Physics + ML
 
-A **multilayer perceptron (MLP)** alternates affine layers
-$h \mapsto Wh + b$ with elementwise nonlinearities $\sigma$:
+A hybrid model uses a known physical equation for the parts of the
+dynamics we understand and a neural network for the parts we don't.
+Example: a population model with known logistic growth and an
+unknown immigration term modelled by a small NN. The benefit over
+pure ML: data efficiency and out-of-distribution extrapolation. The
+benefit over pure physics: flexibility where the physics is
+genuinely unknown.
 
-$$f_\theta(x) = W_L\,\sigma\!\bigl(W_{L-1}\,\sigma(\cdots W_1 x + b_1 \cdots)
-+ b_{L-1}\bigr) + b_L.$$
+### Surrogate Models for Expensive Simulations
 
-Parameters $\theta = \{W_\ell, b_\ell\}$ are fit by minimising a
-loss. Common nonlinearities: ReLU $\max(0, x)$, tanh, the Swish
-family. **For PINNs** the choice of activation matters a lot: ReLU
-has zero second derivatives almost everywhere, which breaks the
-residual loss. Smooth activations like tanh or Swish are usually
-safer.
+A **surrogate** replaces an expensive PDE solver with a fast,
+learned approximation. Train it on a dataset of (input, solver
+output) pairs; use it for design optimisation, uncertainty
+quantification, or real-time inference. The catch: surrogates are
+only trustworthy *inside* the distribution they were trained on.
+Out-of-distribution inputs can produce confident-but-wrong outputs.
 
-### Universal Approximation
+### Conservation, Symmetries, and Inductive Biases
 
-A two-layer MLP with a non-polynomial activation can approximate any
-continuous function on a compact set to arbitrary accuracy, given
-enough hidden units (Hornik, 1991). The theorem is qualitative — it
-does *not* tell you how many units, how much data, or how to train.
-Depth, width, and architectural priors make the difference in
-practice.
+A neural network that *cannot* violate conservation of mass,
+energy, or momentum will generalise better than one that has to
+learn the constraint from data. Inductive biases that enforce
+conservation: hard architectural constraints (output a flux, then
+take its divergence), soft loss penalties, equivariant
+architectures. The pattern recurs throughout the unit: the more
+physics we bake in, the less data we need.
 
-### Lux.jl in Practice
+## 3.2 Hamiltonian and Lagrangian Neural Networks
 
-`Lux.jl` is a pure-Julia, explicit-parameter neural-network library
-designed to compose cleanly with the SciML ecosystem. Layers are
-pure functions of $(x, \theta, \text{state})$; parameters live
-separately from the model definition. This explicit style is what
-makes `NeuralPDE.jl` and the rest of the SciML stack work.
+### A Brief Description
+
+A **Hamiltonian Neural Network (HNN)** parametrises the Hamiltonian
+$H_\theta(q, p)$ of a system, then derives the dynamics
+$\dot q = \partial H / \partial p$,
+$\dot p = -\partial H / \partial q$ via autodiff. Energy is
+conserved by construction. **Lagrangian Neural Networks (LNNs)** do
+the analogous trick with the Lagrangian. Both belong to a family of
+architectures that bake symplectic structure or variational
+principles directly into the model.
+
+### A Tiny Pendulum Demo
+
+A simple pendulum has a known Hamiltonian
+$H(q, p) = p^2/2 + (1 - \cos q)$. Train an HNN on noisy trajectory
+data and watch it conserve energy long after a vanilla MLP would
+have drifted off the energy shell.
+
+*Code placeholder.*
+
+## 3.3 Equation Discovery: SINDy
+
+### The Sparse Regression Idea
+
+**SINDy** (Sparse Identification of Nonlinear Dynamics) assumes the
+right-hand side of $\dot x = f(x)$ is a sparse combination of
+candidate terms — polynomials, trigonometric functions, products.
+Build a feature library $\Theta(x)$, regress $\dot X$ against
+$\Theta(X)$ with $\ell_1$ regularisation, read off the active
+terms. The output is a **symbolic equation**, not a black-box
+function — that's the headline win.
+
+### Building a Library of Candidate Terms
+
+A standard library:
+$\{1, x_1, x_2, \ldots, x_1^2, x_1 x_2, \ldots, \sin x_1, \cos x_1, \ldots\}$.
+Domain knowledge guides which terms to include; including too many
+makes the regression unstable, too few makes recovery impossible.
+Numerical differentiation of $\dot X$ from time-series $X$ is a
+separate art (total-variation regularised, smoothed splines).
+
+### Worked Example: Recovering Lorenz from Data
+
+Given trajectories of the Lorenz system $\dot x = \sigma(y - x)$,
+$\dot y = x(\rho - z) - y$, $\dot z = xy - \beta z$ with noise,
+SINDy with a polynomial library typically recovers the exact
+equations and the parameters $(\sigma, \rho, \beta)$ — a textbook
+demonstration that a sparse prior plus enough data is sometimes all
+you need.
 
 *Code placeholder.*
 
-## 3.2 Architectures Beyond MLPs
+### When Discovery Beats Approximation
 
-### Convolutional Networks (Brief)
+SINDy wins when (1) the underlying equation is genuinely sparse in
+your library, (2) you care about *interpretability* — a 3-term
+equation is more useful than a 10-layer network, and (3) you have
+enough clean trajectory data to estimate derivatives. It loses when
+the dynamics are intrinsically high-dimensional or the right basis
+isn't in your library.
 
-CNNs replace dense $W$ with **convolutional layers** that share
-weights across spatial positions. The inductive biases —
-translation-equivariance, locality, weight sharing — turn an
-intractable MLP on grid-structured data into a tractable model. We
-mention them because CNN-based PINNs and *neural operators*
-(DeepONet, FNO) are the natural extensions when the field has
-spatial structure that an MLP would have to relearn from scratch.
+## 3.4 Physics-Informed Machine Learning: A Conceptual Preview
 
-### Residual Networks
+### The Core Idea
 
-A **ResNet** adds skip connections:
-$h_{\ell+1} = h_\ell + \mathcal{F}(h_\ell)$. Two effects: (1)
-gradient flow stays clean during backprop, making deep networks
-trainable; (2) the network is biased toward learning *small
-perturbations* of the identity. Crucially, taking the limit of many
-small ResNet steps gives an ordinary differential equation — the
-bridge to **Neural ODEs** in [Unit 5](../unit_05/unit_05.qmd).
+A neural network $u_\theta(\mathbf{x}, t)$ approximates the solution
+of a PDE. The loss has a **physics term** — the PDE residual
+evaluated by autodiff at scattered collocation points — plus
+boundary and initial condition terms and (optionally) a data term:
 
-### Choosing an Architecture
+$$\mathcal{L}(\theta) = \lambda_r\,\mathcal{L}_{\text{PDE}}
++ \lambda_b\,\mathcal{L}_{\text{BC}}
++ \lambda_i\,\mathcal{L}_{\text{IC}}
++ \lambda_d\,\mathcal{L}_{\text{data}}.$$
 
-For PINN-scale problems, sensible defaults are 4–8 dense layers,
-32–128 units wide, tanh or Swish activations, and careful weight
-initialisation (`Glorot` / `Kaiming`). Architectural complexity
-helps when the field has structure to exploit; for the AIMS column
-problem an MLP is enough.
+Minimising it simultaneously fits the data and respects the
+equation. No grid, no time-stepping, no mesh.
 
-## 3.3 Training, Autodiff, and a Python Parallel
+### What Makes PIML Different from Other Sci-ML Methods
 
-### Loss, Backpropagation, Optimisers (SGD, Adam, L-BFGS)
+- *vs surrogates*: PIML doesn't need a precomputed dataset; the
+  equation itself supervises the network.
+- *vs equation discovery*: PIML assumes the equation is known,
+  asks for its solution (or its parameters).
+- *vs hybrid models*: PIML is a special case where the entire
+  solution is the "ML part" and the equation residual is the
+  "physics part".
 
-**Backpropagation** is reverse-mode automatic differentiation
-applied to the chain rule of a deep network: compute
-$\partial \mathcal{L} / \partial \theta$ in one backward pass, with
-cost similar to one forward pass. **Optimisers** then take steps:
+### What's Coming in Units 5–9
 
-- **SGD** — cheap, noisy, the default for large-batch deep learning.
-- **Adam** — adaptive per-parameter learning rates; a robust default
-  for medium-scale problems.
-- **L-BFGS** — quasi-Newton, often the *best* choice for the
-  small-batch low-noise regime PINNs inhabit.
-
-In practice PINNs are trained with Adam for a few thousand
-iterations to escape bad initialisations, then L-BFGS for
-fine-tuning.
-
-### Autodiff: Forward vs Reverse Mode, and Why It Matters for PINNs
-
-**Forward mode** propagates derivatives through the computation
-graph alongside values; **reverse mode** propagates them backward.
-Cost: forward $O(\text{inputs})$, reverse $O(\text{outputs})$.
-
-PINNs need both:
-
-- *Reverse* for parameter gradients $\partial \mathcal{L} / \partial \theta$.
-- *Forward* (or carefully nested reverse) for the **spatial
-  derivatives** of the network's output that go into the PDE
-  residual.
-
-Mixing the two correctly — typically forward-over-reverse for
-second derivatives — is what makes a PINN frame work efficiently.
-
-### A PyTorch Implementation of the Same Network
-
-The `PyTorch` parallel keeps the cross-ecosystem comparison alive.
-Same architecture, same dataset, same training loop — different
-language and framework. Useful both as a sanity check and to make
-the workshop accessible to the (still much larger) Python ML
-community.
-
-*Code placeholder.*
+[Unit 5](../unit_05/unit_05.qmd) implements PINNs on basic ODE and
+PDE models. [Unit 6](../unit_06/unit_06.qmd) provides the formal
+PDE foundations. [Unit 7](../unit_07/unit_07.qmd) addresses where
+naïve PINNs fail and how modern techniques fix them.
+[Units 8–9](../unit_08/unit_08.qmd) assemble the AIMS capstone —
+forward and inverse.

@@ -1,18 +1,17 @@
 ---
-title: "Unit 2: A Foundation in Machine Learning"
+title: "Unit 2: ML Foundations: From Classical to Deep"
 engine: julia
-toc-title: "Unit 2: ML Foundation"
+toc-title: "Unit 2: ML Foundations"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Before deep learning, what is machine learning? This unit covers
-supervised learning, loss, and generalisation — the ideas every later
-technique inherits. Random forests appear briefly as an example of a
-non-deep-learning approach (`MLJ.jl` in Julia, `scikit-learn` in
-Python), then we pivot toward deep learning in
-[Unit 3](../unit_03/unit_03.qmd). A short unit; the goal is shared
-vocabulary, not depth.
+The long route into machine learning — from supervised learning and
+random forests through to deep networks, optimisers, and the autodiff
+engine that drives PINNs. Random forests appear briefly as the
+non-deep-learning baseline; the second half pivots to neural networks
+(`Lux.jl` primary, `PyTorch` parallel) and the optimisation /
+autodiff stack PINNs actually use.
 
 ## 2.1 What is Machine Learning?
 
@@ -127,10 +126,123 @@ to minimise empirical risk. Everything we'll do — including PINNs —
 is a special case of this picture, with the "loss" sometimes
 containing physics terms instead of just data terms.
 
-### What Carries Over to PINNs
+## 2.4 Neural Networks
+
+### Layers, Activations, MLPs
+
+A **multilayer perceptron (MLP)** alternates affine layers
+$h \mapsto Wh + b$ with elementwise nonlinearities $\sigma$:
+
+$$f_\theta(x) = W_L\,\sigma\!\bigl(W_{L-1}\,\sigma(\cdots W_1 x + b_1 \cdots)
++ b_{L-1}\bigr) + b_L.$$
+
+Parameters $\theta = \{W_\ell, b_\ell\}$ are fit by minimising a
+loss. Common nonlinearities: ReLU $\max(0, x)$, tanh, the Swish
+family. **For PINNs** the choice of activation matters a lot: ReLU
+has zero second derivatives almost everywhere, which breaks the
+residual loss. Smooth activations like tanh or Swish are usually
+safer.
+
+### Universal Approximation
+
+A two-layer MLP with a non-polynomial activation can approximate any
+continuous function on a compact set to arbitrary accuracy, given
+enough hidden units (Hornik, 1991). The theorem is qualitative — it
+does *not* tell you how many units, how much data, or how to train.
+Depth, width, and architectural priors make the difference in
+practice.
+
+### Lux.jl in Practice
+
+`Lux.jl` is a pure-Julia, explicit-parameter neural-network library
+designed to compose cleanly with the SciML ecosystem. Layers are
+pure functions of $(x, \theta, \text{state})$; parameters live
+separately from the model definition. This explicit style is what
+makes `NeuralPDE.jl` and the rest of the SciML stack work.
+
+*Code placeholder.*
+
+## 2.5 Architectures Beyond MLPs
+
+### Convolutional Networks (Brief)
+
+CNNs replace dense $W$ with **convolutional layers** that share
+weights across spatial positions. The inductive biases —
+translation-equivariance, locality, weight sharing — turn an
+intractable MLP on grid-structured data into a tractable model. We
+mention them because CNN-based PINNs and *neural operators*
+(DeepONet, FNO) are the natural extensions when the field has
+spatial structure that an MLP would have to relearn from scratch.
+
+### Residual Networks
+
+A **ResNet** adds skip connections:
+$h_{\ell+1} = h_\ell + \mathcal{F}(h_\ell)$. Two effects: (1)
+gradient flow stays clean during backprop, making deep networks
+trainable; (2) the network is biased toward learning *small
+perturbations* of the identity. Crucially, taking the limit of many
+small ResNet steps gives an ordinary differential equation — the
+bridge to **Neural ODEs** in [Unit 4](../unit_04/unit_04.qmd).
+
+### Choosing an Architecture
+
+For PINN-scale problems, sensible defaults are 4–8 dense layers,
+32–128 units wide, tanh or Swish activations, and careful weight
+initialisation (`Glorot` / `Kaiming`). Architectural complexity
+helps when the field has structure to exploit; for the AIMS column
+problem an MLP is enough.
+
+## 2.6 Training, Autodiff, and a Python Parallel
+
+### Loss, Backpropagation, Optimisers (SGD, Adam, L-BFGS)
+
+**Backpropagation** is reverse-mode automatic differentiation
+applied to the chain rule of a deep network: compute
+$\partial \mathcal{L} / \partial \theta$ in one backward pass, with
+cost similar to one forward pass. **Optimisers** then take steps:
+
+- **SGD** — cheap, noisy, the default for large-batch deep learning.
+- **Adam** — adaptive per-parameter learning rates; a robust default
+  for medium-scale problems.
+- **L-BFGS** — quasi-Newton, often the *best* choice for the
+  small-batch low-noise regime PINNs inhabit.
+
+In practice PINNs are trained with Adam for a few thousand
+iterations to escape bad initialisations, then L-BFGS for
+fine-tuning.
+
+### Autodiff: Forward vs Reverse Mode, and Why It Matters for PINNs
+
+**Forward mode** propagates derivatives through the computation
+graph alongside values; **reverse mode** propagates them backward.
+Cost: forward $O(\text{inputs})$, reverse $O(\text{outputs})$.
+
+PINNs need both:
+
+- *Reverse* for parameter gradients $\partial \mathcal{L} / \partial \theta$.
+- *Forward* (or carefully nested reverse) for the **spatial
+  derivatives** of the network's output that go into the PDE
+  residual.
+
+Mixing the two correctly — typically forward-over-reverse for
+second derivatives — is what makes a PINN frame work efficiently.
+
+### A PyTorch Implementation of the Same Network
+
+The `PyTorch` parallel keeps the cross-ecosystem comparison alive.
+Same architecture, same dataset, same training loop — different
+language and framework. Useful both as a sanity check and to make
+the workshop accessible to the (still much larger) Python ML
+community.
+
+*Code placeholder.*
+
+## 2.7 What Carries Over to PINNs
 
 Three ideas survive the journey from classical ML to PINNs:
 
 1. **Loss minimisation** as the unifying training principle.
-2. **Generalisation** as the goal — a PINN that fits collocation points but violates physics elsewhere is overfitting.
-3. **Regularisation**, in the form of physics terms that anchor the solution to the equations.
+2. **Generalisation** as the goal — a PINN that fits collocation
+   points but violates physics elsewhere is overfitting.
+3. **Regularisation**, in the form of physics terms that anchor the
+   solution to the equations.

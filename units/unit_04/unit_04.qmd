@@ -1,144 +1,127 @@
 ---
-title: "Unit 4: Scientific Machine Learning and Physics-Informed Machine Learning"
+title: "Unit 4: Learning Dynamics with Neural Differential Equations"
 engine: julia
-toc-title: "Unit 4: Sci-ML and PIML"
+toc-title: "Unit 4: Neural DEs"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-A conceptual tour of the broader physics-aware ML landscape and a
-first encounter with **physics-informed machine learning (PIML)**. We
-cover hybrid physics+ML models, surrogate solvers, conservation-aware
-architectures, Hamiltonian and Lagrangian neural networks (briefly),
-and equation discovery via SINDy. The unit closes with the conceptual
-PINN setup that [Units 6–10](../unit_06/unit_06.qmd) then implement.
+Ordinary differential equations as models of dynamics, framed through
+universal approximation rather than classical numerics — no
+Runge–Kutta theory, no stiff-solver internals. We follow the
+ResNet-to-Neural-ODE bridge from
+[Unit 2](../unit_02/unit_02.qmd) and arrive at Universal Differential
+Equations: known physics + learnable closure. Worked examples include
+a damped pendulum with unknown friction and a Lotka–Volterra inverse
+variant.
 
-## 4.1 The SciML Landscape
+## 4.1 ODEs as Models of Dynamics
 
-### Hybrid Physics + ML
+### What an ODE Is
 
-A hybrid model uses a known physical equation for the parts of the
-dynamics we understand and a neural network for the parts we don't.
-Example: a population model with known logistic growth and an
-unknown immigration term modelled by a small NN. The benefit over
-pure ML: data efficiency and out-of-distribution extrapolation. The
-benefit over pure physics: flexibility where the physics is
-genuinely unknown.
+An **ordinary differential equation** specifies the rate of change
+of a state $x(t) \in \mathbb{R}^n$ as a function of state and time:
 
-### Surrogate Models for Expensive Simulations
+$$\frac{dx}{dt} = f(x, t),\qquad x(0) = x_0.$$
 
-A **surrogate** replaces an expensive PDE solver with a fast,
-learned approximation. Train it on a dataset of (input, solver
-output) pairs; use it for design optimisation, uncertainty
-quantification, or real-time inference. The catch: surrogates are
-only trustworthy *inside* the distribution they were trained on.
-Out-of-distribution inputs can produce confident-but-wrong outputs.
+Given $f$ and $x_0$, the future is determined (modulo regularity
+conditions). ODEs model populations, mechanical systems, chemical
+kinetics, electrical circuits, neuron membrane dynamics — anywhere a
+few coupled time-varying quantities tell the story.
 
-### Conservation, Symmetries, and Inductive Biases
+### Linear vs Nonlinear, Phase Space, Stability
 
-A neural network that *cannot* violate conservation of mass,
-energy, or momentum will generalise better than one that has to
-learn the constraint from data. Inductive biases that enforce
-conservation: hard architectural constraints (output a flux, then
-take its divergence), soft loss penalties, equivariant
-architectures. The pattern recurs throughout the unit: the more
-physics we bake in, the less data we need.
+**Linear** ODEs $\dot x = Ax$ have closed-form solutions and produce
+exponential or oscillatory behaviour. **Nonlinear** ODEs can have
+richer phenomena: limit cycles, multiple equilibria, chaos. The
+**phase space** view plots trajectories in state space rather than
+versus time — equilibria are points, limit cycles are loops, chaos
+fills regions. **Stability** of an equilibrium is read off from the
+linearisation: eigenvalues with negative real part mean attracting,
+positive means repelling.
 
-## 4.2 Hamiltonian and Lagrangian Neural Networks
+### `DifferentialEquations.jl` as a Black-Box Reference
 
-### A Brief Description
-
-A **Hamiltonian Neural Network (HNN)** parametrises the Hamiltonian
-$H_\theta(q, p)$ of a system, then derives the dynamics
-$\dot q = \partial H / \partial p$,
-$\dot p = -\partial H / \partial q$ via autodiff. Energy is
-conserved by construction. **Lagrangian Neural Networks (LNNs)** do
-the analogous trick with the Lagrangian. Both belong to a family of
-architectures that bake symplectic structure or variational
-principles directly into the model.
-
-### A Tiny Pendulum Demo
-
-A simple pendulum has a known Hamiltonian
-$H(q, p) = p^2/2 + (1 - \cos q)$. Train an HNN on noisy trajectory
-data and watch it conserve energy long after a vanilla MLP would
-have drifted off the energy shell.
+We use `DifferentialEquations.jl` as a high-quality numerical solver
+to produce ground-truth solutions, *without* engaging with its
+internals. Treat the solver as a function: hand it
+$(f, x_0, [t_0, t_f])$, get back $x(t)$. Classical ODE numerics
+(adaptive step control, stiff vs non-stiff, implicit methods) are
+deliberately out of scope.
 
 *Code placeholder.*
 
-## 4.3 Equation Discovery: SINDy
+## 4.2 From ResNets to Neural ODEs
 
-### The Sparse Regression Idea
+### The Limit of Many Residual Layers
 
-**SINDy** (Sparse Identification of Nonlinear Dynamics) assumes the
-right-hand side of $\dot x = f(x)$ is a sparse combination of
-candidate terms — polynomials, trigonometric functions, products.
-Build a feature library $\Theta(x)$, regress $\dot X$ against
-$\Theta(X)$ with $\ell_1$ regularisation, read off the active
-terms. The output is a **symbolic equation**, not a black-box
-function — that's the headline win.
+A ResNet step $h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell)$
+looks exactly like one step of explicit Euler on the ODE
+$\dot h = f_\theta(h)$. Take $\Delta t \to 0$ and depth
+$\to \infty$: the network *becomes* an ODE. **Neural ODE** (Chen et
+al., 2018): parametrise $f_\theta$ with a small NN, solve
+$\dot h = f_\theta(h)$ from input $h(0) = x$ to output
+$h(T) = $ prediction. The network is now a vector field, not a
+stack of layers.
 
-### Building a Library of Candidate Terms
+### Continuous-Depth Models
 
-A standard library:
-$\{1, x_1, x_2, \ldots, x_1^2, x_1 x_2, \ldots, \sin x_1, \cos x_1, \ldots\}$.
-Domain knowledge guides which terms to include; including too many
-makes the regression unstable, too few makes recovery impossible.
-Numerical differentiation of $\dot X$ from time-series $X$ is a
-separate art (total-variation regularised, smoothed splines).
+Memory cost is constant in depth (the solver state replaces the
+layer activations). Adaptive solvers spend more compute on hard
+regions of input space. The model is automatically smooth in inputs
+— useful when smoothness is a meaningful prior. Costs: training is
+harder (you're training a vector field, not weights), and very stiff
+dynamics can blow up the solver budget.
 
-### Worked Example: Recovering Lorenz from Data
+### Adjoint Sensitivities (Briefly)
 
-Given trajectories of the Lorenz system $\dot x = \sigma(y - x)$,
-$\dot y = x(\rho - z) - y$, $\dot z = xy - \beta z$ with noise,
-SINDy with a polynomial library typically recovers the exact
-equations and the parameters $(\sigma, \rho, \beta)$ — a textbook
-demonstration that a sparse prior plus enough data is sometimes all
-you need.
+Backpropagating through a numerical ODE solver via standard autodiff
+stores every intermediate state — memory-prohibitive for long
+trajectories. The **adjoint method** instead solves an auxiliary
+ODE backward in time to recover gradients with constant memory. The
+trade-off is some loss of numerical accuracy versus storing full
+forward states; the choice is problem-dependent.
+
+### Training a Neural ODE
+
+A sketch: define a small MLP for $f_\theta$, integrate with
+`DifferentialEquations.jl`'s `solve`, take the L2 misfit between
+predicted and observed trajectories, and use the adjoint method (via
+`SciMLSensitivity.jl`) to get $\partial \mathcal{L} / \partial \theta$.
 
 *Code placeholder.*
 
-### When Discovery Beats Approximation
+## 4.3 Universal Differential Equations
 
-SINDy wins when (1) the underlying equation is genuinely sparse in
-your library, (2) you care about *interpretability* — a 3-term
-equation is more useful than a 10-layer network, and (3) you have
-enough clean trajectory data to estimate derivatives. It loses when
-the dynamics are intrinsically high-dimensional or the right basis
-isn't in your library.
+### Known Physics + Unknown Closure
 
-## 4.4 Physics-Informed Machine Learning: A Conceptual Preview
+A **Universal Differential Equation (UDE)** is an ODE (or PDE)
+whose right-hand side mixes known terms and a small neural network
+for the unknown:
 
-### The Core Idea
+$$\dot x = f_{\text{known}}(x, t) + f^{\text{NN}}_\theta(x, t).$$
 
-A neural network $u_\theta(\mathbf{x}, t)$ approximates the solution
-of a PDE. The loss has a **physics term** — the PDE residual
-evaluated by autodiff at scattered collocation points — plus
-boundary and initial condition terms and (optionally) a data term:
+Train $\theta$ on observations of $x(t)$. The result is an ODE you
+can simulate, analyse, and reason about — with the NN filling in
+exactly the part that wasn't known.
 
-$$\mathcal{L}(\theta) = \lambda_r\,\mathcal{L}_{\text{PDE}}
-+ \lambda_b\,\mathcal{L}_{\text{BC}}
-+ \lambda_i\,\mathcal{L}_{\text{IC}}
-+ \lambda_d\,\mathcal{L}_{\text{data}}.$$
+### Worked Example: Pendulum with Unknown Friction Term
 
-Minimising it simultaneously fits the data and respects the
-equation. No grid, no time-stepping, no mesh.
+Standard damped pendulum:
+$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. Suppose the
+*friction* term $b\dot\theta$ is replaced by an unknown function
+$g_\theta(\dot\theta)$. Given trajectory data, recover
+$g_\theta(\cdot)$ as a small NN. The result is an interpretable
+hybrid model: the gravitational restoring force is hard-coded, the
+friction law is learned.
 
-### What Makes PIML Different from Other Sci-ML Methods
+*Code placeholder.*
 
-- *vs surrogates*: PIML doesn't need a precomputed dataset; the
-  equation itself supervises the network.
-- *vs equation discovery*: PIML assumes the equation is known,
-  asks for its solution (or its parameters).
-- *vs hybrid models*: PIML is a special case where the entire
-  solution is the "ML part" and the equation residual is the
-  "physics part".
+### Lotka–Volterra Inverse Variant
 
-### What's Coming in Units 6–10
-
-[Unit 6](../unit_06/unit_06.qmd) implements PINNs on basic ODE and
-PDE models. [Unit 7](../unit_07/unit_07.qmd) provides the formal
-PDE foundations. [Unit 8](../unit_08/unit_08.qmd) addresses where
-naïve PINNs fail and how modern techniques fix them.
-[Units 9–10](../unit_09/unit_09.qmd) assemble the AIMS capstone —
-forward and inverse.
+Standard LV: $\dot x = \alpha x - \beta xy$,
+$\dot y = \delta xy - \gamma y$. **Inverse**: given trajectories,
+recover $(\alpha, \beta, \delta, \gamma)$ — or, if a term is
+unknown (say the predator–prey interaction), learn it as a small
+NN. A clean sandbox for inverse problems before we hit the AIMS
+column in Unit 9.

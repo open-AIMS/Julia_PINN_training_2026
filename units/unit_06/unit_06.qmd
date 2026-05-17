@@ -1,126 +1,211 @@
 ---
-title: "Unit 6: PINNs on Basic Models"
+title: "Unit 6: PDE Bootcamp"
 engine: julia
-toc-title: "Unit 6: First PINN"
+toc-title: "Unit 6: PDE Bootcamp"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Our first hands-on PINN, in the simplest possible settings: a small
-collection of ODEs and the simplest PDE. The aim is to make the
-ingredients concrete — residual loss, initial conditions in the loss,
-collocation points, autodiff — and to spot a few failure modes before
-we tackle the formal PDE theory in
-[Unit 7](../unit_07/unit_07.qmd) and harder PDE PINNs in
-[Unit 8](../unit_08/unit_08.qmd).
+Formal foundations of PDEs: classification (elliptic, parabolic,
+hyperbolic), boundary and initial conditions, well-posedness. The
+three canonical mechanisms — diffusion, advection, reaction — appear
+as the building blocks for everything that follows. The unit closes
+with finite-difference numerics and the linearised shallow water
+equations as a worked nonlinear example we revisit in the capstone.
 
-## 6.1 The PINN Idea
+## 6.1 PDE Classification and Well-Posedness
 
-### Residual Loss from a Differential Equation
+We work in physical space-time throughout. Spatial coordinates are
+$x, y, z$; time is $t$. The unknown $u(x, y, z, t)$ stands in for
+whatever physical field a given equation models — temperature,
+pressure, concentration, displacement, electric potential. The
+Laplacian is
 
-For an ODE $\dot x = f(x, t)$, define a network $x_\theta(t)$ and
-the residual
+$$\nabla^2 u = \frac{\partial^2 u}{\partial x^2}
+            + \frac{\partial^2 u}{\partial y^2}
+            + \frac{\partial^2 u}{\partial z^2};$$
 
-$$r(t) = \dot x_\theta(t) - f(x_\theta(t), t),$$
+in 1D it reduces to $u_{xx}$, in 2D to $u_{xx} + u_{yy}$. Vector fields
+(velocity $\mathbf{u}(x, y, z, t)$, etc.) appear in the systems at the
+bottom of the table below.
 
-with $\dot x_\theta$ computed by autodiff through the network. The
-**residual loss** is
+### Common PDE Models at a Glance
 
-$$\mathcal{L}_{\text{ODE}} = \frac{1}{N_r}\sum_{i=1}^{N_r} |r(t_i)|^2$$
+A map of the PDEs we'll meet, grouped by character. Most of classical
+physics lives in this table; the rest of the unit is about how to read,
+classify, and solve them.
 
-evaluated at scattered collocation points $\{t_i\}$. Minimising it
-pushes $x_\theta$ toward a solution of the ODE.
+| Name | Equation | Type | Typical application |
+|------|----------|------|---------------------|
+| **Laplace** | $\nabla^2 u = 0$ | Elliptic | Steady-state temperature, electrostatic potential |
+| **Poisson** | $\nabla^2 u = f$ | Elliptic | Potential with sources (gravity, charge) |
+| **Helmholtz** | $\nabla^2 u + k^2 u = 0$ | Elliptic | Standing waves, frequency-domain wave problems |
+| **Heat / diffusion** | $u_t = \alpha\,\nabla^2 u$ | Parabolic | Heat conduction, mass diffusion |
+| **Reaction–diffusion** | $u_t = \alpha\,\nabla^2 u + f(u)$ | Parabolic (nonlinear) | Pattern formation, population dynamics |
+| **Advection** | $u_t + c\,\partial_x u = 0$ | Hyperbolic (1st order) | Pure transport in a flow |
+| **Wave** | $u_{tt} = c^2\,\nabla^2 u$ | Hyperbolic | Vibrations, sound, electromagnetic waves |
+| **Advection–diffusion** | $u_t + c\,\partial_x u = \alpha\,u_{xx}$ | Mixed (parabolic + 1st-order hyperbolic) | Pollutant or heat in a flow |
+| **Burgers** | $u_t + u\,u_x = \nu\,u_{xx}$ | Nonlinear | Shock formation; simple fluid model |
+| **Shallow water** | $\eta_t + H\,\nabla\!\cdot\!\mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in [Unit 8](../unit_08/unit_08.qmd)) |
 
-### Initial Conditions in the Loss
+### Order, Linearity, and Type
 
-A residual alone has infinitely many solutions — every ODE has a
-one-parameter family of trajectories indexed by $x_0$. **Initial
-conditions** pin down which one we want. Add a term
+A **partial differential equation (PDE)** is a relationship between an
+unknown function of several variables and its partial derivatives. In
+general form,
 
-$$\mathcal{L}_{\text{IC}} = |x_\theta(0) - x_0|^2$$
+$$F\!\left(x_1, \ldots, x_n,\, u,\,
+\frac{\partial u}{\partial x_1}, \ldots,
+\frac{\partial^2 u}{\partial x_1^2}, \ldots\right) = 0.$$
 
-with weight $\lambda_{\text{IC}}$. The same idea applies to boundary
-conditions on PDEs. Tuning these weights is a major theme of
-[Unit 8](../unit_08/unit_08.qmd).
+The **order** of a PDE is the highest derivative that appears. We
+focus on second-order PDEs in two variables — they cover most of the
+physics relevant to PINNs.
 
-### Collocation Points and Sampling
+### Elliptic, Parabolic, Hyperbolic
 
-Where do you put the $\{t_i\}$? Options:
+The general second-order linear PDE in two variables takes the form
 
-- **Uniform grid** — simple, biased toward regular regions.
-- **Random uniform** — eliminates grid bias.
-- **Latin hypercube** — better space coverage in higher dimensions.
-- **Adaptive** — sample more densely where the residual is high.
+$$a\,u_{xx} + 2b\,u_{xy} + c\,u_{yy} + \text{lower-order terms} = 0,$$
 
-For a first pass on a smooth ODE, a uniform grid of a few hundred
-points is plenty.
+with coefficients that may depend on position. The character of
+solutions depends entirely on the **discriminant** $\Delta = b^2 - ac$:
 
-## 6.2 PINNs on ODEs
+| Type | Condition | Behaviour | Canonical example |
+|------|-----------|-----------|-------------------|
+| **Elliptic** | $b^2 - ac < 0$ | Steady-state, smooth | Laplace: $u_{xx} + u_{yy} = 0$ |
+| **Parabolic** | $b^2 - ac = 0$ | Diffusion, smoothing | Heat: $u_t = \alpha\,u_{xx}$ |
+| **Hyperbolic** | $b^2 - ac > 0$ | Wave propagation | Wave: $u_{tt} = c^2\,u_{xx}$ |
 
-### Harmonic Oscillator
+Classification matters because it determines what boundary/initial
+conditions are needed for well-posedness, how information propagates,
+and which numerical methods are appropriate.
 
-$\ddot x + \omega^2 x = 0$, $x(0) = 1$, $\dot x(0) = 0$, with
-closed-form solution $x(t) = \cos(\omega t)$. The cleanest possible
-test case — second-order, smooth, periodic. A PINN trained on a
-single period typically nails it; trained on many periods you start
-to see spectral bias on the high-frequency oscillations.
+### Boundary and Initial Conditions
 
-*Code placeholder.*
+The four common boundary-condition types:
 
-### Damped Pendulum
+- **Dirichlet**: prescribe the value of $u$ on the boundary
+  ("the wall is held at temperature $T_{\text{wall}}$").
+- **Neumann**: prescribe the *normal derivative* $\partial_n u$
+  ("heat flux through the wall is $q$").
+- **Robin** (mixed): a linear combination
+  $\alpha u + \beta\,\partial_n u = g$. Common when the boundary
+  exchanges with an external medium.
+- **Periodic**: $u(x_{\text{left}}) = u(x_{\text{right}})$ — used
+  to model infinite domains by tiling.
 
-$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. The
-nonlinearity ($\sin\theta$) and dissipation make it a richer test.
-The PINN should match the trajectory toward the stable equilibrium.
+For time-dependent problems, an **initial condition**
+$u(\mathbf{x}, 0) = u_0(\mathbf{x})$ fixes the state at $t = 0$.
+Parabolic and hyperbolic PDEs need ICs; elliptic problems do not
+(they're steady-state).
 
-*Code placeholder.*
+### Well-Posedness
 
-### Lotka–Volterra (Forward and Inverse)
+Hadamard's three criteria. A problem is **well-posed** if (1) a
+solution exists, (2) it is unique, (3) it depends continuously on
+the data (initial conditions, boundary conditions, source terms).
+Mismatching boundary conditions to PDE type produces ill-posed
+problems — for example, prescribing both $u$ and $\partial_n u$ on
+the same boundary of an elliptic equation generally has no solution.
+PINNs inherit this constraint: an ill-posed problem will train to a
+residual minimum that is not the (non-existent) classical solution.
 
-**Forward**: given $(\alpha, \beta, \delta, \gamma)$ and initial
-populations, predict $x(t), y(t)$. **Inverse**: given noisy
-observations of $x(t), y(t)$, recover the parameters. The inverse
-setup foreshadows the AIMS capstone in
-[Unit 10](../unit_10/unit_10.qmd).
+## 6.2 Mechanisms: Diffusion, Advection, Reaction
 
-*Code placeholder.*
+### The Heat Equation
 
-## 6.3 PINNs on the Simplest PDE: 1D Diffusion
+$$\frac{\partial u}{\partial t} = \alpha\,\frac{\partial^2 u}{\partial x^2}.$$
 
-### The Heat Equation in One Dimension
+Models how temperature $u(x, t)$ evolves over time. The diffusion
+coefficient $\alpha > 0$ controls the rate. The second spatial
+derivative measures *curvature*: hills flatten, valleys fill in,
+sharp features smooth out.
 
-$\partial_t u = \alpha\,\partial_x^2 u$ on $x \in [0, L]$,
-$t \in [0, T]$, with Dirichlet boundaries
-$u(0, t) = u(L, t) = 0$ and a smooth initial condition
-$u(x, 0) = u_0(x)$. The simplest non-trivial PDE — parabolic,
-smoothing, well-posed — and the first true PDE PINN benchmark.
+### Advection and Characteristics
 
-### A First PDE PINN
+The simplest hyperbolic PDE,
 
-The network has two inputs $(x, t)$ and one output. Loss has three
-terms — residual, IC, BC — with collocation points scattered in
-$[0, L] \times [0, T]$. Train with L-BFGS for a few thousand
-iterations; compare to the analytic Fourier-series solution or a
-finite-difference reference.
+$$\frac{\partial u}{\partial t} + c\,\frac{\partial u}{\partial x} = 0,$$
 
-*Code placeholder — full version in [Unit 8](../unit_08/unit_08.qmd) §8.1.*
+has solution $u(x, t) = u_0(x - ct)$ — the initial profile sliding
+at speed $c$. Information travels along **characteristics**
+$x - ct = \text{const}$.
 
-### Failure Modes Already Visible
+### Reaction-Diffusion
 
-Three pathologies show up even in this benign setting and motivate
-everything in Unit 8:
+Real-world models combine all three mechanisms:
 
-- **Spectral bias** — the network learns low frequencies first;
-  sharp initial conditions take many iterations.
-- **Loss imbalance** — if $\lambda_{\text{IC}}$, $\lambda_{\text{BC}}$,
-  $\lambda_{\text{PDE}}$ are wrong by orders of magnitude, the
-  optimiser finds a solution that satisfies the easy term and ignores
-  the hard one.
-- **Causal violation** — time-dependent PINNs can fit the residual
-  at every $t$ simultaneously, including futures whose IC dependence
-  hasn't propagated, producing solutions that are locally consistent
-  but globally wrong.
+| Equation | Mechanisms | Example application |
+|----------|-----------|---------------------|
+| $u_t = \alpha\,u_{xx}$ | Diffusion | Heat conduction |
+| $u_t + c\,u_x = 0$ | Advection | Pollutant in a river |
+| $u_t + c\,u_x = \alpha\,u_{xx}$ | Advection + diffusion | Nutrient dispersal |
+| $u_t = \alpha\,u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement |
 
-These three failure modes return on harder PDEs in
-[Unit 8](../unit_08/unit_08.qmd), where the modern fixes finally
-appear.
+## 6.3 Finite Differences and the Shallow Water Equations
+
+### Discretisation in Space and Time
+
+Replace continuous derivatives with algebraic approximations on a
+grid:
+
+- Forward time difference:
+  $\partial_t u \approx (u_i^{n+1} - u_i^n)/\Delta t$
+- Central second-derivative:
+  $\partial_x^2 u \approx (u_{i+1} - 2u_i + u_{i-1})/\Delta x^2$
+
+The forward-time, central-space (FTCS) scheme is the simplest
+explicit approach for the heat equation.
+
+```{julia}
+using Plots
+
+L  = 1.0;  nx = 101;  α = 0.01;  T = 5.0
+dx = L / (nx - 1)
+dt = 0.4 * dx^2 / α       # just under the CFL stability limit
+nt = ceil(Int, T / dt)
+x  = range(0, L, length=nx)
+
+u = exp.(-200 .* (x .- 0.75).^2)
+u[1] = 0.25;  u[nx] = 0.25
+
+u_new = similar(u)
+for n in 1:nt
+    for i in 2:(nx-1)
+        u_new[i] = u[i] + α * dt / dx^2 * (u[i+1] - 2u[i] + u[i-1])
+    end
+    u_new[1] = 0.25;  u_new[nx] = 0.25
+    u, u_new = u_new, u
+end
+
+plot(x, u, label="t = $T", xlabel="x", ylabel="u(x, t)", lw=2)
+```
+
+### CFL, Stability, Numerical Diffusion
+
+The **Courant–Friedrichs–Lewy (CFL) condition** ensures the numerical
+domain of dependence contains the physical one:
+
+- Diffusion: $\alpha\,\Delta t / \Delta x^2 \leq 0.5$
+- Advection / wave: $|c|\,\Delta t / \Delta x \leq 1$
+
+Violating CFL causes exponential blow-up. First-order upwind schemes
+introduce **numerical diffusion** (smearing) even at stable step sizes
+— a real artefact, not just a bug.
+
+### Worked Example: Linearised Shallow Water
+
+The 1D linearised shallow water equations couple surface elevation
+$\eta$ and depth-averaged velocity $u$:
+
+$$\frac{\partial \eta}{\partial t} + H\,\frac{\partial u}{\partial x} = 0,
+\qquad
+\frac{\partial u}{\partial t} + g\,\frac{\partial \eta}{\partial x} = 0,$$
+
+with wave speed $c = \sqrt{gH}$. A Gaussian bump in $\eta$ splits into
+two counter-propagating waves. We revisit this system as a PINN in
+[Unit 7](../unit_07/unit_07.qmd) and as the horizontal driver for the
+column model in [Unit 8](../unit_08/unit_08.qmd).
+
+*Reference finite-volume implementation — code coming soon.*

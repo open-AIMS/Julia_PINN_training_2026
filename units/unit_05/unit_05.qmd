@@ -1,127 +1,126 @@
 ---
-title: "Unit 5: Learning Dynamics with Neural Differential Equations"
+title: "Unit 5: PINNs on Basic Models"
 engine: julia
-toc-title: "Unit 5: Neural DEs"
+toc-title: "Unit 5: First PINN"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Ordinary differential equations as models of dynamics, framed through
-universal approximation rather than classical numerics — no
-Runge–Kutta theory, no stiff-solver internals. We follow the
-ResNet-to-Neural-ODE bridge from
-[Unit 3](../unit_03/unit_03.qmd) and arrive at Universal Differential
-Equations: known physics + learnable closure. Worked examples include
-a damped pendulum with unknown friction and a Lotka–Volterra inverse
-variant.
+Our first hands-on PINN, in the simplest possible settings: a small
+collection of ODEs and the simplest PDE. The aim is to make the
+ingredients concrete — residual loss, initial conditions in the loss,
+collocation points, autodiff — and to spot a few failure modes before
+we tackle the formal PDE theory in
+[Unit 6](../unit_06/unit_06.qmd) and harder PDE PINNs in
+[Unit 7](../unit_07/unit_07.qmd).
 
-## 5.1 ODEs as Models of Dynamics
+## 5.1 The PINN Idea
 
-### What an ODE Is
+### Residual Loss from a Differential Equation
 
-An **ordinary differential equation** specifies the rate of change
-of a state $x(t) \in \mathbb{R}^n$ as a function of state and time:
+For an ODE $\dot x = f(x, t)$, define a network $x_\theta(t)$ and
+the residual
 
-$$\frac{dx}{dt} = f(x, t),\qquad x(0) = x_0.$$
+$$r(t) = \dot x_\theta(t) - f(x_\theta(t), t),$$
 
-Given $f$ and $x_0$, the future is determined (modulo regularity
-conditions). ODEs model populations, mechanical systems, chemical
-kinetics, electrical circuits, neuron membrane dynamics — anywhere a
-few coupled time-varying quantities tell the story.
+with $\dot x_\theta$ computed by autodiff through the network. The
+**residual loss** is
 
-### Linear vs Nonlinear, Phase Space, Stability
+$$\mathcal{L}_{\text{ODE}} = \frac{1}{N_r}\sum_{i=1}^{N_r} |r(t_i)|^2$$
 
-**Linear** ODEs $\dot x = Ax$ have closed-form solutions and produce
-exponential or oscillatory behaviour. **Nonlinear** ODEs can have
-richer phenomena: limit cycles, multiple equilibria, chaos. The
-**phase space** view plots trajectories in state space rather than
-versus time — equilibria are points, limit cycles are loops, chaos
-fills regions. **Stability** of an equilibrium is read off from the
-linearisation: eigenvalues with negative real part mean attracting,
-positive means repelling.
+evaluated at scattered collocation points $\{t_i\}$. Minimising it
+pushes $x_\theta$ toward a solution of the ODE.
 
-### `DifferentialEquations.jl` as a Black-Box Reference
+### Initial Conditions in the Loss
 
-We use `DifferentialEquations.jl` as a high-quality numerical solver
-to produce ground-truth solutions, *without* engaging with its
-internals. Treat the solver as a function: hand it
-$(f, x_0, [t_0, t_f])$, get back $x(t)$. Classical ODE numerics
-(adaptive step control, stiff vs non-stiff, implicit methods) are
-deliberately out of scope.
+A residual alone has infinitely many solutions — every ODE has a
+one-parameter family of trajectories indexed by $x_0$. **Initial
+conditions** pin down which one we want. Add a term
 
-*Code placeholder.*
+$$\mathcal{L}_{\text{IC}} = |x_\theta(0) - x_0|^2$$
 
-## 5.2 From ResNets to Neural ODEs
+with weight $\lambda_{\text{IC}}$. The same idea applies to boundary
+conditions on PDEs. Tuning these weights is a major theme of
+[Unit 7](../unit_07/unit_07.qmd).
 
-### The Limit of Many Residual Layers
+### Collocation Points and Sampling
 
-A ResNet step $h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell)$
-looks exactly like one step of explicit Euler on the ODE
-$\dot h = f_\theta(h)$. Take $\Delta t \to 0$ and depth
-$\to \infty$: the network *becomes* an ODE. **Neural ODE** (Chen et
-al., 2018): parametrise $f_\theta$ with a small NN, solve
-$\dot h = f_\theta(h)$ from input $h(0) = x$ to output
-$h(T) = $ prediction. The network is now a vector field, not a
-stack of layers.
+Where do you put the $\{t_i\}$? Options:
 
-### Continuous-Depth Models
+- **Uniform grid** — simple, biased toward regular regions.
+- **Random uniform** — eliminates grid bias.
+- **Latin hypercube** — better space coverage in higher dimensions.
+- **Adaptive** — sample more densely where the residual is high.
 
-Memory cost is constant in depth (the solver state replaces the
-layer activations). Adaptive solvers spend more compute on hard
-regions of input space. The model is automatically smooth in inputs
-— useful when smoothness is a meaningful prior. Costs: training is
-harder (you're training a vector field, not weights), and very stiff
-dynamics can blow up the solver budget.
+For a first pass on a smooth ODE, a uniform grid of a few hundred
+points is plenty.
 
-### Adjoint Sensitivities (Briefly)
+## 5.2 PINNs on ODEs
 
-Backpropagating through a numerical ODE solver via standard autodiff
-stores every intermediate state — memory-prohibitive for long
-trajectories. The **adjoint method** instead solves an auxiliary
-ODE backward in time to recover gradients with constant memory. The
-trade-off is some loss of numerical accuracy versus storing full
-forward states; the choice is problem-dependent.
+### Harmonic Oscillator
 
-### Training a Neural ODE
-
-A sketch: define a small MLP for $f_\theta$, integrate with
-`DifferentialEquations.jl`'s `solve`, take the L2 misfit between
-predicted and observed trajectories, and use the adjoint method (via
-`SciMLSensitivity.jl`) to get $\partial \mathcal{L} / \partial \theta$.
+$\ddot x + \omega^2 x = 0$, $x(0) = 1$, $\dot x(0) = 0$, with
+closed-form solution $x(t) = \cos(\omega t)$. The cleanest possible
+test case — second-order, smooth, periodic. A PINN trained on a
+single period typically nails it; trained on many periods you start
+to see spectral bias on the high-frequency oscillations.
 
 *Code placeholder.*
 
-## 5.3 Universal Differential Equations
+### Damped Pendulum
 
-### Known Physics + Unknown Closure
-
-A **Universal Differential Equation (UDE)** is an ODE (or PDE)
-whose right-hand side mixes known terms and a small neural network
-for the unknown:
-
-$$\dot x = f_{\text{known}}(x, t) + f^{\text{NN}}_\theta(x, t).$$
-
-Train $\theta$ on observations of $x(t)$. The result is an ODE you
-can simulate, analyse, and reason about — with the NN filling in
-exactly the part that wasn't known.
-
-### Worked Example: Pendulum with Unknown Friction Term
-
-Standard damped pendulum:
-$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. Suppose the
-*friction* term $b\dot\theta$ is replaced by an unknown function
-$g_\theta(\dot\theta)$. Given trajectory data, recover
-$g_\theta(\cdot)$ as a small NN. The result is an interpretable
-hybrid model: the gravitational restoring force is hard-coded, the
-friction law is learned.
+$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. The
+nonlinearity ($\sin\theta$) and dissipation make it a richer test.
+The PINN should match the trajectory toward the stable equilibrium.
 
 *Code placeholder.*
 
-### Lotka–Volterra Inverse Variant
+### Lotka–Volterra (Forward and Inverse)
 
-Standard LV: $\dot x = \alpha x - \beta xy$,
-$\dot y = \delta xy - \gamma y$. **Inverse**: given trajectories,
-recover $(\alpha, \beta, \delta, \gamma)$ — or, if a term is
-unknown (say the predator–prey interaction), learn it as a small
-NN. A clean sandbox for inverse problems before we hit the AIMS
-column in Unit 10.
+**Forward**: given $(\alpha, \beta, \delta, \gamma)$ and initial
+populations, predict $x(t), y(t)$. **Inverse**: given noisy
+observations of $x(t), y(t)$, recover the parameters. The inverse
+setup foreshadows the AIMS capstone in
+[Unit 9](../unit_09/unit_09.qmd).
+
+*Code placeholder.*
+
+## 5.3 PINNs on the Simplest PDE: 1D Diffusion
+
+### The Heat Equation in One Dimension
+
+$\partial_t u = \alpha\,\partial_x^2 u$ on $x \in [0, L]$,
+$t \in [0, T]$, with Dirichlet boundaries
+$u(0, t) = u(L, t) = 0$ and a smooth initial condition
+$u(x, 0) = u_0(x)$. The simplest non-trivial PDE — parabolic,
+smoothing, well-posed — and the first true PDE PINN benchmark.
+
+### A First PDE PINN
+
+The network has two inputs $(x, t)$ and one output. Loss has three
+terms — residual, IC, BC — with collocation points scattered in
+$[0, L] \times [0, T]$. Train with L-BFGS for a few thousand
+iterations; compare to the analytic Fourier-series solution or a
+finite-difference reference.
+
+*Code placeholder — full version in [Unit 7](../unit_07/unit_07.qmd) §7.1.*
+
+### Failure Modes Already Visible
+
+Three pathologies show up even in this benign setting and motivate
+everything in Unit 7:
+
+- **Spectral bias** — the network learns low frequencies first;
+  sharp initial conditions take many iterations.
+- **Loss imbalance** — if $\lambda_{\text{IC}}$, $\lambda_{\text{BC}}$,
+  $\lambda_{\text{PDE}}$ are wrong by orders of magnitude, the
+  optimiser finds a solution that satisfies the easy term and ignores
+  the hard one.
+- **Causal violation** — time-dependent PINNs can fit the residual
+  at every $t$ simultaneously, including futures whose IC dependence
+  hasn't propagated, producing solutions that are locally consistent
+  but globally wrong.
+
+These three failure modes return on harder PDEs in
+[Unit 7](../unit_07/unit_07.qmd), where the modern fixes finally
+appear.
