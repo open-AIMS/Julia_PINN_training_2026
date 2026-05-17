@@ -20,6 +20,7 @@
 # in the qmd before the PINN forward problem.
 
 using ModelingToolkit, MethodOfLines, OrdinaryDiffEq
+using OrdinaryDiffEqBDF: QNDF  # umbrella OrdinaryDiffEq no longer re-exports BDF solvers
 using DomainSets: ClosedInterval
 using CairoMakie
 using Printf
@@ -42,7 +43,14 @@ const PARAMS = (
     h_m       = 20.0,     # mixed-layer scale (m)
     w0        = 1e-5,     # peak upwelling (m/s)
     τ_d       = 86400.0,  # diurnal period (s)
+    # storm scenario: Gaussian gust around day 10, ~3 days wide.
+    t_storm   = 10 * 86400.0,
+    σ_storm   = 1.0 * 86400.0,
+    w0_storm  = 5e-5,     # gust-driven upwelling (5× baseline)
+    cloud_amp = 0.5,      # peak SW reduction during gust
 )
+
+storm_envelope(t, p) = exp(-((t - p.t_storm) / p.σ_storm)^2)
 
 # ── initial profile ─────────────────────────────────────────────────────
 T0(z, p=PARAMS) = 0.5*(p.T_surface + p.T_deep) +
@@ -51,6 +59,7 @@ T0(z, p=PARAMS) = 0.5*(p.T_surface + p.T_deep) +
 # ── vertical velocity profiles ──────────────────────────────────────────
 w_zero(z, t, p)       = 0.0
 w_upwelling(z, t, p)  = p.w0 * sin(π * (z + p.H) / p.H)
+w_storm(z, t, p)      = p.w0_storm * storm_envelope(t, p) * sin(π * (z + p.H) / p.H)
 
 # ── eddy diffusivity profiles ───────────────────────────────────────────
 κ_const(z, t, p)   = p.κ_m
@@ -61,12 +70,15 @@ w_upwelling(z, t, p)  = p.w0 * sin(π * (z + p.H) / p.H)
 # differentiable for MTK. Same daily mean energy as max(0, cos)·(2/π)·QSW_max
 # would give, but a smooth half-cosine — close enough for the toy model.
 QSW_diurnal(t, p) = p.QSW_max * 0.5 * (1.0 + cos(2π * t / p.τ_d))
+QSW_storm(t, p)   = p.QSW_max * (1.0 - p.cloud_amp * storm_envelope(t, p)) *
+                    0.5 * (1.0 + cos(2π * t / p.τ_d))
 Q_np_steady(t, p) = -p.Q_cool
 
 # Body source from Beer–Lambert: I(z,t) = Q_SW(t) e^{z/ζ},
 # S = (1/(ρcp)) ∂I/∂z = Q_SW(t)/(ζ ρ cp) · e^{z/ζ}.
 S_off(z, t, p)     = 0.0
 S_diurnal(z, t, p) = QSW_diurnal(t, p) * exp(z / p.ζ) / (p.ζ * p.ρ * p.cp)
+S_storm(z, t, p)   = QSW_storm(t, p)   * exp(z / p.ζ) / (p.ζ * p.ρ * p.cp)
 
 # ── PDE builder ─────────────────────────────────────────────────────────
 function build_pde(scn, p=PARAMS)
@@ -106,7 +118,7 @@ function run_scenario(scn; dz=1.0, p=PARAMS)
     prob = discretize(pde_system, disc)
     @info "solving scenario: $(scn.name) (Tf = $(scn.Tf/86400) days)"
     sol = solve(prob, scn.alg; saveat=scn.saveat, abstol=1e-8, reltol=1e-6)
-    return sol
+    (; sol, z, t, T, scn)
 end
 
 # ── scenario configs ────────────────────────────────────────────────────
@@ -145,13 +157,15 @@ scenario_3() = (
     alg    = QNDF(),
 )
 
-# Scenario 4 (storm) — placeholder; gust modulation TBD once the SWE
-# driver is in place. For now reuses scenario 3 with the profile κ.
+# Scenario 4 (storm): Gaussian gust centred at t_storm. The gust spikes
+# upwelling (w_storm) and dims the surface SW (cloud cover via S_storm).
+# Real SWE-driven forcings would replace these envelopes; this is the
+# prescribed-driver stub used in §11.8 task 5.
 scenario_4() = (
-    name   = "storm fingerprint (placeholder)",
-    w      = w_upwelling,
-    κ      = κ_profile,
-    S      = S_diurnal,
+    name   = "storm fingerprint",
+    w      = w_storm,
+    κ      = κ_const,
+    S      = S_storm,
     Q_np   = Q_np_steady,
     Tf     = 20 * 86400.0,
     saveat = 3600.0,
@@ -166,11 +180,22 @@ T_analytic_scn1(z, p=PARAMS) =
     p.T_deep + p.Q_cool / (p.κ_m * p.ρ * p.cp) * (z + p.H)
 
 # ── plotting ────────────────────────────────────────────────────────────
+# Extract the (Nz, Nt) matrix and grids from a run_scenario result,
+# regardless of MOL's internal axis ordering. We declared PDESystem with
+# ivs = [z, t], so sol[z] and sol[t] are the canonical grids; we transpose
+# the matrix to (Nz, Nt) if MOL returned it in (Nt, Nz) form.
+function _grids(r)
+    zg = r.sol[r.z]
+    tg = r.sol[r.t]
+    Tg = r.sol[r.T(r.z, r.t)]
+    Tg = size(Tg, 1) == length(zg) ? Tg : permutedims(Tg)
+    (zg, tg, Tg)
+end
+
 "Final-time T(z) vs analytic steady state."
-function plot_scn1(sol; outpath=joinpath(@__DIR__, "scn1_steady.png"))
-    p = PARAMS
-    zg = sol[sol.ivs[1]]      # spatial grid (z)
-    Tf = sol[sol.dvs[1]][:, end]
+function plot_scn1(r; outpath=joinpath(@__DIR__, "output", "scn1_steady.png"))
+    zg, tg, Tg = _grids(r)
+    Tf = Tg[:, end]
     fig = Figure(size=(700, 500))
     ax = Axis(fig[1,1], xlabel="T (°C)", ylabel="z (m)",
               title="Scenario 1: pure diffusion to (near-)steady state")
@@ -181,16 +206,15 @@ function plot_scn1(sol; outpath=joinpath(@__DIR__, "scn1_steady.png"))
            color=:gray, linewidth=1, label="IC")
     axislegend(ax, position=:rb)
     save(outpath, fig)
-    @info "saved $outpath"
+    err = maximum(abs, Tf .- T_analytic_scn1.(zg))
+    @info "saved $outpath; max |T_MOL − T_analytic| = $(round(err, sigdigits=3)) °C"
     fig
 end
 
 "Near-surface (z, t) heatmap for scenario 2."
-function plot_scn2(sol; zmax=10.0,
-                   outpath=joinpath(@__DIR__, "scn2_diurnal.png"))
-    zg = sol[sol.ivs[1]]
-    tg = sol[sol.ivs[2]]
-    Tg = sol[sol.dvs[1]]                  # size (Nz, Nt)
+function plot_scn2(r; zmax=10.0,
+                   outpath=joinpath(@__DIR__, "output", "scn2_diurnal.png"))
+    zg, tg, Tg = _grids(r)
     keep = zg .>= -zmax
     fig = Figure(size=(900, 450))
     ax = Axis(fig[1,1], xlabel="t (days)", ylabel="z (m)",
@@ -202,8 +226,30 @@ function plot_scn2(sol; zmax=10.0,
     fig
 end
 
+"Five-mooring-depth time series + full (z,t) heatmap for scenarios 3–4."
+function plot_mooring(r; depths_m=(2.0, 10.0, 30.0, 60.0, 90.0),
+                      outpath=joinpath(@__DIR__, "output", "$(replace(r.scn.name, ' '=>'_'))_mooring.png"))
+    zg, tg, Tg = _grids(r)
+    days = tg ./ 86400.0
+    fig = Figure(size=(1000, 700))
+    ax1 = Axis(fig[1,1], xlabel="t (days)", ylabel="T (°C)",
+               title="Mooring traces — $(r.scn.name)")
+    for d in depths_m
+        zi = argmin(abs.(zg .+ d))  # z = -d
+        lines!(ax1, days, Tg[zi, :]; label="z = −$(d) m")
+    end
+    axislegend(ax1, position=:rt)
+    ax2 = Axis(fig[2,1], xlabel="t (days)", ylabel="z (m)",
+               title="T(z, t)")
+    hm = heatmap!(ax2, days, zg, Tg')
+    Colorbar(fig[2,2], hm, label="T (°C)")
+    save(outpath, fig)
+    @info "saved $outpath"
+    fig
+end
+
 # ── entry point when run as script ──────────────────────────────────────
 if abspath(PROGRAM_FILE) == @__FILE__
-    sol1 = run_scenario(scenario_1())
-    plot_scn1(sol1)
+    r1 = run_scenario(scenario_1())
+    plot_scn1(r1)
 end
