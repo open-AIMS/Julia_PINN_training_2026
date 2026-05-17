@@ -6,117 +6,257 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
-A conceptual tour of the broader physics-aware ML landscape and a
-first encounter with **physics-informed machine learning (PIML)**. We
-cover hybrid physics+ML models, surrogate solvers, conservation-aware
-architectures, Hamiltonian and Lagrangian neural networks (briefly),
-and equation discovery via SINDy. The unit closes with the conceptual
-PINN setup that [Units 5–9](../unit_05/unit_05.qmd) then implement.
+[Unit 2](../unit_02/unit_02.qmd) gave us a function-approximation
+view of ML — pick a function class, minimise a loss, generalise.
+This unit takes that picture and adds **physics** to it, in three
+flavours: hybrid models, conservation-aware architectures, and
+equation discovery. The unit closes with a conceptual preview of
+**physics-informed machine learning (PIML)** — the framing that
+[Units 5–9](../unit_05/unit_05.qmd) implement against the AIMS
+capstone.
 
-## 3.1 The SciML Landscape
+Before any of that, a short ODE refresher — the dynamics language we
+need to start meaningful Sci-ML.
 
-### Hybrid Physics + ML
+## 3.1 A short ODE review
 
-A hybrid model uses a known physical equation for the parts of the
-dynamics we understand and a neural network for the parts we don't.
+An **ordinary differential equation (ODE)** is a relation between a
+function and its derivatives in *one* independent variable
+(typically time $t$):
+
+$$\dot{\mathbf{x}}(t) \;=\; f(\mathbf{x}(t), t),\qquad
+\mathbf{x}(0) \;=\; \mathbf{x}_0.$$
+
+We'll meet **partial differential equations (PDEs)** — derivatives
+in more than one variable — in [Unit 6](../unit_06/unit_06.qmd). For
+now everything is an ODE, and everything is an **initial-value
+problem (IVP)**: given $\mathbf{x}_0$ at $t = 0$, integrate forward.
+
+Vocabulary worth keeping straight:
+
+- $\dot{\mathbf{x}}$ is the time derivative $d\mathbf{x}/dt$.
+- *Order* — highest derivative appearing. A second-order scalar
+  ODE $\ddot{x} = g(x, \dot{x})$ rewrites as a first-order system
+  in $(x, \dot{x})$. Throughout the unit we assume that's been
+  done.
+- *Autonomous* if $f$ has no explicit $t$ dependence ($\dot{\mathbf{x}} = f(\mathbf{x})$);
+  *non-autonomous* otherwise.
+- *Linear* if $f(\mathbf{x}, t) = A(t)\,\mathbf{x} + b(t)$;
+  *nonlinear* otherwise. Linear systems have explicit solutions
+  via matrix exponentials; nonlinear systems generally do not.
+
+### Worked example: the harmonic oscillator
+
+The simplest non-trivial ODE — a mass on a spring,
+
+$$\ddot{x} + \omega^2 x = 0
+\quad\Longleftrightarrow\quad
+\begin{pmatrix} \dot{x} \\ \dot{v} \end{pmatrix} =
+\begin{pmatrix} 0 & 1 \\ -\omega^2 & 0 \end{pmatrix}
+\begin{pmatrix} x \\ v \end{pmatrix},$$
+
+with $v = \dot{x}$. The exact solution is sinusoidal; the energy
+$E = \tfrac{1}{2}(v^2 + \omega^2 x^2)$ is conserved exactly. The
+*phase portrait* — trajectories in the $(x, v)$ plane — is a family
+of concentric ellipses. We solve and plot it in Julia in a few
+lines:
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+ω = 2π                                # one cycle per second
+oscillator(u, p, t) = [u[2], -ω^2 * u[1]]
+
+# three different initial energies
+u0s = [[1.0, 0.0], [1.5, 0.0], [2.0, 0.0]]
+tspan = (0.0, 2.0)
+
+plt = plot(xlabel="x", ylabel="v",
+           title="Harmonic oscillator phase portrait",
+           aspect_ratio = :equal, legend = :outerright)
+for u0 in u0s
+    sol = solve(ODEProblem(oscillator, u0, tspan), Tsit5();
+                saveat = 0.01)
+    plot!(plt, sol[1, :], sol[2, :],
+          label = "x(0) = $(u0[1])")
+end
+plt
+```
+
+`OrdinaryDiffEq.Tsit5()` is a 5th-order explicit Runge–Kutta solver
+— a sensible default for non-stiff problems. For stiff systems
+(e.g. fast diffusion coupled to slow advection) one picks an
+implicit solver like `QNDF()` or `Rodas5P()` instead. *Choosing the
+solver* is most of classical numerics; in [Unit 4](../unit_04/unit_04.qmd)
+we'll let the network learn the dynamics directly and side-step the
+choice.
+
+### Why ODEs matter for the rest of the unit
+
+Every Sci-ML idea in §§3.2–3.5 starts from an ODE picture:
+
+- **Hybrid models** replace part of $f$ with a neural network.
+- **Hamiltonian / Lagrangian NNs** parametrise an energy function
+  and *derive* $f$ from it.
+- **SINDy** assumes $f$ is a sparse combination of library terms
+  and recovers it from data.
+- **PINNs** turn the IVP itself into a loss — they approximate the
+  solution map $t \mapsto \mathbf{x}(t)$ by a neural network.
+
+Keep the picture $\dot{\mathbf{x}} = f(\mathbf{x}, t)$ in mind as we
+go through each.
+
+## 3.2 The SciML landscape
+
+### Hybrid physics + ML
+
+A **hybrid** (or *universal*) model uses a known physical equation
+for the parts of the dynamics we understand and a neural network
+for the parts we don't. Concretely, swap $f$ in
+$\dot{\mathbf{x}} = f(\mathbf{x}, t)$ for a sum of *known* and
+*learned* pieces:
+
+$$\dot{\mathbf{x}} = \underbrace{f_{\text{phys}}(\mathbf{x}, t)}_{\text{known}}
+\;+\; \underbrace{N_\theta(\mathbf{x}, t)}_{\text{learned}}.$$
+
 Example: a population model with known logistic growth and an
-unknown immigration term modelled by a small NN. The benefit over
-pure ML: data efficiency and out-of-distribution extrapolation. The
-benefit over pure physics: flexibility where the physics is
-genuinely unknown.
+unknown immigration term modelled by a small NN; train $\theta$
+against observed time series. The benefits over pure ML — data
+efficiency and out-of-distribution extrapolation. The benefit over
+pure physics — flexibility where the physics is genuinely unknown.
+Universal differential equations (UDEs) in
+[Unit 4](../unit_04/unit_04.qmd) are exactly this construction.
 
-### Surrogate Models for Expensive Simulations
+### Surrogate models for expensive simulations
 
-A **surrogate** replaces an expensive PDE solver with a fast,
-learned approximation. Train it on a dataset of (input, solver
-output) pairs; use it for design optimisation, uncertainty
-quantification, or real-time inference. The catch: surrogates are
-only trustworthy *inside* the distribution they were trained on.
-Out-of-distribution inputs can produce confident-but-wrong outputs.
+A **surrogate** replaces an expensive PDE / ODE solver with a fast
+learned approximation. Train on a dataset of (input, solver output)
+pairs; deploy in design optimisation, uncertainty quantification, or
+real-time inference. The catch: surrogates are only trustworthy
+*inside* the distribution they were trained on. Out-of-distribution
+inputs can produce confident-but-wrong outputs.
 
-### Conservation, Symmetries, and Inductive Biases
+### Conservation, symmetries, and inductive biases
 
 A neural network that *cannot* violate conservation of mass,
 energy, or momentum will generalise better than one that has to
 learn the constraint from data. Inductive biases that enforce
-conservation: hard architectural constraints (output a flux, then
-take its divergence), soft loss penalties, equivariant
-architectures. The pattern recurs throughout the unit: the more
-physics we bake in, the less data we need.
+conservation:
 
-## 3.2 Hamiltonian and Lagrangian Neural Networks
+- **Hard architectural constraints** — output a flux, then take its
+  divergence; output an energy, then take its gradient (HNNs in
+  §3.3 work this way).
+- **Soft loss penalties** — add a violation term to the loss.
+- **Equivariant architectures** — networks whose outputs transform
+  correctly under symmetries (translation, rotation, gauge).
 
-### A Brief Description
+The pattern recurs throughout the unit: *the more physics we bake
+in, the less data we need*.
 
-A **Hamiltonian Neural Network (HNN)** parametrises the Hamiltonian
-$H_\theta(q, p)$ of a system, then derives the dynamics
-$\dot q = \partial H / \partial p$,
-$\dot p = -\partial H / \partial q$ via autodiff. Energy is
-conserved by construction. **Lagrangian Neural Networks (LNNs)** do
-the analogous trick with the Lagrangian. Both belong to a family of
-architectures that bake symplectic structure or variational
-principles directly into the model.
+## 3.3 Hamiltonian and Lagrangian neural networks
 
-### A Tiny Pendulum Demo
+### The construction
 
-A simple pendulum has a known Hamiltonian
-$H(q, p) = p^2/2 + (1 - \cos q)$. Train an HNN on noisy trajectory
-data and watch it conserve energy long after a vanilla MLP would
-have drifted off the energy shell.
+A **Hamiltonian Neural Network (HNN)** [Greydanus et al., 2019]
+parametrises the Hamiltonian $H_\theta(q, p)$ of a mechanical system
+with a neural network, then derives the dynamics via Hamilton's
+equations *with autodiff*:
 
-*Code placeholder.*
+$$\dot{q} \;=\; \frac{\partial H_\theta}{\partial p}, \qquad
+\dot{p} \;=\; -\,\frac{\partial H_\theta}{\partial q}.$$
 
-## 3.3 Equation Discovery: SINDy
+Energy is exactly conserved by construction — no soft penalty
+needed — because $\dot H = \nabla H \cdot \dot{\mathbf{x}} = 0$ for
+the symplectic flow. Train on observed trajectories by minimising
+the residual
 
-### The Sparse Regression Idea
+$$\mathcal{L}(\theta) \;=\; \sum_i
+\bigl\| (\dot q_i, \dot p_i) -
+       (\partial_p H_\theta, -\partial_q H_\theta)(q_i, p_i) \bigr\|^2.$$
 
-**SINDy** (Sparse Identification of Nonlinear Dynamics) assumes the
-right-hand side of $\dot x = f(x)$ is a sparse combination of
+**Lagrangian Neural Networks (LNNs)** [Cranmer et al., 2020] do
+the analogous trick with the Lagrangian $L_\theta(q, \dot q)$ and
+the Euler–Lagrange equations.
+
+### A pendulum sanity check
+
+The simple pendulum has the closed-form Hamiltonian
+$H(q, p) = \tfrac{1}{2} p^2 + (1 - \cos q)$. An HNN trained on a
+hundred noisy trajectory points typically recovers an
+energy-conserving model that drifts an order of magnitude less than
+a vanilla MLP fit to the same data. The win is sharpest on long
+extrapolation horizons.
+
+*Code placeholder — `units/unit_03/scripts/hnn_pendulum.jl` (TODO).*
+
+## 3.4 Equation discovery: SINDy
+
+### The sparse regression idea
+
+**SINDy** (Sparse Identification of Nonlinear Dynamics)
+[Brunton et al., 2016] assumes the right-hand side of
+$\dot{\mathbf{x}} = f(\mathbf{x})$ is a *sparse* combination of
 candidate terms — polynomials, trigonometric functions, products.
-Build a feature library $\Theta(x)$, regress $\dot X$ against
-$\Theta(X)$ with $\ell_1$ regularisation, read off the active
-terms. The output is a **symbolic equation**, not a black-box
-function — that's the headline win.
+Build a feature library
 
-### Building a Library of Candidate Terms
+$$\Theta(\mathbf{x}) \;=\;
+[1,\ x_1,\ x_2,\ \ldots,\ x_1^2,\ x_1 x_2,\ \ldots,\ \sin x_1,\ \cos x_1,\ \ldots],$$
 
-A standard library:
-$\{1, x_1, x_2, \ldots, x_1^2, x_1 x_2, \ldots, \sin x_1, \cos x_1, \ldots\}$.
-Domain knowledge guides which terms to include; including too many
-makes the regression unstable, too few makes recovery impossible.
-Numerical differentiation of $\dot X$ from time-series $X$ is a
-separate art (total-variation regularised, smoothed splines).
+then regress $\dot X$ against $\Theta(X)$ with $\ell_1$
+regularisation. The active terms — the few with nonzero
+coefficients — *are* the equation. The output is a **symbolic
+equation**, not a black-box function. That's the headline win.
 
-### Worked Example: Recovering Lorenz from Data
+### Building a library
 
-Given trajectories of the Lorenz system $\dot x = \sigma(y - x)$,
-$\dot y = x(\rho - z) - y$, $\dot z = xy - \beta z$ with noise,
-SINDy with a polynomial library typically recovers the exact
-equations and the parameters $(\sigma, \rho, \beta)$ — a textbook
-demonstration that a sparse prior plus enough data is sometimes all
-you need.
+A standard polynomial library up to degree 3 plus a few
+trigonometric terms is the default. Domain knowledge guides which
+terms to include; including too many makes the regression unstable
+(many candidate terms ⇒ overfitting), too few makes recovery
+impossible (the true terms aren't in the basis). Numerical
+differentiation of $\dot X$ from time-series $X$ is a separate art
+(total-variation regularised differentiation, smoothed splines).
 
-*Code placeholder.*
+### Worked example: recovering Lorenz
 
-### When Discovery Beats Approximation
+Given trajectories of the Lorenz system
 
-SINDy wins when (1) the underlying equation is genuinely sparse in
-your library, (2) you care about *interpretability* — a 3-term
-equation is more useful than a 10-layer network, and (3) you have
-enough clean trajectory data to estimate derivatives. It loses when
-the dynamics are intrinsically high-dimensional or the right basis
-isn't in your library.
+$$\dot x = \sigma(y - x),\quad
+\dot y = x(\rho - z) - y,\quad
+\dot z = xy - \beta z,$$
 
-## 3.4 Physics-Informed Machine Learning: A Conceptual Preview
+with moderate observation noise, SINDy with a degree-2 polynomial
+library typically recovers the exact equations and the parameters
+$(\sigma, \rho, \beta) \approx (10, 28, 8/3)$ — the canonical
+demonstration that *a sparse prior plus enough data is sometimes
+all you need*.
 
-### The Core Idea
+*Code placeholder — `units/unit_03/scripts/sindy_lorenz.jl` (TODO).*
+
+### When discovery beats approximation
+
+SINDy wins when
+
+1. the underlying equation is genuinely sparse in your library,
+2. you care about **interpretability** — a 3-term equation is more
+   useful than a 10-layer network, and
+3. you have enough clean trajectory data to estimate derivatives.
+
+It loses when the dynamics are intrinsically high-dimensional, the
+right basis isn't in your library, or the noise drowns the
+derivatives.
+
+## 3.5 Physics-informed machine learning: a conceptual preview
+
+### The core idea
 
 A neural network $u_\theta(\mathbf{x}, t)$ approximates the solution
-of a PDE. The loss has a **physics term** — the PDE residual
-evaluated by autodiff at scattered collocation points — plus
-boundary and initial condition terms and (optionally) a data term:
+of a PDE (or ODE). The loss has a **physics term** — the equation
+residual evaluated by autodiff at scattered collocation points —
+plus boundary / initial conditions and (optionally) a data term:
 
-$$\mathcal{L}(\theta) = \lambda_r\,\mathcal{L}_{\text{PDE}}
+$$\mathcal{L}(\theta) \;=\;
+\lambda_r\,\mathcal{L}_{\text{PDE}}
 + \lambda_b\,\mathcal{L}_{\text{BC}}
 + \lambda_i\,\mathcal{L}_{\text{IC}}
 + \lambda_d\,\mathcal{L}_{\text{data}}.$$
@@ -124,21 +264,31 @@ $$\mathcal{L}(\theta) = \lambda_r\,\mathcal{L}_{\text{PDE}}
 Minimising it simultaneously fits the data and respects the
 equation. No grid, no time-stepping, no mesh.
 
-### What Makes PIML Different from Other Sci-ML Methods
+Mechanically the residual is the part that's new: for the
+oscillator at the top of this unit,
+$\mathcal{L}_{\text{PDE}}(\theta) = \frac{1}{N_r}\sum_i
+\bigl| \ddot u_\theta(t_i) + \omega^2 u_\theta(t_i) \bigr|^2$,
+with the second derivative computed by autodiff straight through
+$u_\theta$.
 
-- *vs surrogates*: PIML doesn't need a precomputed dataset; the
+### What makes PIML different from other Sci-ML methods
+
+- **vs surrogates**: PIML doesn't need a precomputed dataset — the
   equation itself supervises the network.
-- *vs equation discovery*: PIML assumes the equation is known,
-  asks for its solution (or its parameters).
-- *vs hybrid models*: PIML is a special case where the entire
-  solution is the "ML part" and the equation residual is the
+- **vs equation discovery**: PIML assumes the equation is known and
+  asks for its *solution* (or its parameters via the inverse problem).
+- **vs hybrid models**: PIML is a special case where the entire
+  solution field is the "ML part" and the equation residual is the
   "physics part".
 
-### What's Coming in Units 5–9
+### Where this lands in the workshop
 
-[Unit 5](../unit_05/unit_05.qmd) implements PINNs on basic ODE and
-PDE models. [Unit 6](../unit_06/unit_06.qmd) provides the formal
-PDE foundations. [Unit 7](../unit_07/unit_07.qmd) addresses where
-naïve PINNs fail and how modern techniques fix them.
+[Unit 4](../unit_04/unit_04.qmd) takes the ODE picture from §3.1
+and adds learnable terms — the Neural-ODE / UDE picture from §3.2.
+[Unit 5](../unit_05/unit_05.qmd) implements vanilla PINNs on the
+oscillator above and a small collection of ODE / PDE toys.
+[Unit 6](../unit_06/unit_06.qmd) provides the PDE foundations.
+[Unit 7](../unit_07/unit_07.qmd) addresses where naïve PINNs fail
+and how the modern fixes close the gap.
 [Units 8–9](../unit_08/unit_08.qmd) assemble the AIMS capstone —
-forward and inverse.
+forward (Part I) and inverse (Part II).
