@@ -6,122 +6,259 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Ordinary differential equations as models of dynamics, framed through
-universal approximation rather than classical numerics — no
-Runge–Kutta theory, no stiff-solver internals. We follow the
-ResNet-to-Neural-ODE bridge from
-[Unit 2](../unit_02/unit_02.qmd) and arrive at Universal Differential
-Equations: known physics + learnable closure. Worked examples include
-a damped pendulum with unknown friction and a Lotka–Volterra inverse
-variant.
+[Unit 3 §3.1](../unit_03/unit_03.qmd) introduced ODEs as
+$\dot{\mathbf{x}} = f(\mathbf{x}, t)$ and let
+`OrdinaryDiffEq.jl` integrate them. This unit takes the next step:
+**make $f$ itself learnable**. Two routes — replace $f$ entirely
+with a neural network (Neural ODEs), or splice a small network into
+known physics (UDEs). The first is the bridge from deep networks to
+continuous-depth models; the second sets up every inverse problem
+in the capstone.
 
-## 4.1 ODEs as Models of Dynamics
+We treat the solver as a black box throughout — adaptive
+step-size control, stiff vs non-stiff, implicit methods are
+deliberately out of scope. Pick the right solver, trust it, and
+focus on the dynamics.
 
-### What an ODE Is
+## 4.1 ODEs as models of dynamics
 
-An **ordinary differential equation** specifies the rate of change
-of a state $x(t) \in \mathbb{R}^n$ as a function of state and time:
+The IVP setup from [Unit 3 §3.1](../unit_03/unit_03.qmd) carries
+over verbatim:
 
-$$\frac{dx}{dt} = f(x, t),\qquad x(0) = x_0.$$
+$$\dot{\mathbf{x}}(t) = f(\mathbf{x}(t), t),\qquad \mathbf{x}(0) = \mathbf{x}_0.$$
 
-Given $f$ and $x_0$, the future is determined (modulo regularity
-conditions). ODEs model populations, mechanical systems, chemical
-kinetics, electrical circuits, neuron membrane dynamics — anywhere a
-few coupled time-varying quantities tell the story.
+What's new in this unit is the *phenomenology* — nonlinear ODEs
+admit qualitative behaviours linear systems can't:
 
-### Linear vs Nonlinear, Phase Space, Stability
+- **Equilibria** — fixed points $\mathbf{x}^*$ where $f(\mathbf{x}^*) = 0$.
+  Stability is read off from the eigenvalues of the Jacobian
+  $J = \partial f / \partial \mathbf{x}$ at $\mathbf{x}^*$.
+- **Limit cycles** — closed orbits that attract nearby trajectories.
+  Linear systems can't have these; the simplest example is
+  Lotka–Volterra.
+- **Chaos** — bounded, aperiodic, sensitive dependence on initial
+  conditions. The Lorenz system we revisit in
+  [Unit 3 §3.4](../unit_03/unit_03.qmd) (SINDy) lives here.
 
-**Linear** ODEs $\dot x = Ax$ have closed-form solutions and produce
-exponential or oscillatory behaviour. **Nonlinear** ODEs can have
-richer phenomena: limit cycles, multiple equilibria, chaos. The
-**phase space** view plots trajectories in state space rather than
-versus time — equilibria are points, limit cycles are loops, chaos
-fills regions. **Stability** of an equilibrium is read off from the
-linearisation: eigenvalues with negative real part mean attracting,
-positive means repelling.
+### Worked example: Lotka–Volterra
 
-### `DifferentialEquations.jl` as a Black-Box Reference
+A classical two-species predator–prey model:
 
-We use `DifferentialEquations.jl` as a high-quality numerical solver
-to produce ground-truth solutions, *without* engaging with its
-internals. Treat the solver as a function: hand it
-$(f, x_0, [t_0, t_f])$, get back $x(t)$. Classical ODE numerics
-(adaptive step control, stiff vs non-stiff, implicit methods) are
-deliberately out of scope.
+$$\dot{x} = \alpha x - \beta x y, \qquad \dot{y} = \delta x y - \gamma y.$$
 
-*Code placeholder.*
+For positive $(\alpha, \beta, \gamma, \delta)$ the system has a
+non-trivial fixed point $(\gamma/\delta,\, \alpha/\beta)$ surrounded
+by closed orbits — a structurally robust limit cycle that's a
+favourite testbed for SciML methods (we'll meet it again in §4.3).
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+function lv!(du, u, p, t)
+    α, β, γ, δ = p
+    du[1] = α*u[1] - β*u[1]*u[2]
+    du[2] = δ*u[1]*u[2] - γ*u[2]
+end
+p     = (1.5, 1.0, 3.0, 1.0)
+tspan = (0.0, 12.0)
+
+plt = plot(xlabel="prey x", ylabel="predator y",
+           title="Lotka–Volterra phase portrait",
+           aspect_ratio = :equal, legend = :outerright)
+for u0 in [[1.0, 1.0], [1.5, 1.0], [2.0, 1.0]]
+    sol = solve(ODEProblem(lv!, copy(u0), tspan, p), Tsit5();
+                saveat = 0.01)
+    plot!(plt, sol[1, :], sol[2, :], label = "x(0)=$(u0[1])")
+end
+plt
+```
+
+Each initial condition lands on a different closed orbit — a *first
+integral* (a conserved quantity along trajectories) exists for LV
+but is invisible to a method that only sees data.
 
 ## 4.2 From ResNets to Neural ODEs
 
-### The Limit of Many Residual Layers
+### The Euler-step analogy
 
-A ResNet step $h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell)$
-looks exactly like one step of explicit Euler on the ODE
-$\dot h = f_\theta(h)$. Take $\Delta t \to 0$ and depth
-$\to \infty$: the network *becomes* an ODE. **Neural ODE** (Chen et
-al., 2018): parametrise $f_\theta$ with a small NN, solve
-$\dot h = f_\theta(h)$ from input $h(0) = x$ to output
-$h(T) = $ prediction. The network is now a vector field, not a
-stack of layers.
+A **residual network** layer is
 
-### Continuous-Depth Models
+$$h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell, \ell).$$
 
-Memory cost is constant in depth (the solver state replaces the
-layer activations). Adaptive solvers spend more compute on hard
-regions of input space. The model is automatically smooth in inputs
-— useful when smoothness is a meaningful prior. Costs: training is
-harder (you're training a vector field, not weights), and very stiff
-dynamics can blow up the solver budget.
+Compare to one explicit Euler step on the ODE
+$\dot{h} = f_\theta(h, t)$:
 
-### Adjoint Sensitivities (Briefly)
+$$h(t + \Delta t) \approx h(t) + \Delta t\, f_\theta(h(t), t).$$
 
-Backpropagating through a numerical ODE solver via standard autodiff
-stores every intermediate state — memory-prohibitive for long
-trajectories. The **adjoint method** instead solves an auxiliary
-ODE backward in time to recover gradients with constant memory. The
-trade-off is some loss of numerical accuracy versus storing full
-forward states; the choice is problem-dependent.
+Identical. Taking $\Delta t \to 0$ and depth $L \to \infty$ gives a
+**Neural ODE** (Chen et al., 2018): the network *is* a vector
+field, and the "forward pass" is an ODE solve from input
+$h(0) = \mathbf{x}$ to output $h(T) = \text{prediction}$.
 
-### Training a Neural ODE
+### Continuous-depth models in `Lux.jl` style
 
-A sketch: define a small MLP for $f_\theta$, integrate with
-`DifferentialEquations.jl`'s `solve`, take the L2 misfit between
-predicted and observed trajectories, and use the adjoint method (via
-`SciMLSensitivity.jl`) to get $\partial \mathcal{L} / \partial \theta$.
+The vector field is just an MLP. Wrap it in an `ODEProblem` and
+hand it to the solver:
 
-*Code placeholder.*
+```{julia}
+using Lux, OrdinaryDiffEq, Random
+
+rng    = Random.MersenneTwister(42)
+net    = Lux.Chain(Lux.Dense(2 => 16, tanh), Lux.Dense(16 => 2))
+ps, st = Lux.setup(rng, net)
+
+# Lift the network into a vector field f_θ(u, p, t)
+function nn_rhs!(du, u, p, t)
+    y, _ = net(u, p, st)
+    du .= y
+end
+
+prob = ODEProblem(nn_rhs!, [1.0f0, 0.0f0], (0.0f0, 1.0f0), ps)
+sol  = solve(prob, Tsit5(); saveat = 0.05)
+size(sol)   # (state, time) — the integrated trajectory
+```
+
+That's a *forward pass* of an untrained Neural ODE. Training fits
+$\theta$ so the integrated trajectory matches data — and that
+training is what the workshop's later units use.
+
+### Adjoint sensitivities (sketch)
+
+Naively `Zygote.gradient` through an ODE solver stores every
+intermediate state, which is memory-prohibitive for long
+trajectories. The **adjoint method** (Pontryagin; Chen et al.) avoids
+that by solving an auxiliary ODE *backward in time* whose state
+contains the gradient. Memory cost becomes constant in trajectory
+length; the price is some numerical-accuracy bookkeeping. In Julia
+that machinery lives in `SciMLSensitivity.jl` — left out of the
+workshop default environment to keep precompile light, but a
+one-line addition when you reach for it.
+
+### Training a Neural ODE (illustrative)
+
+The skeleton — define the vector field, integrate, compute the
+trajectory-misfit loss, gradient-descend on $\theta$:
+
+```{.julia code-fold="true" code-summary="Neural-ODE training skeleton (illustrative)"}
+using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity
+# `SciMLSensitivity` extends `solve` with adjoint backends used
+# by Zygote; add it to Project.toml before running.
+
+rng     = Random.MersenneTwister(0)
+f_θ     = Lux.Chain(Lux.Dense(2 => 16, tanh), Lux.Dense(16 => 2))
+ps, st  = Lux.setup(rng, f_θ)
+
+function predict(ps, u0, ts)
+    rhs!(du, u, p, t) = (y, _ = f_θ(u, p, st); du .= y)
+    sol = solve(ODEProblem(rhs!, u0, (ts[1], ts[end]), ps),
+                Tsit5(); saveat = ts,
+                sensealg = InterpolatingAdjoint())
+    Array(sol)                          # (state, time)
+end
+
+loss(ps, u0, ts, ŷ) = sum(abs2, predict(ps, u0, ts) .- ŷ)
+
+opt_state = Optimisers.setup(Optimisers.Adam(1.0f-2), ps)
+for epoch in 1:1000
+    g = first(Zygote.gradient(p -> loss(p, u0, ts, data), ps))
+    opt_state, ps = Optimisers.update(opt_state, ps, g)
+end
+```
+
+Three structural differences from the standard supervised-learning
+loop in [Unit 2 §2.6](../unit_02/unit_02.qmd):
+
+1. The **forward pass** is an ODE solve, not a feed-forward
+   evaluation. Cost is dominated by the integrator.
+2. The **loss** is a trajectory misfit — a sum over time, not a
+   single per-sample term.
+3. The **gradient** flows through the solver via `sensealg`. Pick
+   the wrong one and training time blows up.
+
+We'll see this pattern again in [Unit 9](../unit_09/unit_09.qmd) —
+inverse problems with the column model use exactly the same loop,
+just with PDE residuals instead of trajectory data.
 
 ## 4.3 Universal Differential Equations
 
-### Known Physics + Unknown Closure
+### Known physics + learned closure
 
-A **Universal Differential Equation (UDE)** is an ODE (or PDE)
-whose right-hand side mixes known terms and a small neural network
-for the unknown:
+A **Universal Differential Equation (UDE)** [Rackauckas et al.,
+2020] is an ODE whose right-hand side splits into a *known* term
+and a *learned* term:
 
-$$\dot x = f_{\text{known}}(x, t) + f^{\text{NN}}_\theta(x, t).$$
+$$\dot{\mathbf{x}} = \underbrace{f_{\text{phys}}(\mathbf{x}, t)}_{\text{known}}
+\;+\;
+\underbrace{N_\theta(\mathbf{x}, t)}_{\text{learned}}.$$
 
-Train $\theta$ on observations of $x(t)$. The result is an ODE you
-can simulate, analyse, and reason about — with the NN filling in
-exactly the part that wasn't known.
+You write down whatever physics you trust ($f_{\text{phys}}$) and
+let a small neural network absorb the rest. Train on observed
+$\mathbf{x}(t)$. The result is a model you can simulate, analyse,
+and *interpret* — the NN is small and you can probe it. This is the
+position taken throughout the AIMS capstone in
+[Unit 9](../unit_09/unit_09.qmd): the column PDE structure is
+hard-coded; the unknown wind-stress envelope is the learned piece.
 
-### Worked Example: Pendulum with Unknown Friction Term
+### Worked example: pendulum with unknown friction
 
-Standard damped pendulum:
-$\ddot\theta + b\dot\theta + \frac{g}{L}\sin\theta = 0$. Suppose the
-*friction* term $b\dot\theta$ is replaced by an unknown function
-$g_\theta(\dot\theta)$. Given trajectory data, recover
-$g_\theta(\cdot)$ as a small NN. The result is an interpretable
-hybrid model: the gravitational restoring force is hard-coded, the
-friction law is learned.
+The damped pendulum
 
-*Code placeholder.*
+$$\ddot{q} + b\,\dot{q} + \tfrac{g}{L}\sin q = 0$$
 
-### Lotka–Volterra Inverse Variant
+is a sandbox UDE. Hold the gravitational restoring term
+$\tfrac{g}{L}\sin q$ as known physics and replace the friction term
+with an unknown function $g_\theta(\dot{q})$:
 
-Standard LV: $\dot x = \alpha x - \beta xy$,
-$\dot y = \delta xy - \gamma y$. **Inverse**: given trajectories,
-recover $(\alpha, \beta, \delta, \gamma)$ — or, if a term is
-unknown (say the predator–prey interaction), learn it as a small
-NN. A clean sandbox for inverse problems before we hit the AIMS
-column in Unit 9.
+$$\ddot{q} + g_\theta(\dot{q}) + \tfrac{g}{L}\sin q = 0.$$
+
+Train $g_\theta$ against trajectory data; recover its functional
+shape (often nearly linear for small $\dot{q}$, with corrections
+elsewhere). The output is **interpretable**: $g_\theta$ is a 1D
+function you can plot.
+
+```{.julia code-fold="true" code-summary="UDE pendulum sketch (illustrative)"}
+# Hybrid pendulum: gravity known, friction learned.
+using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity
+
+friction = Lux.Chain(Lux.Dense(1 => 8, tanh), Lux.Dense(8 => 1))
+ps, st   = Lux.setup(Random.default_rng(), friction)
+
+const g_over_L = 9.81
+
+function ude_pendulum!(du, u, p, t)
+    q, q̇   = u
+    fric, _ = friction([q̇], p, st)
+    du[1]   = q̇
+    du[2]   = -fric[1] - g_over_L * sin(q)
+end
+
+# … usual training loop: solve, misfit, adjoint, Adam.
+```
+
+A clean sandbox for inverse problems before we hit the AIMS column
+in [Unit 9](../unit_09/unit_09.qmd).
+
+### Lotka–Volterra inverse variant
+
+Same setup, dynamics from §4.1. Two flavours:
+
+- **Parameter inverse** — assume the LV form and recover the
+  scalars $(\alpha, \beta, \gamma, \delta)$. Cheap.
+- **Functional inverse** — drop one term (say the predator–prey
+  interaction $-\beta x y$) and learn it as a small network. Now
+  you're recovering a *function*, not a number — exactly the
+  capstone problem in miniature.
+
+The functional inverse is where neural-network capacity pays off:
+classical parameter estimation can't recover an unknown functional
+shape, but a UDE with a 2-layer MLP can. *Code placeholder —
+`units/unit_04/scripts/ude_lv.jl` (TODO).*
+
+## What comes next
+
+[Unit 5](../unit_05/unit_05.qmd) keeps the ODE setup but replaces
+the *integration-based* training above with a **residual-loss**
+training — collocation points instead of time-stepping. That's the
+PINN move. The trajectory-loss skeleton in §4.2 and the
+residual-loss skeleton in [Unit 5](../unit_05/unit_05.qmd) are the
+two families of physics-aware training; the capstone uses both.
