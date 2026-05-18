@@ -6,12 +6,24 @@ date: today
 date-format: "DD/MM/YYYY"
 ---
 
-Welcome. This unit opens the course with a concrete, hands-on
-problem — a Brisbane River surge propagating into Moreton Bay — that
-threads together every theme you will revisit over the next nine
-units: PDEs, Julia, computation, real measurements, the inverse
-problem, ocean / water modelling, and PINNs. Then it previews the
-larger AIMS thermistor-chain capstone that we close the course with.
+::: {.callout-tip}
+## What this unit is for
+This unit is **motivation, not curriculum**. We solve a real-looking
+coastal-oceanography problem end-to-end on day one so that
+*everything that follows has a destination*: the PDE theory in Unit 6,
+the deep-learning toolkit in Unit 2, the SciML stack in Units 3–4,
+the PINN machinery in Units 5 and 7, and the AIMS thermistor-chain
+capstone in Units 8–10. You are **not** expected to write or
+understand this code yet — the goal is to watch the workflow and
+build a mental picture of where the course lands.
+:::
+
+This unit opens the course with a concrete, hands-on problem — a
+Brisbane River surge propagating into Moreton Bay — that threads
+together every theme you will revisit over the next nine units:
+**PDEs, Julia, computation, real measurements, the inverse problem,
+ocean / water modelling, and PINNs**. Then it previews the larger
+AIMS capstone in §1.3.
 
 ## 1.1 A scientific question, in your back yard
 
@@ -22,26 +34,32 @@ Queensland's wastewater eventually drains down the **Brisbane
 River** and exits at Pile Light into **Moreton Bay** — a shallow,
 semi-enclosed body of water bounded by the mainland to the west,
 Moreton Island to the east, and North Stradbroke Island to the
-south-east. The bay is also a Ramsar-listed estuarine nursery and a
-recreational fishery, so what comes down the river matters to
-ecology, public health, and shipping.
+south-east. The bay is a Ramsar-listed estuarine nursery, a major
+shipping channel for the Port of Brisbane, and the recreational
+heart of South-East Queensland; what comes down the river matters
+to ecology, public health, fisheries, and shipping.
 
 After heavy rain in the upper catchment, the river runs hard for a
 day or two and pushes a *freshwater surge* — a low-density plume
 carrying sediment, nutrients, and (occasionally) sewage overflow —
 out into the bay. The bay responds: tide gauges across the bay
 record a small, transient surface-elevation anomaly riding on top of
-the usual tide, even though the wind is calm.
+the usual tide, even though the wind is calm. The
+**Healthy Land & Water** Moreton Bay catchment report cards have
+been tracking the downstream impact for years; the bay's seagrass
+beds in the western flats still bear scars from the 2011 and 2022
+floods.
 
 ### What we actually measure, and what we don't
 
 Here is the operational catch: the bay has **plenty of tide gauges**
-(at the Brisbane Bar, Wellington Point, Tangalooma anchorage, around
-the Russell / Macleay channel), but the river outflow itself is hard
-to instrument in flood conditions — current meters are washed out,
-banks are inaccessible, suspended-sediment loads kill optical
-probes. We rarely have a reliable time-history of *what came out of
-the river*, only of *how the bay responded*.
+(Brisbane Bar / Pile Light, Wellington Point, Tangalooma anchorage,
+Russell / Macleay channel), but **the river outflow itself is hard
+to instrument in flood conditions** — current meters get washed
+out, banks become inaccessible, suspended-sediment loads kill
+optical probes within hours. We rarely have a reliable
+time-history of *what came out of the river* during an event, only
+of *how the bay responded* over the days that followed.
 
 That sets up the scientific question we will solve in this unit:
 
@@ -54,49 +72,73 @@ the river mouth** that produced them?
 If we can, the same machinery — a forward physical model plus a
 learned source — lets us infer contaminant load, freshwater
 discharge, and bay-flushing timescales from measurements that are
-already routinely collected.
+already routinely collected. The river that you cannot
+instrument in a flood becomes legible through the gauges that
+survived in the bay.
 :::
 
 The same shape of question recurs throughout coastal oceanography:
-*given downstream observations, infer the upstream forcing.* It is a
-classical **inverse problem**, and we will solve it twice — once
-with a naive PINN and once by using the simulator as a forward
-operator — so that the failure of the naive approach motivates
-everything in Units 5–9.
+*given downstream observations, infer the upstream forcing.* It is
+the classical **inverse problem** of geophysics — and it is
+notoriously **ill-posed**, because many different upstream
+scenarios can produce essentially the same downstream signal once
+the physics has smoothed, delayed, and noisified it. We will solve
+it twice in this unit so the ill-posedness is *visible* before we
+spend Units 5–9 learning the modern (PINN-based) tools that
+disambiguate it.
 
 ## 1.2 The worked example
 
 ### The geography, made tractable
 
-![Two-panel site map. (a) The SWE-modelling domain (blue rectangle) covers
-50 km east–west by 95 km north–south, including the mainland coast,
-Moreton Island, North Stradbroke, and the open ocean to the east of
-Moreton. The four tide-gauge sites (gold) sit at plausible real
-locations across the bay. The red triangle near the western coast is
-the **Brisbane River mouth**, where the unknown surge ψ(t) is
-imposed. (b) Inset zoom on the river entrance / Pile Light area
-where G1 sits, just downstream of where ψ(t) drives the
-bay.](figures/site_map.png)
+![Site map for the Unit 1 worked example. (a) The SWE-modelling domain
+(blue rectangle) covers 50 km east–west by 95 km north–south, takes
+in the mainland coast, Moreton Island, North & South Stradbroke,
+the Russell / Macleay / Karragarra cluster in the southern bay, and
+the open ocean to the east of Moreton. The four tide-gauge sites
+(gold) sit at plausible real locations across the bay. The red
+triangle near the western coast is the **Brisbane River mouth**,
+where the unknown surge ψ(t) is imposed. (b) Inset zoom on the river
+entrance / Pile Light area where G1 (Brisbane Bar) sits, just
+downstream of where ψ(t) drives the bay.](figures/site_map.png)
 
 We choose a domain that is small enough to evaluate in seconds on a
-laptop but big enough to capture the geography that matters:
+laptop CPU but big enough to capture the geography that matters:
 
-- A $50 \times 95\,\text{km}$ rectangle at $1\,\text{km}$
-  resolution — so the SWE mesh is $50 \times 95 = 4750$ cells, of
-  which about half are water.
+- A $50 \times 95\,\text{km}$ rectangle at $500\,\text{m}$
+  resolution — so the SWE mesh is $100 \times 190 = 19\,000$ cells,
+  of which about half are water.
 - A **hand-built bathymetry** that echoes the real bay: a
   $\sim 6\,\text{m}$ inner-bay flat, an eastern deep channel
   (the NE channel) rising to $\sim 25\,\text{m}$ between Moreton
-  Island and the mainland, the dredged $\sim 14\,\text{m}$ Brisbane
-  River shipping channel, and a $30$–$50\,\text{m}$ shelf east of
-  Moreton Island.
+  Island and the mainland, the dredged $\sim 14\,\text{m}$
+  Brisbane River shipping channel, and a $30$–$50\,\text{m}$ shelf
+  east of Moreton Island.
 - A **land mask** for the mainland coast, Moreton Island, North
-  Stradbroke Island, and a small Peel/Mud cluster mid-bay.
+  Stradbroke Island, the South Stradbroke spit, the Russell /
+  Macleay / Karragarra island cluster in the southern bay, and a
+  Peel / Mud cluster mid-bay. The southern bay genuinely is
+  half-blocked off by islands and mangroves — modelling it as open
+  water (as we did in an earlier draft of this unit) made the
+  surge propagation visibly wrong.
 
-This is not a bathymetric chart — for real work, students should
-use AusBathyTopo (Geoscience Australia) or GEBCO global grids. It is
-the smallest model that lets the *shape of the answer* be the right
-shape.
+![Bathymetry used by the model — depths in metres, land in grey.
+Note the sloped basin, the deeper eastern channel (NE channel),
+the dredged Brisbane River channel running east from the source,
+the shoals around the river mouth, the eastern shelf outside
+Moreton Island, and the way the southern bay is constricted by
+the Russell / Macleay / Karragarra island cluster and the South
+Stradbroke spit. This is what the SWE solver actually
+sees.](figures/bathymetry.png){width=70%}
+
+::: {.callout-note}
+## What this isn't
+This is *not* a bathymetric chart. For real work, students should
+use **AusBathyTopo** (Geoscience Australia) or the **GEBCO** global
+grids — both are open and downloadable. The hand-built model here
+is the smallest one that gets the shape of the answer right; it
+takes the place a real bathymetry file would in production.
+:::
 
 The bay model is produced by `units/unit_01/scripts/build_bay.jl`
 and stored as plain CSVs in `units/unit_01/data/`:
@@ -113,58 +155,66 @@ river  = CSV.read("units/unit_01/data/river_source.csv", DataFrame)
 ### The physics in one paragraph
 
 The water motion is described by the **linearised shallow-water
-equations** (de Wolff et al. (2021) eq. 6–7; reproduced in detail in
-[§7.2](../unit_07/unit_07.qmd#sec-de-wolff)). With $H(x,y)$ the depth
-and $g$ gravity, the surface elevation $\eta(x, y, t)$ and depth-
-averaged velocity $\mathbf{u}(x, y, t)$ satisfy
+equations** (de Wolff et al. 2021, eq. 6–7; reproduced in detail in
+[§7.2](../unit_07/unit_07.qmd#sec-de-wolff)). With $H(x,y)$ the
+local depth, $g$ gravity, and $b$ a small linear drag, the surface
+elevation $\eta(x, y, t)$ and depth-averaged horizontal velocity
+$\mathbf{u}(x, y, t) = (u, v)$ satisfy
 
 $$
 \frac{\partial \eta}{\partial t} + \nabla\!\cdot\!\bigl(H\,\mathbf{u}\bigr) = 0,
 \qquad
-\frac{\partial \mathbf{u}}{\partial t} + g\,\nabla \eta = -b\,\mathbf{u},
+\frac{\partial \mathbf{u}}{\partial t} + g\,\nabla \eta = -b\,\mathbf{u}.
 $$ {#eq-swe-linear}
 
-with linear drag $b$. Eliminating $\mathbf{u}$ between the two
-equations gives a single 2-D wave equation for $\eta$:
+Eliminating $\mathbf{u}$ between the two equations gives a single
+2-D **wave equation** for $\eta$,
 
 $$
 \frac{\partial^2 \eta}{\partial t^2}
-\;=\; \nabla\!\cdot\!\bigl(g\,H\,\nabla \eta\bigr).
+\;=\; \nabla\!\cdot\!\bigl(g\,H\,\nabla \eta\bigr),
 $$ {#eq-wave-eta}
 
-This is the cleanest form to think about and is what the inverse
-solver below will use as its physics constraint.
+i.e.\ pressure waves on a free surface, propagating at a depth-
+dependent speed $c(x,y) = \sqrt{g\,H(x,y)}$ — roughly
+$8\,\text{m/s}$ in the inner bay and $15\,\text{m/s}$ along the
+deeper eastern trough. This is the cleanest form to think about and
+is what the inverse solver below uses as its physics constraint.
 
 ::: {.callout-note}
 ## Why "linearised"?
-We have dropped the Coriolis, advective ($\mathbf{u}\!\cdot\!\nabla\mathbf{u}$),
-and Reynolds-stress terms from the full SWE. For surge events of a
-few hours over a region $\lesssim 100\,\text{km}$, the dominant
+We have dropped the Coriolis, advective
+($\mathbf{u}\!\cdot\!\nabla\mathbf{u}$), and Reynolds-stress terms
+from the full SWE. For surge events of a few hours over a region
+$\lesssim 100\,\text{km}$, with no strong wind, the dominant
 balance is between pressure gradient and free-surface acceleration —
-the same balance that gives a tidal wave its speed
-$c = \sqrt{g\,H}$. Units 7–8 walk through which terms matter when.
+exactly the same balance that gives a tsunami or tidal wave its
+speed. We will revisit when each dropped term matters in
+[§7.2](../unit_07/unit_07.qmd#sec-de-wolff).
 :::
 
 We close the system with a **Dirichlet boundary condition at the
-river-mouth cell**:
+river-mouth cell**,
 
 $$
 \eta(x_r, y_r, t) \;=\; \psi(t),
 $$
 
-where $\psi(t)$ is the surface-elevation anomaly at the source. In
-the forward problem we *prescribe* $\psi(t)$; in the inverse problem
-we will *recover* it from gauge data. Solid coasts get $\mathbf{u}
-\cdot \hat{\mathbf{n}} = 0$, and a thin Rayleigh-damped sponge along
-the eastern edge of the domain lets surge waves leave through the
-open ocean.
+where $\psi(t)$ is the surface-elevation anomaly imposed by the
+river inflow. In the forward problem we *prescribe* $\psi(t)$; in
+the inverse problem we will *recover* it from gauge data. Solid
+coasts get the no-flux condition $\mathbf{u}\cdot\hat{\mathbf{n}}=0$,
+and a thin Rayleigh-damped sponge along the eastern edge of the
+domain lets surge waves leave through the open ocean without
+artificial reflection.
 
 ### A synthetic surge, propagated by finite differences
 
 To generate the data we will work with, we run the linearised SWE
 forward on a staggered Arakawa-C grid with explicit time stepping at
-$\Delta t = 12\,\text{s}$ for 6 hours. The "ground-truth" surge is a
-two-pulse profile
+$\Delta t = 12\,\text{s}$ for 6 hours
+([generate_surge_data.jl](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_data.jl)).
+The "ground-truth" surge is a two-pulse profile
 
 $$
 \psi_{\text{truth}}(t) \;=\;
@@ -175,20 +225,20 @@ $$
 
 — a $\sim 45\,\text{cm}$ leading freshwater pulse from heavy
 catchment rain, followed by a $\sim 18\,\text{cm}$ follow-on bulge
-about two hours later. These amplitudes are realistic for moderate
-Brisbane-flood de-tided residuals.
+about two hours later. These amplitudes are realistic for the
+de-tided residual of a moderate Brisbane River flood.
 
-The full forward solve lives in
-`units/unit_01/scripts/generate_surge_data.jl`; its inner loop is
-just the staggered-grid update:
+The inner FD step is just a discretisation of @eq-swe-linear — the
+listing below is what the code actually executes:
 
 ```{julia}
 #| eval: false
 # Inner FD step (linearised SWE on an Arakawa-C grid).
+# η lives at cell centres; u, v on the vertical/horizontal faces.
 for step in 1:NT
     t = step * DT
 
-    # 1. Mass:  ∂η/∂t = -∂(Hu·u)/∂x - ∂(Hv·v)/∂y
+    # 1. Mass continuity:  ∂η/∂t  =  -∂(Hu·u)/∂x  -  ∂(Hv·v)/∂y
     @inbounds for j in 2:NY-1, i in 2:NX-1
         mask[j, i] == 1 || continue
         flux_x_e = Hu[j, i  ] * u[j, i  ]
@@ -199,12 +249,12 @@ for step in 1:NT
                          (flux_y_n - flux_y_s) / DY)
     end
 
-    # 2. Sponge layer absorbs outgoing waves at the east edge
+    # 2. Sponge layer near the east boundary absorbs outgoing waves
     @inbounds for j in 1:NY, i in 1:NX
         sponge[j, i] > 0 && (η[j, i] -= DT * sponge[j, i] * η[j, i])
     end
 
-    # 3. Apply the river-mouth source (Dirichlet on η at the source cell)
+    # 3. River-mouth source (Dirichlet on η at the source cell)
     η[JR, IR] = ψ_truth(t)
 
     # 4. Momentum (using the new η):  ∂u/∂t = -g ∂η/∂x - b·u
@@ -220,93 +270,139 @@ for step in 1:NT
 end
 ```
 
-The full grid solve runs in $\sim 3.5\,\text{s}$.
+The full forward solve takes $\sim 12\,\text{s}$ on a laptop at
+$500\,\text{m}$ resolution.
 
 ### Watching the surge cross the bay
 
-![Linearised-SWE forward solve: free-surface anomaly η(x,y,t) propagating
-outward from the Brisbane River mouth (red triangle) into Moreton Bay.
-Gold circles are the four tide-gauge sites. Grey is land — Moreton
-Island on the east edge, mainland on the west, North Stradbroke in
-the SE, a Peel/Mud island cluster mid-bay. Note how the wave fans
-out, gets channeled along the eastern deep trough, reflects off
-Moreton Island, and reaches the southern gauges (G4) about half an
-hour later than the central ones (G2). Total simulated window: 6 h
-at 5-minute frames.](figures/surge_animation.gif)
+The slider below scrubs through the FD solution: 73 snapshots, 5
+minutes of real time per step, total 6 hours. Drag the handle to
+follow the surge from rest, through the two peaks, to the trailing
+ring-down. The red triangle is the Brisbane River source, the gold
+discs are the four tide gauges, and grey is land.
 
-The animation makes a few points concrete:
+```{julia}
+#| echo: false
+#| output: asis
+using JSON3
+meta = JSON3.read(read(joinpath("figures", "surge_frames", "frames_meta.json"), String))
+frames = meta["frames"]
+n      = length(frames)
 
-1. **Wave speed depends on depth.** $c = \sqrt{g\,H} \approx
-   8\,\text{m/s}$ in the inner bay ($H \approx 6\,\text{m}$);
-   noticeably faster along the eastern trough.
-2. **Geometry matters.** The wave wraps around the Peel/Mud
-   island cluster and reflects off Moreton Island.
+# Inline the per-frame metadata into a JS array so the slider can update
+# the caption without an extra fetch (which would hit CORS under file://).
+data_js = "[" * join([
+    "{t_hr:" * string(round(Float64(f["t_hr"]); digits = 3)) *
+    ",psi:"  * string(round(Float64(f["psi_m"]); digits = 4)) * "}"
+    for f in frames], ",") * "]"
+
+println("```{=html}")
+println("""
+<div class="surge-slider-widget" style="text-align:center;margin:1em 0;">
+<img id="surge-slider-img" src="figures/surge_frames/frame_000.png" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:560px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"/>
+<div style="margin-top:0.6em;">
+<input type="range" min="0" max="$(n - 1)" value="0" step="1" id="surge-slider-range" style="width:80%;" oninput="updateSurgeFrame(this.value)"/>
+<div id="surge-slider-caption" style="font-size:0.9em;color:#555;margin-top:0.3em;font-family:ui-monospace,Menlo,monospace;">frame 0 / $(n - 1)  ·  t = 0.00 h  ·  ψ(t) = +0.000 m</div>
+<div style="font-size:0.85em;color:#777;margin-top:0.4em;"><em>Drag the slider to scrub through the surge. The red triangle marks the unknown source ψ(t).</em></div>
+</div>
+</div>
+<script>
+(function() {
+  const frames = $data_js;
+  const fmt = x => (x >= 0 ? "+" : "") + x.toFixed(3);
+  window.updateSurgeFrame = function(idx) {
+    const i = String(idx).padStart(3, "0");
+    document.getElementById("surge-slider-img").src =
+      "figures/surge_frames/frame_" + i + ".png";
+    const f = frames[parseInt(idx)];
+    document.getElementById("surge-slider-caption").textContent =
+      "frame " + idx + " / $(n - 1)  ·  t = " +
+      f.t_hr.toFixed(2) + " h  ·  ψ(t) = " + fmt(f.psi) + " m";
+  };
+})();
+</script>
+""")
+println("```")
+```
+
+A few things to notice as you scrub:
+
+1. **Wave speed depends on depth.** $c = \sqrt{g\,H}$. In the inner
+   bay ($H \approx 6\,\text{m}$) that is about $8\,\text{m/s}$;
+   along the eastern deep trough you can see the wavefront
+   noticeably faster.
+2. **Geometry matters.** The surge wraps around the Peel / Mud
+   cluster and reflects off Moreton Island; the southern bay is
+   slow to fill because of the Russell / Macleay / Karragarra
+   constriction.
 3. **Different gauges see different signals.** G1 (Brisbane Bar)
-   responds first and strongest. G4 (Russell Channel) is the slowest
-   and most attenuated. This *information geometry* is what will
-   make the inverse problem solvable.
+   responds first and strongest. G4 (Russell Channel) is the
+   slowest and most attenuated. This *information geometry* is
+   what will make the inverse problem solvable at all.
 
 ### The measurements we get
 
 The four gauges produce timeseries $\eta_g(t_k)$ at one-minute
 sampling. We add $\sigma = 1.5\,\text{cm}$ Gaussian observation
 noise to imitate real de-tided tide-gauge residuals, then thin to
-the kind of cadence (3 min) we would actually use.
+the kind of cadence ($\sim 3$ min) that operational systems
+actually use.
 
 | Gauge | Location | Lat, Lon | Cell | Depth |
 |---|---|---|---|---|
-| **G1** | Brisbane Bar | $-27.37°S$, $153.17°E$ | (15, 54) | 6.0 m |
-| **G2** | Wellington Point | $-27.48°S$, $153.24°E$ | (22, 42) | 6.0 m |
-| **G3** | Tangalooma Roads | $-27.21°S$, $153.32°E$ | (30, 72) | 6.4 m |
-| **G4** | Russell Channel | $-27.66°S$, $153.35°E$ | (33, 22) | 6.0 m |
+| **G1** | Brisbane Bar | $-27.367°S$, $153.166°E$ | (29, 108) | 6.0 m |
+| **G2** | Wellington Point | $-27.480°S$, $153.236°E$ | (43, 83) | 6.0 m |
+| **G3** | Tangalooma Roads | $-27.205°S$, $153.320°E$ | (60, 144) | 6.6 m |
+| **G4** | Russell Channel | $-27.660°S$, $153.290°E$ | (54, 43) | 6.0 m |
 
-These four timeseries plus the bathymetry and physics are all the
-information the inverse solver gets to work with. The river-mouth
-source $\psi(t)$ is *hidden*.
+These four timeseries, the bathymetry, and the physics are
+**all the information the inverse solver gets**. The river-mouth
+source $\psi(t)$ is hidden.
 
 ### The inverse problem, two ways {#sec-inverse}
 
 We try two complementary approaches that bracket the spectrum
-covered by the rest of the course.
+covered by the rest of the course. **You are not expected to read
+either listing in detail yet** — they are sketches of what the
+inverse problem looks like once you have Units 2–9 in your
+toolbox.
 
 **Method A — Naive PINN.** Train a smooth MLP $\eta_\theta(x, y, t)$
 on inputs scaled to $[-1, 1]^3$ to match the gauge observations,
-satisfy the wave equation (@eq-wave-eta) at random collocation
+satisfy the wave equation (@eq-wave-eta) at random water collocation
 points, and respect the zero initial condition. Treat the recovered
 source as $\psi_\theta(t) := \eta_\theta(x_r, y_r, t)$. This is what
 [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
-classify as the "vanilla PINN" baseline and what
+classified as the "vanilla PINN" baseline and what
 [§7.2](../unit_07/unit_07.qmd) of this course re-derives in detail.
 
 ```{julia}
 #| eval: false
-# Pseudocode for the naive-PINN loss (see scripts/train_inverse_pinn.jl)
+# Sketch of the naive PINN loss — see scripts/train_inverse_pinn.jl.
 function total_loss(θ, Xphys, Kx, Ky, Xz, Xt, Xsm)
     # Data: gauge readings ↔ η_θ at the gauge cells
     L_data = mean((η_batch(GAUGE_INPUT, θ) .- GAUGE_TARGET).^2)
 
-    # Physics: ∂_ττ η  =  K_x ∂_ξξ η + K_y ∂_ζζ η  in normalised coords,
-    #   sampled at random water-cell collocation points (excluding a
-    #   small radius around the Dirichlet source).
+    # Physics: ∂_ττ η  =  K_x ∂_ξξ η + K_y ∂_ζζ η   in normalised coords,
+    #   sampled at random water-cell collocation points (excluding a small
+    #   radius around the Dirichlet source so we don't fight the BC).
     η_p = reshape(η_batch(Xphys, θ), 7, :)
     η_ξξ = (η_p[2, :] .- 2 .* η_p[1, :] .+ η_p[3, :]) ./ H_NX^2
     η_ζζ = (η_p[4, :] .- 2 .* η_p[1, :] .+ η_p[5, :]) ./ H_NY^2
     η_ττ = (η_p[6, :] .- 2 .* η_p[1, :] .+ η_p[7, :]) ./ H_NT^2
     L_phys = mean((η_ττ .- Kx .* η_ξξ .- Ky .* η_ζζ) .^ 2)
 
-    # IC: η_θ(·, ·, 0) ≈ 0  and  ∂_t η_θ(·, ·, 0) ≈ 0
-    # Smoothness: ψ_θ(t) = η_θ(x_r, y_r, t) gently regularised
-    # ... see the script for the IC and smoothness terms
+    # IC + smoothness terms — see script
     return LAM_DATA*L_data + LAM_PHYS*L_phys + LAM_IC*L_ic + ...
 end
 ```
 
 **Method B — Adjoint inverse using the simulator as a forward map.**
 Because the linearised SWE is *linear* in $\psi$, the forward map
-$G: \psi(\cdot) \mapsto \eta_g(\cdot)$ is a linear operator. Compute
-its impulse response once (a single FD pass with a narrow Gaussian
-pulse), assemble $G$ as a Toeplitz convolution matrix, and solve the
-Tikhonov-regularised linear least-squares problem
+$G: \psi(\cdot) \mapsto \eta_g(\cdot)$ is a linear operator.
+Compute its impulse response once (a single FD pass with a narrow
+Gaussian pulse), assemble $G$ as a Toeplitz convolution matrix, and
+solve the Tikhonov-regularised linear least-squares problem
 
 $$
 \hat\psi \;=\; \arg\min_\psi \;
@@ -320,51 +416,56 @@ same physics that the PINN tries to learn.
 
 ```{julia}
 #| eval: false
-# Pseudocode for the adjoint inverse (scripts/train_inverse_adjoint.jl)
+# Sketch of the adjoint inverse — see scripts/train_inverse_adjoint.jl.
 h_g = fd_forward(narrow_gaussian_pulse)            # impulse response per gauge
 G   = vcat([toeplitz_from_impulse(h_g[:, k]) for k in 1:NG]...)
-A   = vcat(G, λ_smooth * L2, λ_anchor * e1')      # stacked LHS
+A   = vcat(G, λ_smooth * L2, λ_anchor * e1')       # stacked LHS
 b   = vcat(g_obs, zeros(size(L2, 1)), 0.0)
-ψ̂   = A \ b                                       # closed-form Tikhonov
+ψ̂   = A \ b                                        # closed-form Tikhonov
 ```
 
 ### What we recover
 
-![Top: the true ψ(t) (red) vs the adjoint inverse (blue, using the SWE
-solver as forward map) vs the naive PINN (orange dashed, smooth-MLP
-η-network with ψ read at the source cell). Middle / bottom: predicted
-gauge timeseries at G1 (Brisbane Bar) and G2 (Wellington Point)
-overlaid on the noisy observations both methods see.](figures/inverse_recovery.png)
+![Top panel: the true ψ(t) (red) vs the adjoint inverse (blue, using the
+SWE solver as forward map) vs the naive PINN (orange dashed, smooth-MLP
+η-network with ψ read at the source cell). Middle / bottom panels:
+predicted gauge timeseries at G1 (Brisbane Bar) and G2 (Wellington
+Point) overlaid on the noisy observations both methods see — both
+methods fit the gauges, only the adjoint inverse recovers the
+source.](figures/inverse_recovery.png)
 
 The plot is the centrepiece of Unit 1. Two observations matter
 pedagogically:
 
 1. **Both methods fit the gauge observations.** Look at the G1 / G2
    panels: the adjoint prediction (blue) and the naive-PINN
-   prediction (dashed orange) both lie comfortably inside the noisy
-   cloud of observations. By the metric the algorithms are
-   optimising, both succeed equally well.
+   prediction (dashed orange) both lie comfortably inside the
+   noisy cloud of observations. By the metric the algorithms are
+   optimising, both succeed.
 2. **They disagree wildly on what produced those gauges.** The
    adjoint inverse recovers both surge peaks at roughly correct
-   amplitude. The naive PINN gets the *timing* of the main pulse
-   but flattens its amplitude to $\sim 0.14\,\text{m}$ — a factor
-   of three under.
+   amplitude ($0.49\,\text{m}$ and $0.20\,\text{m}$, vs truth
+   $0.45 / 0.18$). The naive PINN gets the *timing* of the main
+   pulse but flattens its amplitude to $\sim 0.12\,\text{m}$ — a
+   factor of nearly four under.
 
 This is the classic signature of an **ill-posed inverse problem**:
-many qualitatively different sources can produce the same downstream
-signal once it has been spread by the physics, smoothed by the
-gauges, and contaminated by noise. The remedy is to add a *prior* —
-the adjoint inverse adds it explicitly through Tikhonov smoothness;
-the naive PINN implicitly priors-in the smooth-MLP ansatz, which
-turns out to bias the answer in the wrong direction here.
+many qualitatively different sources can produce the same
+downstream signal once it has been spread by the physics, smoothed
+by the gauges, and contaminated by noise. The remedy is to add a
+*prior* — the adjoint inverse adds it explicitly through Tikhonov
+smoothness; the naive PINN implicitly priors-in the smooth-MLP
+ansatz, which turns out to bias the answer in the wrong direction
+here.
 
 [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
 documented exactly this failure mode on the same linearised SWE
 problem.
-[§7.2–§7.3](../unit_07/unit_07.qmd#sec-modern-fixes) walk through
-the modern fixes — Fourier feature embeddings, causal training,
-hard boundary-condition enforcement, adaptive loss weighting —
-that close the gap.
+[§7.2–§7.3](../unit_07/unit_07.qmd) walk through the modern fixes —
+Fourier feature embeddings, causal training, hard boundary-condition
+enforcement, adaptive loss weighting — that close the gap, so that
+by Unit 9 the PINN can do what the adjoint does here without the
+luxury of precomputing $G$.
 
 ### What you have just seen
 
@@ -374,32 +475,48 @@ In one worked example we have touched, at an introductory depth,
 | Theme | Where it appeared |
 |---|---|
 | **PDEs** | Linearised SWE, derived as a 2-D wave equation |
-| **Julia** | The whole forward + inverse stack, ~$300$ LOC |
-| **Computation** | Staggered-grid FD solve in $3.5\,\text{s}$ |
+| **Julia** | The whole forward + inverse stack, ~$\!400$ LOC |
+| **Computation** | Staggered-grid FD solve in $12\,\text{s}$ |
 | **Measurements** | Four noisy tide-gauge timeseries |
 | **Inverse problem** | Recover $\psi(t)$ from gauge data |
 | **Ocean / water modelling** | Real geography (Moreton Bay), realistic surge amplitudes |
 | **PINNs** | Naive PINN baseline, its failure mode, the path to fix it |
 
-The script for the actual SWE solver, animation, and both
-inversions all live under `units/unit_01/scripts/` if you want to
-run them locally — the longest piece (`train_inverse_pinn.jl`)
-takes $\sim 3\,\text{min}$ on a laptop CPU.
+The scripts for the actual SWE solver, animation, and both
+inversions all live under `units/unit_01/scripts/`:
+
+| Script | Role | Runtime |
+|---|---|---|
+| `build_bay.jl` | bathymetry + land mask + gauge layout + bathymetry figure | ~$\!1$ s |
+| `generate_site_map.py` | OSM/CartoDB site-map figure | ~$\!10$ s |
+| `generate_surge_data.jl` | linearised-SWE forward solve, gauge timeseries, snapshots | ~$\!12$ s |
+| `generate_surge_frames.jl` | per-snapshot PNG frames for the slider | ~$\!90$ s |
+| `train_inverse_pinn.jl` | naive PINN inverse (Lux + Zygote) | ~$\!3$ min |
+| `train_inverse_adjoint.jl` | Green's-function / Tikhonov inverse | ~$\!15$ s |
+| `render_recovery_plot.jl` | the three-panel comparison plot | ~$\!2$ s |
+
+The whole pipeline is offline-reproducible on a single laptop CPU.
+Everything is written so it ports cleanly to a GPU once the rest of
+the course has motivated why we'd want one.
 
 ## 1.3 The capstone preview: an AIMS thermistor column
 
 The Moreton Bay surge is a 2-D *shallow-water* problem. The capstone
-across Units 8–10 keeps the inverse-problem flavour but moves the
-physics: a **1-D vertical column of ocean** at three AIMS-monitored
-reef sites along the central Great Barrier Reef, with **a
-thermistor chain** sampling temperature at five depths every hour.
+across [Units 8–10](../unit_08/unit_08.qmd) keeps the inverse-problem
+flavour but moves the physics: a **1-D vertical column of ocean** at
+three AIMS-monitored reef sites along the central Great Barrier Reef,
+with a **thermistor chain** sampling temperature at five depths
+every hour.
 
 After a storm passes through, the deeper sensors record an
 unexpected cooling pattern. The competing hypotheses:
 
-1. The storm intensified **upwelling** — cold water pumped up from depth.
-2. The storm enhanced **vertical mixing** — heat drawn down from the surface faster than usual.
-3. **Surface heating reduced** — cloud cover and evaporation cut the net flux into the ocean.
+1. The storm intensified **upwelling** — cold water pumped up from
+   depth.
+2. The storm enhanced **vertical mixing** — heat drawn down from
+   the surface faster than usual.
+3. **Surface heating reduced** — cloud cover and evaporation cut
+   the net flux into the ocean.
 
 Each leaves a distinct fingerprint in the depth–time record. By
 [Unit 9](../unit_09/unit_09.qmd) we build a PINN that, given the
@@ -413,7 +530,8 @@ different physics, and a richer inverse-problem story.
 ## 1.4 Course roadmap
 
 [Unit 2](../unit_02/unit_02.qmd) covers machine-learning basics and
-deep learning — the function-approximation toolkit.
+deep learning — the function-approximation toolkit you'll need to
+even *write* a PINN.
 [Unit 3](../unit_03/unit_03.qmd) surveys the broader Sci-ML and
 physics-informed ML landscape.
 [Unit 4](../unit_04/unit_04.qmd) introduces ODEs through universal
@@ -424,16 +542,17 @@ and PDE models.
 classical numerics.
 [Unit 7](../unit_07/unit_07.qmd) covers modern PINN techniques for
 harder PDEs — including the exact failure mode we just saw on the
-naive PINN.
+naive PINN above.
 [Unit 8](../unit_08/unit_08.qmd) builds the full forward column +
 shallow-water capstone model.
 [Unit 9](../unit_09/unit_09.qmd) closes the loop by recovering an
-unknown driver from sparse mooring data.
+unknown driver from sparse mooring data — exactly the workflow you
+saw in §1.2, fully derived.
 
 ### 75 % Julia, 25 % Python
 
 Julia is the primary language: `Lux.jl`, `NeuralPDE.jl`,
-`MethodOfLines.jl`, the broader SciML stack. Python parallels appear
-in [Unit 2](../unit_02/unit_02.qmd) (`scikit-learn`, `PyTorch`) and
-[Unit 9](../unit_09/unit_09.qmd) (`DeepXDE`) so participants leave
-with a sense of the cross-ecosystem landscape.
+`MethodOfLines.jl`, the broader SciML stack. Python parallels
+appear in [Unit 2](../unit_02/unit_02.qmd) (`scikit-learn`,
+`PyTorch`) and [Unit 9](../unit_09/unit_09.qmd) (`DeepXDE`) so
+participants leave with a sense of the cross-ecosystem landscape.

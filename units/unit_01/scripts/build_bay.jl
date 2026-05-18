@@ -34,12 +34,12 @@ const LAT_REF = -27.40              # reference latitude for E-W scale
 const M_PER_DEG_LAT = 111_000.0
 const M_PER_DEG_LON = 111_000.0 * cosd(LAT_REF)   # ≈ 98_500 m/deg
 
-const DX = 1_000.0                  # grid spacing (m)
-const DY = 1_000.0
-const NX = 50                       # ~50 km E-W
-const NY = 95                       # ~95 km N-S
-const LX = NX * DX
-const LY = NY * DY
+const DX = 500.0                    # grid spacing (m) — 500 m chosen so the
+const DY = 500.0                    # narrow South-Stradbroke spit (≈1.5 km
+const NX = 100                      # wide) and the Broadwater channel
+const NY = 190                      # behind it are resolved by several cells.
+const LX = NX * DX                  # Domain is the same 50 × 95 km rectangle
+const LY = NY * DY                  # as before — just at higher resolution.
 
 # cell-centre coordinate helpers
 xc(i) = (i - 0.5) * DX
@@ -99,9 +99,7 @@ const MORETON = [
     (153.380, -27.010),   # NW tip
 ]
 
-# North Stradbroke Island — the main island chunk in the SE. South Stradbroke
-# (a long narrow spit further south) is omitted for simplicity; in this
-# tractable model the SE corner of the domain is open ocean.
+# North Stradbroke Island — the main island chunk in the SE.
 const STRADBROKE = [
     (153.430, -27.495),
     (153.490, -27.510),
@@ -113,6 +111,50 @@ const STRADBROKE = [
     (153.420, -27.680),
     (153.405, -27.610),
     (153.395, -27.555),
+]
+
+# South Stradbroke Island — the long, narrow sand spit running south from
+# Jumpinpin Bar (≈-27.745, 153.43) to the Gold Coast Seaway region just
+# below the domain. We give it a slight wiggle to leave a thin Broadwater
+# channel between the spit and the mainland coast.
+const SOUTH_STRADBROKE = [
+    (153.430, -27.745),
+    (153.460, -27.760),
+    (153.475, -27.800),
+    (153.475, -27.850),
+    (153.445, -27.850),
+    (153.430, -27.820),
+    (153.420, -27.780),
+    (153.420, -27.755),
+]
+
+# Russell / Macleay / Lamb / Karragarra island cluster — these crowd
+# the southern bay between Cleveland Point and the Logan River mouth.
+# Their presence severely restricts flow into the southern bay and
+# is the reason the area is treated as estuarine in reality.
+const RUSSELL_GROUP = [   # Russell + Lamb (main cluster)
+    (153.355, -27.605),
+    (153.385, -27.615),
+    (153.390, -27.650),
+    (153.375, -27.685),
+    (153.345, -27.685),
+    (153.335, -27.660),
+    (153.340, -27.625),
+]
+const MACLEAY = [          # Macleay Is. — separate larger blob to the N
+    (153.355, -27.555),
+    (153.385, -27.560),
+    (153.395, -27.590),
+    (153.380, -27.605),
+    (153.350, -27.605),
+    (153.340, -27.585),
+]
+const KARRAGARRA = [       # Karragarra/Coochiemudlo — small islets
+    (153.310, -27.575),
+    (153.330, -27.585),
+    (153.330, -27.605),
+    (153.310, -27.610),
+    (153.300, -27.595),
 ]
 
 # Small islands inside the bay (St Helena, Mud, Peel, Coochiemudlo).
@@ -127,7 +169,8 @@ const MID_BAY_ISLAND_A = [   # Peel / Mud island cluster
     (153.225, -27.440),
 ]
 
-const ALL_LAND = [MAINLAND, MORETON, STRADBROKE, MID_BAY_ISLAND_A]
+const ALL_LAND = [MAINLAND, MORETON, STRADBROKE, SOUTH_STRADBROKE,
+                  RUSSELL_GROUP, MACLEAY, KARRAGARRA, MID_BAY_ISLAND_A]
 
 # --- Point-in-polygon (ray casting) ----------------------------------------
 function inpoly(λ, φ, poly)
@@ -279,8 +322,8 @@ const GAUGES = [
         "central bay · across from river"),
     ("G3", "Tangalooma Roads",  -27.205, 153.320,
         "Moreton Is. lee · NE bay"),
-    ("G4", "Russell Channel",   -27.660, 153.345,
-        "southern bay · between Russell & mainland"),
+    ("G4", "Russell Channel",   -27.660, 153.290,
+        "southern bay · west of Russell Is."),
 ]
 
 const RIVER_MOUTH = ("RM", "Brisbane River mouth", -27.388, 153.105,
@@ -373,10 +416,63 @@ println("Built bay model:")
         maximum(skipmissing(filter(!isnan, vec(bathy)))))
 println("\nGauges (snapped to nearest water cell):")
 for g in snapped_gauges
-    @printf("  %s %-18s  lat,lon = (%.4f, %.4f)  cell=(%2d,%2d)  H=%.1f m\n",
+    @printf("  %s %-18s  lat,lon = (%.4f, %.4f)  cell=(%3d,%3d)  H=%.1f m\n",
             g[1], g[2], g[3], g[4], g[5], g[6], g[10])
 end
 let g = snapped_river
-    @printf("\nRiver source:\n  %s %-22s  lat,lon = (%.4f, %.4f)  cell=(%2d,%2d)  H=%.1f m\n",
+    @printf("\nRiver source:\n  %s %-22s  lat,lon = (%.4f, %.4f)  cell=(%3d,%3d)  H=%.1f m\n",
             g[1], g[2], g[3], g[4], g[5], g[6], g[10])
 end
+
+# --- Render bathymetry figure for the qmd --------------------------------
+
+using Plots
+gr()
+
+FIG_DIR = normpath(joinpath(@__DIR__, "..", "figures"))
+isdir(FIG_DIR) || mkpath(FIG_DIR)
+
+display_bathy = copy(bathy)
+display_bathy[mask .== 0] .= NaN
+
+# X/Y axes in km (cell-centre coordinates) so the figure reads physically
+xkm = [(i - 0.5) * DX / 1000 for i in 1:NX]
+ykm = [(j - 0.5) * DY / 1000 for j in 1:NY]
+
+p = heatmap(xkm, ykm, display_bathy;
+            c = cgrad(:deep, rev = false),
+            yflip = false,
+            aspect_ratio = 1,
+            size = (560, 870),
+            background_color_inside = RGB(0.85, 0.85, 0.85),  # grey land
+            xlabel = "east  (km)", ylabel = "north  (km)",
+            colorbar_title = "depth  (m)",
+            title = "Moreton Bay bathymetry — $(NX)×$(NY) at $(round(Int, DX)) m",
+            titlefontsize = 11)
+
+# overlay gauges
+scatter!(p,
+         [g[8] |> x -> x_of_lon(x) / 1000 for g in snapped_gauges],   # snap_lon → km
+         [g[9] |> x -> y_of_lat(x) / 1000 for g in snapped_gauges];
+         marker = :circle, c = :gold, ms = 6, msc = :black, msw = 1.0,
+         label = "tide gauges")
+for g in snapped_gauges
+    xk = x_of_lon(g[8]) / 1000
+    yk = y_of_lat(g[9]) / 1000
+    annotate!(p, xk + 1.0, yk, text(g[1], 8, :left, :black))
+end
+
+# river source
+let g = snapped_river
+    xk = x_of_lon(g[8]) / 1000
+    yk = y_of_lat(g[9]) / 1000
+    scatter!(p, [xk], [yk];
+             marker = :utriangle, c = :crimson, ms = 9, msc = :black, msw = 1.2,
+             label = "river source ψ(t)")
+    annotate!(p, xk - 1.0, yk + 1.5, text("ψ", 11, :right, :crimson))
+end
+
+plot!(p, legend = :topright, legendfontsize = 7)
+
+savefig(p, joinpath(FIG_DIR, "bathymetry.png"))
+println("\nWrote figures/bathymetry.png")

@@ -1,6 +1,15 @@
 #!/usr/bin/env julia
+#
 # Inverse PINN — recover the Brisbane River surge ψ(t) from sparse, noisy
 # bay-gauge readings.
+#
+# GPU port (TODO, ~2 wks):
+#   – convert weights + collocation matrices to Float32 + `gpu_device()`
+#   – move the loss into a Lux.StatefulLayer so Zygote sees one closure
+#   – keep the per-step `colloc_inputs(...)` builders on CPU (they mutate)
+#     and transfer the matrices once per step
+# The rest of the file is already structured around batched matrix ops,
+# so the actual port is straightforward.
 #
 # Formulation. The linearised shallow-water system (de Wolff eq. 6-7) is
 #     ∂_t η + ∇·(H u) = 0,     ∂_t u + g ∇η = 0,

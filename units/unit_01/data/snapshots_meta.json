@@ -1,13 +1,13 @@
 {
     "nframes": 73,
     "dtype": "Float32",
-    "nx": 50,
+    "nx": 100,
     "shape": "Ny, Nx, Nframes (column-major)",
     "t_end_s": 21600,
     "frame_dt_s": 300,
     "obs_noise_std_m": 0.015,
     "dt_s": 12,
-    "ny": 95,
+    "ny": 190,
     "frame_times_s": [
         0,
         300,
