@@ -22,6 +22,14 @@ focus on the dynamics.
 
 ## 4.1 ODEs as models of dynamics
 
+Before we let neural networks loose on a vector field we need one
+more layer of ODE intuition: the *qualitative* behaviours that
+distinguish interesting dynamics from boring ones. The next two
+subsubsections lay this out (equilibria, limit cycles, chaos) and
+then put one example — Lotka–Volterra — under the microscope in
+Julia and Python so the cross-ecosystem reflex from
+[Unit 3 §3.1](../unit_03/unit_03.qmd) carries over.
+
 The IVP setup from [Unit 3 §3.1](../unit_03/unit_03.qmd) carries
 over verbatim:
 
@@ -73,11 +81,51 @@ end
 plt
 ```
 
-Each initial condition lands on a different closed orbit — a *first
-integral* (a conserved quantity along trajectories) exists for LV
-but is invisible to a method that only sees data.
+Each initial condition lands on a different closed orbit — a
+**first integral** (a conserved quantity along trajectories;
+$V(x, y) = \delta x - \gamma \log x + \beta y - \alpha \log y$ for
+this LV system) exists, but it is invisible to a method that only
+sees data. Recovering invariants like this from observations alone
+is exactly what Hamiltonian / Lagrangian networks
+([Unit 3 §3.3](../unit_03/unit_03.qmd)) and the SINDy machinery
+([Unit 3 §3.4](../unit_03/unit_03.qmd)) try to do.
+
+The same model in Python with `scipy.integrate.solve_ivp` — same
+shape, same plot, different ecosystem:
+
+```{.python filename="units/unit_04/scripts/lotka_volterra_python.py"}
+import numpy as np
+from scipy.integrate import solve_ivp
+
+alpha, beta, gamma, delta = 1.5, 1.0, 3.0, 1.0
+def lv(t, u):
+    x, y = u
+    return [alpha * x - beta * x * y,
+            delta * x * y - gamma * y]
+
+t_eval = np.linspace(0, 12, 1201)
+trajs = []
+for u0 in ([1.0, 1.0], [1.5, 1.0], [2.0, 1.0]):
+    sol = solve_ivp(lv, (0, 12), u0, t_eval=t_eval, rtol=1e-8)
+    trajs.append(sol.y)
+    print(f"x(0)={u0[0]:.1f}  x(12)={sol.y[0, -1]:.3f}  "
+          f"y(12)={sol.y[1, -1]:.3f}")
+```
+
+Available at
+[`scripts/lotka_volterra_python.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/lotka_volterra_python.py){target="_blank"}.
 
 ## 4.2 From ResNets to Neural ODEs
+
+This section walks the *bridge* between the discrete-layer MLPs of
+[Unit 2](../unit_02/unit_02.qmd) and the continuous-time vector
+fields we'll use in the rest of the workshop. The subsubsections
+cover (a) the layer-as-Euler-step intuition, (b) what a Neural ODE
+looks like in `Lux.jl`, (c) the adjoint trick that makes training
+through an ODE solver feasible, and (d) an illustrative training
+skeleton. All four together form one of the two patterns
+([Unit 9](../unit_09/unit_09.qmd)) the capstone inverse problem
+uses.
 
 ### The Euler-step analogy
 
@@ -125,14 +173,33 @@ training is what the workshop's later units use.
 ### Adjoint sensitivities (sketch)
 
 Naively `Zygote.gradient` through an ODE solver stores every
-intermediate state, which is memory-prohibitive for long
-trajectories. The **adjoint method** (Pontryagin; [Chen et al.](../references/references.qmd#ref-chen2018){target="_blank"}) avoids
-that by solving an auxiliary ODE *backward in time* whose state
-contains the gradient. Memory cost becomes constant in trajectory
-length; the price is some numerical-accuracy bookkeeping. In Julia
-that machinery lives in `SciMLSensitivity.jl` — left out of the
-workshop default environment to keep precompile light, but a
-one-line addition when you reach for it.
+intermediate state — what's called **discretise-then-differentiate**
+or "direct backprop through the solver". Memory cost scales with
+the number of solver steps, which is fine for short trajectories
+and prohibitive for long ones.
+
+The **adjoint method** (originally due to Pontryagin in optimal
+control; rediscovered for Neural ODEs by
+[Chen et al. 2018](../references/references.qmd#ref-chen2018){target="_blank"}) replaces this
+by *differentiate-then-discretise*: derive an auxiliary ODE for
+the gradient — the adjoint $\boldsymbol{\lambda}(t) = \partial
+\mathcal{L} / \partial \mathbf{x}(t)$ — and solve it backward in
+time alongside the original equation. Memory cost becomes
+**constant** in trajectory length; the price is some
+numerical-accuracy bookkeeping (the backward solve has to be at
+least as accurate as the forward one).
+
+A third middle-ground option, **checkpointing**, stores only a
+sparse subset of states forward, then re-integrates between them
+on the backward pass. Logarithmic-in-time memory, logarithmic-in-time
+extra compute.
+
+In Julia that machinery lives in `SciMLSensitivity.jl`. In Python
+the equivalents are `torchdiffeq` (Chen's reference
+implementation) and `diffrax` (the modern JAX-based version with
+exceptional adjoint support). `SciMLSensitivity.jl` is left out of
+the workshop default `Project.toml` to keep precompile light, but
+a one-line addition when you reach for it.
 
 ### Training a Neural ODE (illustrative)
 
@@ -180,6 +247,17 @@ inverse problems with the column model use exactly the same loop,
 just with PDE residuals instead of trajectory data.
 
 ## 4.3 Universal Differential Equations
+
+A Neural ODE replaces *all* of $f$ with a network. A Universal
+Differential Equation (UDE) only replaces the *bit you don't
+know*, keeping the trusted physics intact. That's almost always
+the right move in scientific applications — most domains have
+*some* equation that's known to be correct (mass conservation, a
+governing PDE in part of the domain, a well-established empirical
+law) and *some* term that's empirical or unknown. UDEs let you
+write the known bits with a pencil and learn the rest with a small
+network — the position taken throughout
+[Units 8–9](../unit_08/unit_08.qmd) of the capstone.
 
 ### Known physics + learned closure
 
@@ -254,11 +332,29 @@ classical parameter estimation can't recover an unknown functional
 shape, but a UDE with a 2-layer MLP can. *Code placeholder —
 `units/unit_04/scripts/ude_lv.jl` (TODO).*
 
-## What comes next
+## 4.4 What comes next
 
-[Unit 5](../unit_05/unit_05.qmd) keeps the ODE setup but replaces
-the *integration-based* training above with a **residual-loss**
-training — collocation points instead of time-stepping. That's the
-PINN move. The trajectory-loss skeleton in §4.2 and the
-residual-loss skeleton in [Unit 5](../unit_05/unit_05.qmd) are the
-two families of physics-aware training; the capstone uses both.
+This unit established the **trajectory-loss** family of
+physics-aware training: integrate the ODE forward, compare to
+data, backprop through the solver via the adjoint. The remaining
+units add the rest of the toolkit:
+
+- **[Unit 5](../unit_05/unit_05.qmd)** introduces the *other*
+  family: **residual-loss** training. Instead of integrating, you
+  evaluate the equation residual at random collocation points and
+  train the network to satisfy it. No solver, no adjoint — just
+  autodiff.
+- **[Unit 6](../unit_06/unit_06.qmd)** provides the PDE background
+  the residual-loss approach assumes (function spaces, weak
+  solutions, well-posedness).
+- **[Unit 7](../unit_07/unit_07.qmd)** covers what goes wrong in
+  practice with the residual approach (the so-called "PINN failure
+  modes") and the modern fixes.
+- **[Units 8–9](../unit_08/unit_08.qmd)** combine *both* approaches
+  on the capstone column problem: a UDE forward model, then a
+  hybrid residual + trajectory inverse for the unknown driver.
+
+The trajectory-loss skeleton in §4.2 and the residual-loss
+skeleton in [Unit 5](../unit_05/unit_05.qmd) are the two recipes
+every Sci-ML / PINN paper builds on; understanding when to reach
+for each is the practical takeaway of these four units.
