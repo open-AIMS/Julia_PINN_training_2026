@@ -13,7 +13,7 @@ finite-difference reference, forward PINN, inverse PINN — is in
 equation, every parameter, every toy task you'll need to reproduce
 the workshop.
 
-## 9.1 Mock story
+## 9.1 The synthetic scenario
 
 You are a fictional oceanographer with three thermistor chains
 deployed along a cross-shelf transect of the central Great Barrier
@@ -24,7 +24,7 @@ that do *not* line up with each other — one site cools quickly and
 recovers, another shows a deep slow cooling, and the third looks
 almost untouched at the surface.
 
-![Mock-but-sensible site locations along the central GBR.  The three moorings span the cross-shelf gradient from Cleveland Bay (inshore) through Davies Reef (mid-shelf) to Myrmidon Reef (outer shelf).](figures/site_map.png)
+![Synthetic but plausibly-sited mooring locations along the central GBR, drawn on real OSM coastlines (CartoDB Voyager tiles).  Panel (a) is the regional cross-shelf view of all three moorings — Cleveland Bay (inshore) through Davies Reef (mid-shelf) to Myrmidon Reef (outer shelf).  Panel (b) zooms in on Cleveland Bay so Site A's coastal context near Townsville is legible.](figures/site_map.png)
 
 | Site | Name | Lat, Lon | Depth | Sensor depths (m) | Dominant regime |
 |---|---|---|---|---|---|
@@ -330,7 +330,7 @@ scenarios live in [Unit 10](../unit_10/unit_10.qmd).
    *Expected:* deeper mixed layer $\Rightarrow$ thicker but cooler
    warm layer at the surface, smoother thermocline.
 
-5. **The mock story, forward.** Run a *single* wind event in the 2D
+5. **The synthetic scenario, forward.** Run a *single* wind event in the 2D
    shallow-water model — a Gaussian gust passing over the mooring
    on day 10, lasting 3 days. Read off the time series $w(t)$,
    $|\boldsymbol{\tau}|(t)$, and $Q_{\text{SW}}^{\max}(t)$ (cloud
@@ -341,7 +341,7 @@ scenarios live in [Unit 10](../unit_10/unit_10.qmd).
    stress cancel. Compare to "decoupled" runs that perturb only one
    driver at a time.
 
-6. **The mock story, inverse.** Generate synthetic mooring data
+6. **The synthetic scenario, inverse.** Generate synthetic mooring data
    from the forward scenario above with added noise
    ($\sigma = 0.05\,°\text{C}$). Hand the data to a PINN that
    knows the PDE structure of the 1D column and treats *one*

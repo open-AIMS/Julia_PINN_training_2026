@@ -235,7 +235,7 @@ end
 # … usual training loop: solve, misfit, adjoint, Adam.
 ```
 
-A clean sandbox for inverse problems before we hit the AIMS column
+A clean sandbox for inverse problems before we hit the capstone column
 in [Unit 9](../unit_09/unit_09.qmd).
 
 ### Lotka–Volterra inverse variant

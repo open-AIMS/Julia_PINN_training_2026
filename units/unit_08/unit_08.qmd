@@ -138,7 +138,7 @@ layer*) and small at depth.
 The two mechanisms compete. The **Péclet number** $\mathrm{Pe} = wH /
 \kappa$ measures who wins on the column scale: $\mathrm{Pe} \gg 1$ is
 advection-dominated, $\mathrm{Pe} \ll 1$ is diffusion-dominated, and
-$\mathrm{Pe} \sim 1$ is the messy interesting case the AIMS column
+$\mathrm{Pe} \sim 1$ is the messy interesting case the capstone column
 lives in (see §8.7).
 
 The same advection–diffusion equation governs *any* passive scalar:
@@ -222,7 +222,7 @@ A few dimensionless groups carry most of the physics. They tell you
 | Diurnal-to-diffusive | $\tau_d / T_\kappa$ | how localised the daily cycle stays in depth |
 | Storm-to-diffusive | $\tau_{\text{storm}} / T_\kappa$ | how deep a storm signal penetrates |
 
-For the AIMS column with $H = 100$ m, $\kappa_m = 10^{-3}$ m²/s,
+For the canonical mid-shelf column (Davies Reef in §9.1) with $H = 100$ m, $\kappa_m = 10^{-3}$ m²/s,
 $w_0 = 10^{-5}$ m/s:
 
 - $\mathrm{Pe} \approx 1$ — balanced regime; both transport
@@ -240,7 +240,7 @@ fingerprint deeper than naive cooling would suggest, why SST cools
 slowly under upwelling, and why the steady state is reached only
 over many months.
 
-## 8.7 From concepts to the AIMS column
+## 8.7 From concepts to the capstone column
 
 The capstone in [Unit 9](../unit_09/unit_09.qmd) is the column
 idealisation written down concretely:

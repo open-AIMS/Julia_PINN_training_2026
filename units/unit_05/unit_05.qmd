@@ -204,5 +204,5 @@ everything in [Unit 7](../unit_07/unit_07.qmd):
 These three are the meat of [Unit 7](../unit_07/unit_07.qmd):
 adaptive loss weighting, Fourier feature embeddings, hard BC
 enforcement, and causal training. With those tools we can train
-PINNs on the AIMS column in [Unit 8 / Unit 9](../unit_08/unit_08.qmd);
+PINNs on the capstone column in [Unit 8 / Unit 9](../unit_08/unit_08.qmd);
 without them we can't.

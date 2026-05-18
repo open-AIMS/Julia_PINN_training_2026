@@ -49,7 +49,7 @@ $w_0 = 10^{-5}\,\text{m/s}$.
 Gaussian gust at $t_{\text{storm}} = 10$ days, $\sigma = 1$ day,
 modulating both $w_0$ (×5 at peak) and $Q_{\text{SW}}^{\max}$ (×0.5
 at peak via cloud cover). Real SWE-driven forcings will replace
-these envelopes in scenario 5 (mock story, forward).
+these envelopes in scenario 5 (the synthetic scenario, forward).
 
 ![Scenario 4 output — `scenario_4()` uses prescribed Gaussian envelopes for the gust-driven upwelling and cloud cover, pending the SWE driver. The storm bump is visible around day 10.](output/storm_fingerprint_mooring.png)
 

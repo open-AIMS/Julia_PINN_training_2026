@@ -98,7 +98,7 @@ Unit 9 read as a familiar set of mechanisms in a new domain.
 
 ## [Unit 9: Project Specification](units/unit_09/unit_09.qmd)
 
-The capstone written down concretely: the mock story, the coupled
+The capstone written down concretely: the synthetic scenario, the coupled
 1D-column + 2D-shallow-water model, the column equation, boundary
 and initial conditions, forcing functions, reference parameters,
 and the six toy tasks that build up from pure diffusion to the
