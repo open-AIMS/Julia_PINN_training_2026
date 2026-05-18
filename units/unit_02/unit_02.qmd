@@ -74,10 +74,14 @@ network architecture, "complexity" is roughly the parameter count,
 and the test set is replaced by held-out collocation points in the
 PDE domain.
 
-## 2.2 Random forests: a cross-language cameo
+## 2.2 Random forests on MNIST: a cross-language cameo
 
 Before deep learning takes over, one quick stop on the
-non-deep-learning side of the world.
+non-deep-learning side of the world — and a first look at MNIST,
+the dataset we'll keep using as a running example. The next two
+subsubsections cover (a) what a random forest *is* and (b) the
+same MNIST problem in Julia and in Python, so the cross-ecosystem
+template is established up front.
 
 ### Decision trees, ensembled
 
@@ -92,52 +96,95 @@ A **random forest** mitigates the variance by averaging many trees
 trained on bootstrap resamples of the data, with each split
 considering only a random subset of features. The variance falls,
 generalisation goes up, interpretability becomes harder to maintain.
-Random forests are still a serious baseline on tabular problems —
-often the right tool when you have hundreds-to-thousands of rows and
-hand-designed features.
+Random forests are still a serious baseline on tabular *or* flat
+image problems — often the right tool when you have
+hundreds-of-thousands of rows of modestly sized feature vectors,
+hand-designed or otherwise.
 
-### Iris in Julia (`MLJ.jl`)
+### The MNIST benchmark
 
-```{julia}
-#| eval: false
+**MNIST** is 70 000 grayscale images of handwritten digits 0–9,
+each $28 \times 28$ pixels (so 784 features when flattened to a
+vector). 60 000 are reserved for training, 10 000 for test. It is
+the canonical "easy classification benchmark" in deep learning —
+small enough to fit in memory, hard enough that a naive baseline
+isn't perfect, and used in [Goodfellow, Bengio &
+Courville](../references/references.qmd){target="_blank"} (Chapters
+1, 5, 6) and *Mathematical Engineering of Deep Learning* (Chapters
+5–6) for exactly the kind of side-by-side comparison we're about
+to do.
 
-using MLJ
-using DataFrames
+### MNIST random forest in Python (`scikit-learn`)
 
-iris = load_iris()
-y, X = unpack(iris, ==(:target); rng = 123)
-X = DataFrame(X)
+A 100-tree forest on flattened MNIST takes a couple of minutes to
+fit and lands around **97% test accuracy** — a strong baseline that
+took deep learning a decade to convincingly beat.
 
-RandomForest = @load RandomForestClassifier pkg=DecisionTree verbosity=0
-mach = machine(RandomForest(n_trees = 100), X, y)
-
-evaluate!(mach, resampling = CV(nfolds = 5), measure = accuracy)
-```
-
-### Iris in Python (`scikit-learn`)
-
-```python
-from sklearn.datasets import load_iris
+```{.python filename="units/unit_02/scripts/mnist_rf_sklearn.py"}
+from sklearn.datasets import fetch_openml
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
+from sklearn.metrics import accuracy_score
 
-iris = load_iris()
-X, y = iris.data, iris.target
+# fetch_openml caches to ~/scikit_learn_data/ after the first download
+X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
+X = X.astype("float32") / 255.0
+y = y.astype("int64")
 
-clf = RandomForestClassifier(n_estimators=100, random_state=123)
-scores = cross_val_score(clf, X, y, cv=5, scoring="accuracy")
-print(f"Accuracy: {scores.mean():.3f} ± {scores.std():.3f}")
+X_train, X_test = X[:60_000], X[60_000:]
+y_train, y_test = y[:60_000], y[60_000:]
+
+clf = RandomForestClassifier(
+    n_estimators=100, n_jobs=-1, random_state=0,
+)
+clf.fit(X_train, y_train)
+acc = accuracy_score(y_test, clf.predict(X_test))
+print(f"MNIST test accuracy (sklearn RF, 100 trees): {acc:.4f}")
 ```
 
-The Python script runs as a sidecar — `./build.sh execute 2` writes
-its captured output to `output/iris_rf.md`, included below:
+Run it yourself with
+[`scripts/mnist_rf_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_rf_sklearn.py){target="_blank"}
+(or `./build.sh execute 2` once you've installed `scikit-learn`).
+Typical first-run cost: ~30 s download (cached after) + ~2 min fit
+on a modern laptop CPU.
 
-{{< include output/iris_rf.md >}}
+### MNIST random forest in Julia (`DecisionTree.jl`)
 
-Both report ≈ 0.96 mean accuracy. The point isn't the number; it's
-that the same problem in two ecosystems has the **same shape** —
-load data, choose a model, cross-validate, report. This template
-recurs through the workshop.
+The Julia parallel uses `DecisionTree.jl` (already in the workshop
+`Project.toml`) and `MLDatasets.jl` for the MNIST loader. Same
+structure, very similar numbers:
+
+```{.julia filename="units/unit_02/scripts/mnist_rf_julia.jl"}
+using MLDatasets, DecisionTree, Statistics
+
+train_x, train_y = MLDatasets.MNIST(split = :train)[:]
+test_x,  test_y  = MLDatasets.MNIST(split = :test)[:]
+
+# (28, 28, N) → (N, 784), normalise to [0, 1]
+flatten(x) = reshape(Float32.(x), 28 * 28, size(x, 3))' ./ 255f0
+X_train, X_test = flatten(train_x), flatten(test_x)
+y_train, y_test = Int.(train_y), Int.(test_y)
+
+# Native DecisionTree.jl API
+forest = build_forest(
+    y_train, X_train,
+    28,           # n_subfeatures (≈ √784)
+    100,          # n_trees
+    0.7,          # partial_sampling
+    -1,           # max_depth
+    1, 0.0, 0;
+    rng = 0,
+)
+ŷ = apply_forest(forest, X_test)
+@info "MNIST test accuracy (DecisionTree.jl RF, 100 trees) = $(round(mean(ŷ .== y_test); digits = 4))"
+```
+
+*Setup note.* `MLDatasets.jl` isn't in the workshop `Project.toml`
+by default (we keep PINN-focused deps minimal). To run this script,
+add it once with `Pkg.add("MLDatasets")` from the repo root.
+
+The point isn't the accuracy number — it's that the same problem
+in two ecosystems has the **same shape**: load data, choose a model,
+fit, score. This template recurs throughout the workshop.
 
 ### When classical ML wins
 
@@ -154,6 +201,15 @@ inputs (images, text, audio), large datasets, and — as we'll see in
 [Unit 5](../unit_05/unit_05.qmd) onwards — *PDE residuals*.
 
 ## 2.3 From logistic regression to a neural network
+
+The simplest possible "neural network" is a single linear layer
+followed by a smooth squashing function. It is also the first
+genuinely useful classifier — the **softmax regression** baseline
+that Goodfellow, Bengio & Courville open Chapter 5 with, and that
+*MEDL* derives in detail in Chapter 3. The next four subsubsections
+walk through the theory (Bernoulli → sigmoid → softmax) and then
+fit it on MNIST in both Julia and Python, so the jump to deeper
+networks in §2.4 is a single conceptual step rather than a leap.
 
 ### Bernoulli likelihood and the sigmoid
 
@@ -182,44 +238,105 @@ fit by **categorical cross-entropy**.
 
 ![A logistic / softmax classifier as a one-layer neural network. The affine map $Wx + b$ feeds a softmax that outputs class probabilities. (Figure from *MEDL*, §3.3.)](figures/figure3-3-logistic_architecture.svg)
 
-### Logistic regression in `Lux.jl`
+### MNIST softmax regression in Python (`scikit-learn`)
 
-```{julia}
-#| eval: false
+The "deep learning baseline" — a single linear layer + softmax,
+trained by maximum likelihood — on the same MNIST data the forest
+just saw. With no nonlinearity and no hidden units, this is
+literally the model in [Goodfellow, Bengio & Courville 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} Chapter 5 used to motivate
+why we need deeper networks. Expect **~92% test accuracy** — a
+striking gap below the random forest's ~97%, which is the point.
 
-using Lux, Random
-
-rng = Random.default_rng()
-model = Lux.Chain(
-    Lux.Dense(4 => 3),          # 4 iris features → 3 classes
-    Lux.softmax,
-)
-
-ps, st = Lux.setup(rng, model)
-ŷ, st = model(rand(rng, Float32, 4, 16), ps, st)  # forward pass on a batch
-```
-
-The `Lux.jl` style separates the *model* (a pure function) from
-**parameters** `ps` and **state** `st` — the same explicit style
-that lets `NeuralPDE.jl` compose layers with collocation losses in
-[Unit 5](../unit_05/unit_05.qmd).
-
-### A `scikit-learn` parallel
-
-```python
+```{.python filename="units/unit_02/scripts/mnist_linear_sklearn.py"}
+from sklearn.datasets import fetch_openml
 from sklearn.linear_model import LogisticRegression
-from sklearn.datasets import load_iris
+from sklearn.metrics import accuracy_score
 
-iris = load_iris()
-clf = LogisticRegression(max_iter=1000).fit(iris.data, iris.target)
-print(clf.score(iris.data, iris.target))
+X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
+X = X.astype("float32") / 255.0
+y = y.astype("int64")
+
+X_train, X_test = X[:60_000], X[60_000:]
+y_train, y_test = y[:60_000], y[60_000:]
+
+# Multinomial logistic = softmax regression
+clf = LogisticRegression(
+    solver="lbfgs", max_iter=200, n_jobs=-1, random_state=0,
+)
+clf.fit(X_train, y_train)
+acc = accuracy_score(y_test, clf.predict(X_test))
+print(f"MNIST test accuracy (softmax regression): {acc:.4f}")
 ```
 
-Two lines of Python; one model in Julia. Both produce a softmax
-classifier on iris. *What's different* is how the parameters are
-exposed — implicit in `scikit-learn`, explicit in `Lux.jl` — and
-that distinction matters once we start writing loss terms that need
-gradients with respect to the parameters.
+Available as
+[`scripts/mnist_linear_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_linear_sklearn.py){target="_blank"}.
+Runtime: ~30 s on a laptop CPU. Notice that `scikit-learn` itself
+uses **L-BFGS** under the hood for this convex problem — the same
+optimiser we'll use for the fine-tuning stage of every PINN in
+[Units 5–7](../unit_05/unit_05.qmd). Convex losses are why L-BFGS
+converges so cleanly here; in deeper networks the loss surface
+isn't convex and we'll need Adam.
+
+### MNIST softmax regression in `Lux.jl`
+
+The same model, written in `Lux.jl`'s explicit-parameter style:
+
+```{.julia filename="units/unit_02/scripts/mnist_linear_lux.jl"}
+using MLDatasets, Lux, Random, Zygote, Optimisers, Statistics
+
+# data ─────────────────────────────────────────────────────────────────
+train_x, train_y = MLDatasets.MNIST(split = :train)[:]
+test_x,  test_y  = MLDatasets.MNIST(split = :test)[:]
+flatten(x) = reshape(Float32.(x), 28 * 28, size(x, 3)) ./ 255f0
+X_train, X_test = flatten(train_x), flatten(test_x)
+y_train, y_test = Int.(train_y), Int.(test_y)
+
+onehot(k, K = 10) = (e = zeros(Float32, K); e[k + 1] = 1f0; e)
+Y_train = reduce(hcat, onehot.(y_train))
+
+# model: 784 → 10 (single linear layer + softmax) ─────────────────────
+rng = Random.MersenneTwister(0)
+model = Lux.Chain(Lux.Dense(784 => 10), Lux.softmax)
+ps, st = Lux.setup(rng, model)
+
+# cross-entropy loss ───────────────────────────────────────────────────
+function loss_fn(ps, st, X, Y)
+    ŷ, st = model(X, ps, st)
+    -mean(sum(Y .* log.(ŷ .+ 1f-9); dims = 1)), st
+end
+
+# mini-batch SGD (Adam) ────────────────────────────────────────────────
+opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)
+batch     = 128
+nb        = size(X_train, 2) ÷ batch
+for epoch in 1:10
+    perm = randperm(rng, size(X_train, 2))
+    for b in 1:nb
+        idx = perm[(b - 1) * batch + 1 : b * batch]
+        gs  = first(Zygote.gradient(
+                p -> first(loss_fn(p, st, X_train[:, idx], Y_train[:, idx])),
+                ps,
+              ))
+        opt_state, ps = Optimisers.update(opt_state, ps, gs)
+    end
+end
+
+ŷ_test, _ = model(X_test, ps, st)
+preds = vec(map(argmax, eachcol(ŷ_test))) .- 1
+@info "MNIST test accuracy (Lux softmax) = $(round(mean(preds .== y_test); digits = 4))"
+```
+
+This is the *same* skeleton you'll see again in every PINN: define
+the model as a pure function, separate parameters `ps` from
+inference state `st`, build a loss, take gradients with
+`Zygote.gradient`, step with `Optimisers.update`. The only thing
+PINNs add is more loss terms.
+
+The Lux style — parameters as plain arrays, not hidden state —
+matters because `NeuralPDE.jl` ([Unit 5](../unit_05/unit_05.qmd))
+needs to *compose* layers with PDE-residual losses that contain
+derivatives of the network output. Frameworks like `scikit-learn`
+that hide their parameters can't do that composition.
 
 ## 2.4 Feedforward networks
 
@@ -268,6 +385,20 @@ GELU) are the safe default; we use Swish throughout
 
 ## 2.5 Optimisation and autodiff
 
+Training a neural network — or fitting a PINN — comes down to
+**minimising a scalar loss over a large parameter vector $\theta
+\in \mathbb{R}^P$**. The next six subsubsections cover the
+machinery: how gradients of the loss are *computed* (computational
+graph + backprop), the family of first-order methods that *use*
+those gradients (SGD, momentum, Adam), the quasi-Newton method
+that often finishes the job (L-BFGS), the batching choices that
+determine how noisy each gradient estimate is, and finally the
+forward-vs-reverse-mode autodiff distinction that PINNs depend on.
+Most of this material is treated at greater depth in
+[Goodfellow, Bengio & Courville Chapter 8](../references/references.qmd){target="_blank"};
+the goal here is a working understanding sufficient to read PINN
+training code and know which knob to turn when it doesn't converge.
+
 ### Computational graphs and backprop
 
 Every neural-network loss is the output of a finite computation
@@ -282,25 +413,167 @@ intermediate quantities, one backward pass propagates gradients
 using the chain rule. Cost is $O(\text{nodes})$ per gradient — i.e.,
 similar to one forward pass.
 
-### Optimisers: SGD, momentum, Adam, L-BFGS
+### Gradient descent: the geometric core
 
-Given gradients $g_t = \nabla_\theta \mathcal{L}(\theta_t)$, the
-parameter update rules are:
+Given a smooth loss $\mathcal{L}: \mathbb{R}^P \to \mathbb{R}$ and a
+parameter vector $\theta_t$, the gradient
+$g_t = \nabla_\theta \mathcal{L}(\theta_t) \in \mathbb{R}^P$ is the
+direction in which $\mathcal{L}$ *increases fastest*. **Gradient
+descent** takes a small step in the opposite direction:
 
-- **SGD**: $\theta_{t+1} = \theta_t - \eta\, g_t$. Cheap, noisy,
-  the default for large-batch deep learning.
-- **SGD + momentum**: low-pass filter the gradients,
-  $v_{t+1} = \mu v_t + g_t$, then step with $v_{t+1}$. Helps
-  ravines and noisy gradients.
-- **Adam** — adaptive per-parameter step sizes via running estimates
-  of $\mathbb{E}[g]$ and $\mathbb{E}[g^2]$. The robust default for
-  medium-scale deep learning.
-- **L-BFGS** — quasi-Newton, no learning rate to tune; often the
-  *best* choice for the small-batch low-noise regime PINNs inhabit.
+$$
+\theta_{t+1} \;=\; \theta_t \;-\; \eta\, g_t,
+$$ {#eq-gd}
 
-Recipe for PINN training that recurs in [Units 5–7](../unit_05/unit_05.qmd):
-**Adam** for a few thousand iterations to escape bad
-initialisations, then **L-BFGS** for fine-tuning to a tight residual.
+with **learning rate** $\eta > 0$. To first order in $\eta$,
+
+$$
+\mathcal{L}(\theta_{t+1})
+\;\approx\;
+\mathcal{L}(\theta_t) - \eta\, \|g_t\|^2 + O(\eta^2),
+$$
+
+so any positive $\eta$ decreases the loss locally; too large and
+the $O(\eta^2)$ Hessian term wins and the iterate *diverges*. The
+practical learning-rate range for deep networks ($10^{-4}$ to
+$10^{-2}$) is set by this balance — see [Goodfellow, Bengio & Courville 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} §8.3 for
+the convergence analysis.
+
+**Why isn't plain gradient descent enough?** Three failure modes
+that recur throughout deep learning *and* PINN training:
+
+1. **Pathological curvature.** Loss surfaces often have long, thin
+   valleys (the *ravine* problem). $g_t$ points across the valley,
+   not along it. Plain GD zig-zags.
+2. **Bad scaling between parameters.** Different layers have
+   wildly different gradient magnitudes. A single global $\eta$
+   can't be right for all of them at once.
+3. **Stochastic noise** when $g_t$ is estimated from a mini-batch
+   rather than the full dataset (covered below).
+
+Each of momentum, Adam, and L-BFGS is a different fix.
+
+### Stochastic and mini-batch gradient descent
+
+For empirical risk $\mathcal{L}(\theta) = \frac{1}{N}\sum_i \ell_i(\theta)$,
+the **full-batch** gradient sums over all $N$ training examples — exact,
+but expensive when $N \in [10^4, 10^9]$. **Stochastic gradient
+descent (SGD)** replaces the sum with a single random example $i_t$:
+
+$$
+\theta_{t+1} \;=\; \theta_t - \eta \, \nabla_\theta \ell_{i_t}(\theta_t),
+$$
+
+a noisy but unbiased estimator of the true gradient. The middle ground
+is **mini-batch SGD** — sum over a random subset $B \subset \{1, \ldots, N\}$
+of size $|B|$ (typically 32 – 1024):
+
+$$
+\theta_{t+1} \;=\; \theta_t - \frac{\eta}{|B|}\sum_{i \in B}
+                   \nabla_\theta \ell_i(\theta_t).
+$$
+
+The gradient variance falls like $1/|B|$. Three reasons mini-batches
+dominate practice:
+
+- **Computational cost.** A modern GPU/TPU is massively
+  parallel; cost per gradient is roughly constant up to $|B| \sim$
+  hundreds. So a single mini-batch update is nearly as cheap as a
+  single SGD update but with far lower variance.
+- **Gradient noise as a regulariser.** Noisy gradients prevent the
+  iterate from settling into sharp minima; flat minima generalise
+  better empirically. See [Goodfellow et al. 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} §8.1.3.
+- **Memory.** Full-batch gradients on a million-example dataset
+  don't fit on a GPU.
+
+PINNs *invert* this picture: their "dataset" is a few thousand
+collocation points, so **full-batch L-BFGS** is feasible and usually
+wins. But every PINN training loop still uses mini-batches for the
+first phase (Adam), so the vocabulary matters.
+
+### Momentum and Adam
+
+**SGD + momentum** (Polyak 1964; Sutskever et al. 2013) adds inertia:
+
+$$
+\begin{aligned}
+v_{t+1} &= \mu\, v_t + g_t, \\
+\theta_{t+1} &= \theta_t - \eta\, v_{t+1},
+\end{aligned}
+$$
+
+with momentum coefficient $\mu \in [0, 1)$ (typically $0.9$). The
+update $v_t$ is an exponentially-weighted moving average of past
+gradients — it cancels in directions where successive $g_t$
+oscillate (the ravine), and accumulates in directions where they
+agree (the valley floor). For a quadratic loss with condition
+number $\kappa$, momentum reduces the iterations to converge from
+$O(\kappa)$ to $O(\sqrt{\kappa})$ — a square-root speedup.
+
+**Adam** (Kingma & Ba 2015)
+combines momentum with **per-parameter step sizes** based on the
+*magnitude* of recent gradients:
+
+$$
+\begin{aligned}
+m_t &= \beta_1\, m_{t-1} + (1 - \beta_1)\, g_t,
+   &\hat{m}_t &= \frac{m_t}{1 - \beta_1^t}, \\
+v_t &= \beta_2\, v_{t-1} + (1 - \beta_2)\, g_t^2,
+   &\hat{v}_t &= \frac{v_t}{1 - \beta_2^t}, \\
+\theta_{t+1} &= \theta_t - \eta \, \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \varepsilon}.
+\end{aligned}
+$$
+
+Read as: $\hat{m}_t$ is the (bias-corrected) running average of the
+gradient (the "momentum part"), $\hat{v}_t$ is the running average
+of the *squared* gradient component-wise (the "scale part"), and
+the update divides one by the square root of the other so that each
+parameter gets a step size inversely proportional to how loud its
+historical gradient has been. The bias correction
+($/(1 - \beta_1^t)$, $/(1 - \beta_2^t)$) fixes the initial-transient
+underestimate when $m_0 = v_0 = 0$.
+
+Hyperparameter defaults from [Goodfellow et al. 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} §8.5.3 (and what the
+workshop scripts use): $\eta \in [10^{-4}, 10^{-2}]$, $\beta_1 =
+0.9$, $\beta_2 = 0.999$, $\varepsilon = 10^{-8}$. Adam *almost
+always works*; it is the right first move for any neural-network
+training, including the initial phase of every PINN in
+[Units 5–7](../unit_05/unit_05.qmd).
+
+### L-BFGS: quasi-Newton for the small-batch regime
+
+Newton's method takes step $\theta_{t+1} = \theta_t - H_t^{-1} g_t$,
+using the Hessian $H_t = \nabla_\theta^2 \mathcal{L}$. In one step
+on a quadratic loss it lands at the minimum. The catch: $H_t$ is
+$P \times P$ and inverting it costs $O(P^3)$ — infeasible for
+$P \gtrsim 10^4$ parameters.
+
+**BFGS** builds a positive-definite approximation $B_t \approx H_t$
+incrementally from successive gradient differences using a rank-2
+update. **L-BFGS** (Liu & Nocedal 1989) is the
+*limited-memory* variant: store only the last $m$ pairs of $(s_k,
+y_k) = (\theta_{k+1} - \theta_k, \, g_{k+1} - g_k)$ and reconstruct
+$B_t^{-1} g_t$ implicitly in $O(mP)$ time. Default $m = 10$ — so
+L-BFGS uses ~$10 P$ memory and ~$10 P$ work per step. Crucially:
+
+- **No learning rate to tune.** L-BFGS does an internal Wolfe line
+  search.
+- **Quadratic convergence near the minimum.** Once close, it
+  finishes in a handful of steps.
+- **Needs an accurate gradient.** L-BFGS *assumes* the gradient is
+  deterministic — feed it a noisy mini-batch gradient and the
+  Wolfe conditions break.
+
+This is exactly the regime PINNs land in: a few thousand
+collocation points (small enough to take the full-batch gradient
+on every step), a non-convex but locally well-conditioned loss
+after Adam has done the rough work. The recipe across
+[Units 5–7](../unit_05/unit_05.qmd) is therefore:
+
+> **Adam** for a few thousand iterations (escape bad
+> initialisations under mini-batch noise) → **L-BFGS** for
+> a few hundred iterations (drive the residual to convergence with
+> exact gradients).
 
 ### Forward vs reverse mode (why PINNs need both)
 
@@ -328,14 +601,16 @@ that stack.
 
 ## 2.6 Training a model in practice
 
-A small iris classifier shows the full forward + loss + autodiff +
-optimiser loop end-to-end — same dataset as the random forest in
-§2.2 but with a deep model, so the comparison stays apples-to-apples.
-The Lux version runs as a sidecar (`./build.sh execute 2`); the
-PyTorch and `scikit-learn` blocks below are static, for the
-cross-ecosystem comparison.
+The previous sections set up everything we need — a function class
+(MLP), an autodiff engine, an optimiser, and a dataset (MNIST) with
+two known baselines (random forest ~97%, softmax regression ~92%).
+Now we close the gap with an actual MLP, written *three* times so
+the cross-ecosystem mechanics are explicit. The Julia (`Lux.jl`)
+version doubles as the iris sidecar that already runs under
+`./build.sh execute 2`; the MNIST PyTorch and `scikit-learn`
+parallels are static, for the cross-ecosystem comparison.
 
-### `Lux.jl` MLP on iris
+### `Lux.jl` MLP on iris (the runnable sidecar)
 
 ```{.julia filename="units/unit_02/scripts/iris_lux.jl" code-fold="true" code-summary="Show the Julia source"}
 {{< include scripts/iris_lux.jl >}}
@@ -345,55 +620,100 @@ Captured output (after `./build.sh execute 2`):
 
 {{< include output/iris_lux.md >}}
 
-### `scikit-learn` parallel
+The next two parallels swap iris for MNIST so the depth-vs-baseline
+comparison from §2.2–§2.3 closes.
 
-The same MLP architecture in `scikit-learn`'s `MLPClassifier`:
+### `scikit-learn` MLP on MNIST
 
-```{.python}
-from sklearn.datasets import load_iris
+The same architecture in `scikit-learn`'s `MLPClassifier`. Expect
+**~98% test accuracy** — comfortably beating the softmax baseline,
+edging out the random forest:
+
+```{.python filename="units/unit_02/scripts/mnist_mlp_sklearn.py"}
+from sklearn.datasets import fetch_openml
 from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import cross_val_score
+from sklearn.metrics import accuracy_score
 
-X, y = load_iris(return_X_y=True)
+X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
+X = X.astype("float32") / 255.0
+y = y.astype("int64")
+X_train, X_test = X[:60_000], X[60_000:]
+y_train, y_test = y[:60_000], y[60_000:]
+
 clf = MLPClassifier(
-    hidden_layer_sizes=(16,), activation="tanh",
-    solver="adam", max_iter=2000, random_state=123,
+    hidden_layer_sizes=(256, 128), activation="relu",
+    solver="adam", batch_size=128, max_iter=20, random_state=0,
 )
-print(cross_val_score(clf, X, y, cv=5, scoring="accuracy").mean())
+clf.fit(X_train, y_train)
+print(f"MNIST test accuracy (sklearn MLP): "
+      f"{accuracy_score(y_test, clf.predict(X_test)):.4f}")
 ```
 
-### `PyTorch` parallel
+### `PyTorch` MLP on MNIST
 
-And the same model with explicit autodiff in `PyTorch`:
+The same model with explicit autodiff and an explicit training
+loop. This is the PyTorch idiom you'll see everywhere in the deep
+learning book:
 
-```{.python}
+```{.python filename="units/unit_02/scripts/mnist_mlp_pytorch.py"}
+# pip install torch torchvision
 import torch, torch.nn as nn
-from sklearn.datasets import load_iris
-import numpy as np
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
-X, y = load_iris(return_X_y=True)
-X = torch.tensor(X, dtype=torch.float32)
-y = torch.tensor(y, dtype=torch.long)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+tf  = transforms.Compose([transforms.ToTensor(), transforms.Lambda(torch.flatten)])
+tr  = datasets.MNIST("~/torch-data", train=True,  download=True, transform=tf)
+te  = datasets.MNIST("~/torch-data", train=False, download=True, transform=tf)
+tl  = DataLoader(tr, batch_size=128, shuffle=True)
+vl  = DataLoader(te, batch_size=512)
 
-model = nn.Sequential(nn.Linear(4, 16), nn.Tanh(), nn.Linear(16, 3))
-opt   = torch.optim.Adam(model.parameters(), lr=1e-2)
+model = nn.Sequential(
+    nn.Linear(784, 256), nn.ReLU(),
+    nn.Linear(256, 128), nn.ReLU(),
+    nn.Linear(128, 10),
+).to(device)
+opt   = torch.optim.Adam(model.parameters(), lr=1e-3)
 loss  = nn.CrossEntropyLoss()
 
-for epoch in range(500):
-    opt.zero_grad()
-    L = loss(model(X), y)
-    L.backward()
-    opt.step()
+for epoch in range(10):                 # mini-batch SGD with Adam
+    model.train()
+    for X, y in tl:
+        X, y = X.to(device), y.to(device)
+        opt.zero_grad()
+        loss(model(X), y).backward()    # backprop
+        opt.step()
 
-preds = model(X).argmax(dim=1)
-print(f"accuracy = {(preds == y).float().mean():.3f}")
+    # eval
+    model.eval()
+    correct = total = 0
+    with torch.no_grad():
+        for X, y in vl:
+            X, y = X.to(device), y.to(device)
+            pred = model(X).argmax(dim=1)
+            correct += (pred == y).sum().item()
+            total   += y.size(0)
+    print(f"epoch {epoch:2d}  test acc = {correct / total:.4f}")
 ```
 
-All three follow the same skeleton — load data, define model, set
-optimiser, loop minibatches, compute loss, step. The Julia version
-makes the parameter state explicit; PyTorch and `scikit-learn` hide
-it. The only meaningful differences are surface-level. Pick by
-ecosystem.
+The structural beats — `model.train()` / `model.eval()` mode,
+`opt.zero_grad()` to clear accumulated gradients, the inner
+`loss.backward(); opt.step()` two-liner — are PyTorch idiom you'll
+see in every textbook and tutorial. *Functionally* it's the same
+training loop as `mnist_linear_lux.jl` above. The only ecosystem
+difference is whether parameters live on the model object (PyTorch)
+or in a separate `ps` tuple (Lux).
+
+Run it via
+[`scripts/mnist_mlp_pytorch.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_mlp_pytorch.py){target="_blank"}
+after installing torch + torchvision; expect ~30 s/epoch on a
+modern laptop CPU, much less on GPU.
+
+All three implementations follow the same skeleton — load data,
+define model, set optimiser, loop minibatches, compute loss,
+step. The Julia version makes the parameter state explicit;
+PyTorch and `scikit-learn` hide it. The only meaningful differences
+are surface-level. Pick by ecosystem.
 
 ### Regularisation, batch norm, dropout
 
@@ -415,7 +735,125 @@ terms* in the loss rather than weight penalties or dropout — the
 PDE residual itself is a powerful regulariser, as we'll see from
 [Unit 5](../unit_05/unit_05.qmd) onward.
 
-## 2.7 What carries over to PINNs
+## 2.7 Kolmogorov-Arnold networks (KANs)
+
+A recent alternative to the MLP that's been picking up traction in
+the PINN community: **Kolmogorov-Arnold networks**
+([Liu et al. 2024](https://arxiv.org/abs/2404.19756){target="_blank"}).
+Where an MLP puts a fixed activation $\sigma$ at every node and
+learns the *weights* on the edges, a KAN puts a *learnable*
+univariate function (a B-spline) on every edge and just *sums* them
+at the nodes:
+
+$$
+\underbrace{f_{\text{MLP}}(x) = W_2\, \sigma(W_1 x + b_1) + b_2}_{\text{fixed }\sigma\text{, learnable }W}
+\qquad\text{vs.}\qquad
+\underbrace{f_{\text{KAN}}(x)_q = \sum_p \phi_{q, p}^{(2)}\!\Bigl(\sum_r \phi_{p, r}^{(1)}(x_r)\Bigr)}_{\text{learnable univariate }\phi\text{ on every edge}}.
+$$
+
+The motivation is the **Kolmogorov-Arnold superposition theorem**
+(1957): any continuous multivariate function on a compact domain
+can be written as a finite sum of single-variable functions of
+single-variable functions — the same universal-approximation
+spirit as MLPs but with a structurally different parameterisation.
+In practice KANs trade fewer parameters for more interpretability
+(you can plot every edge's learned $\phi$) at the cost of a more
+expensive forward pass.
+
+For PINNs the appeal is that learnable univariate splines often
+need many fewer collocation points to capture sharp features in
+the PDE solution. Some preliminary results
+([KAN-PINN](https://arxiv.org/abs/2406.02496){target="_blank"})
+suggest KANs can outperform MLPs on stiff or oscillatory PDEs —
+this is an active research front.
+
+### KAN in Python (`pykan`)
+
+The reference implementation. A 2-layer KAN approximating
+$f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$ — a Liu et al. demo:
+
+```{.python filename="units/unit_02/scripts/kan_pykan.py"}
+# pip install pykan
+import torch
+from kan import KAN, create_dataset
+
+# build dataset for f(x1, x2) = exp(sin(pi x1) + x2^2)
+f = lambda x: torch.exp(torch.sin(torch.pi * x[:, [0]]) + x[:, [1]]**2)
+dataset = create_dataset(f, n_var=2, train_num=1000, test_num=1000)
+
+# KAN with grid=5 B-spline knots, k=3 cubic splines, shape 2→5→1
+model = KAN(width=[2, 5, 1], grid=5, k=3, seed=0)
+model.fit(dataset, opt="LBFGS", steps=50, lamb=0.0)
+
+print(f"test loss = {torch.mean((model(dataset['test_input']) - dataset['test_label'])**2).item():.3e}")
+```
+
+Available as
+[`scripts/kan_pykan.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/kan_pykan.py){target="_blank"}.
+Requires `pip install pykan` (which pulls in torch). Notice the
+default training optimiser is **L-BFGS** — exactly the small-batch
+regime we just discussed.
+
+### KAN in Julia (`KolmogorovArnold.jl`)
+
+The Julia ecosystem has a compatible-spirit implementation in
+[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}.
+The same toy problem:
+
+```{.julia filename="units/unit_02/scripts/kan_julia.jl"}
+# Pkg.add("KolmogorovArnold")
+using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
+
+rng = Random.MersenneTwister(0)
+
+# data ─────────────────────────────────────────────────────────────────
+n = 1000
+X = 2f0 .* rand(rng, Float32, 2, n) .- 1f0
+y = reshape(exp.(sinpi.(X[1, :]) .+ X[2, :].^2), 1, n)
+
+# KAN: 2 → 5 → 1, B-spline basis ──────────────────────────────────────
+model = Lux.Chain(
+    KDense(2 => 5; basis_func = rbf,    normalizer = softsign),
+    KDense(5 => 1; basis_func = rbf,    normalizer = softsign),
+)
+ps, st = Lux.setup(rng, model)
+
+loss(ps, st) = mean(abs2, first(model(X, ps, st)) .- y)
+opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)
+for k in 1:2000
+    gs = first(Zygote.gradient(p -> loss(p, st), ps))
+    opt_state, ps = Optimisers.update(opt_state, ps, gs)
+end
+@info "test MSE = $(loss(ps, st))"
+```
+
+*Setup note.* `KolmogorovArnold.jl` is not in the workshop
+`Project.toml`; add it once with `Pkg.add("KolmogorovArnold")`.
+The package uses **radial basis functions** as the per-edge basis
+instead of B-splines — a near-equivalent parameterisation with
+better Julia ergonomics.
+
+### When to reach for a KAN
+
+The honest answer in mid-2026: rarely yet, but worth knowing.
+
+- **Where they shine.** Low-dimensional problems where
+  interpretability matters; PDE solutions with sharp features that
+  an MLP would need many neurons to capture; symbolic-regression
+  applications.
+- **Where they don't.** High-dimensional image-style inputs
+  (CNNs / transformers still dominate); production deep learning
+  (the MLP-Adam-cross-entropy stack is still vastly more debugged).
+- **For PINNs specifically.** A reasonable experimental swap-in
+  for the inner MLP of a PINN — `NeuralPDE.jl` accepts any `Lux`
+  chain, so the substitution is a one-liner. Whether KANs
+  meaningfully improve PINN convergence is still being worked out.
+
+We won't return to KANs in the worked examples — Units 5–9 stick
+with MLP-PINNs — but they belong in the working vocabulary of any
+practitioner reading the 2024–26 PINN literature.
+
+## 2.8 What carries over to PINNs
 
 Three ideas from this unit survive the journey to physics-informed
 networks:

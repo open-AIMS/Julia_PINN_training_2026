@@ -91,6 +91,19 @@ equations. Forces the workshop to take the "modern fixes" of §7.3
 seriously rather than presenting them as nice-to-haves.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
 :::
 
+::: {#ref-goodfellow2016}
+**Goodfellow, I., Bengio, Y., & Courville, A.** (2016).
+*Deep Learning.* MIT Press.
+Free HTML edition at
+[deeplearningbook.org](https://www.deeplearningbook.org/).
+
+[The "deep learning book". Chapters 5–6 motivate softmax / linear
+baselines on MNIST; Chapter 8 covers SGD, momentum, Adam, L-BFGS
+and the convergence analysis Unit 2.5 leans on; Chapter 7 is the
+canonical reference for regularisation, dropout, batch
+norm.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
 ::: {#ref-greydanus2019}
 **Greydanus, S., Dzamba, M., & Yosinski, J.** (2019).
 *Hamiltonian Neural Networks.*
