@@ -122,178 +122,103 @@ res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 
 ## 7.2 Why Naïve PINNs Fail
 
-### The de Wolff benchmark suite
+"Vanilla" PINN training — one global loss weight, smooth-MLP
+ansatz, soft BC enforcement, simultaneous residual evaluation
+across the whole space-time domain — works on the textbook
+examples of §7.1 and breaks on most realistic problems. The
+*characterisation* of why is by now well understood; the dominant
+references are
+[Krishnapriyan et al. 2021](../references/references.qmd#ref-krishnapriyan2021){target="_blank"}
+("Characterizing possible failure modes in PINNs"),
+[Wang et al. 2022](../references/references.qmd#ref-wang2022causal){target="_blank"}
+on causality, and the NTK-based diagnostics of
+[Wang et al. 2021](../references/references.qmd#ref-wang2021ntk){target="_blank"}.
+They converge on three intertwined failure modes, covered below in
+order of how often they hit you in practice: **loss imbalance**,
+**spectral bias**, **causal violation**. The benchmark survey of
+[de Wolff et al. 2021](../references/references.qmd#ref-dewolff2021){target="_blank"}
+adds a useful reproducibility study — same failures, on
+shallow-water and advection–diffusion — but it isn't the
+foundational reference; the failure modes themselves were
+identified earlier and more cleanly elsewhere.
 
-Before we reproduce the SWE failure we lay out the three model
-problems
-[de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
-benchmarked. Each lives on a 2-D rectangle
-$\Omega \subseteq \mathbb{R}^2$ with time $t \in \mathbb{R}_0^+$,
-and each becomes a physics residual $f_{\cdot}[\,\ldots\,] = 0$
-that the PINN must drive to zero alongside the data term.
+### Loss imbalance between residual and boundary terms
 
-#### (i) Wave equation — §3.1, eq. (1)
-
-The most familiar hyperbolic problem in the paper:
-
-$$
-\frac{\partial^2 \eta}{\partial t^2} \;-\; \nabla\!\cdot\!\bigl(H\,\nabla \eta\bigr)
-\;=\; 0 \qquad (\text{eq. 1 of de Wolff})
-$$
-
-- $\eta(x, y, t)$ — superficial fluctuations of the water surface
-  (a scalar field).
-- $H(x, y) = (1 - x)\bigl(2 - \sin(3\pi y)\bigr)$ — the *prescribed*
-  spatially varying depth, a sloped channel chosen by the paper to
-  give a non-trivial wave-speed map.
-
-Domain $\Omega = \,]0, 1[\,\times\,]0, 1.5[$, horizon $T_f = 1$,
-$n = 100$ time steps. Boundary and initial conditions
-(de Wolff §4.1):
+The total loss
 
 $$
-\eta = 0 \text{ on } \partial\Omega\times\,]0, T_f[, \qquad
-\eta(x, y, 0) = \exp\!\bigl(-10\,((x-0.5)^2 + (y-0.75)^2)\bigr),\quad
-\eta_t(x, y, 0) = 0.
+\mathcal{L} \;=\; \lambda_r\,\mathcal{L}_{\text{PDE}}
+              + \lambda_b\,\mathcal{L}_{\text{BC}}
+              + \lambda_i\,\mathcal{L}_{\text{IC}}
+              + \lambda_d\,\mathcal{L}_{\text{data}}
 $$
 
-The physics residual is $f_{\text{waves}}[\eta, H] \equiv \eta_{tt}
-- \nabla\!\cdot\!(H\nabla \eta) = 0$. Of the three problems, this
-is the one PINNs handle best — the dispersion is mild, the depth
-profile is fixed (not coupled), and the initial bump is smooth.
+is a sum of terms whose magnitudes can differ by orders of
+magnitude — easily $10^3$ in problems with sharp ICs or stiff
+BCs. The optimiser drives the largest term to zero first; if
+that's a term you don't care about, the others stagnate. The
+classic failure: $\mathcal{L}_{\text{PDE}}$ hits machine precision
+but the BC is still off by $10^{-1}$, producing a function that
+satisfies the equation in the interior but ignores the boundary.
+Krishnapriyan et al. show this is the *generic* outcome for
+PINNs on convection-dominated and high-frequency problems.
 
-#### (ii) Shallow water equations — §3.2, eqs. (3)–(5)
+### Spectral bias
 
-The standard 2-D shallow-water system *in full*, with horizontal
-scale much larger than vertical, negligible bottom friction (other
-than the explicit $b$ term), constant water pressure, and
-incompressibility:
+Smooth-activation MLPs are biased toward learning **low-frequency**
+components first
+([Rahaman et al. 2019](../references/references.qmd#ref-rahaman2019){target="_blank"};
+[Tancik et al. 2020](../references/references.qmd#ref-tancik2020){target="_blank"}).
+High-frequency features — sharp ICs, oscillatory solutions, fine
+spatial structure — take many more iterations or never converge.
+The §6.2 Fourier-mode analysis says exactly why: each Fourier
+mode has its own loss-landscape curvature; the high-$k$ modes are
+poorly conditioned and Adam barely moves their parameters.
 
-$$
-\frac{\partial \eta}{\partial t}
-+ \frac{\partial}{\partial x}\bigl((H+\eta)\,u\bigr)
-+ \frac{\partial}{\partial y}\bigl((H+\eta)\,v\bigr) \;=\; 0 \qquad (3)
-$$
+This is the same effect that makes diffusion solvers smooth fast
+data (every Fourier component decays at rate $\propto k^2$) — the
+PINN inherits the bias from its parameterisation, not from the
+physics. The fix (Fourier feature embeddings, §7.3) is also
+Fourier-shaped.
 
-$$
-\frac{\partial u}{\partial t}
-+ u\,\frac{\partial u}{\partial x}
-+ v\,\frac{\partial u}{\partial y}
-- f\,v
-\;=\; -g\,\frac{\partial \eta}{\partial x} - b\,u
-       - \nu\!\left(\frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2}\right) \qquad (4)
-$$
+### Causal violation in time-dependent problems
 
-$$
-\frac{\partial v}{\partial t}
-+ u\,\frac{\partial v}{\partial x}
-+ v\,\frac{\partial v}{\partial y}
-+ f\,u
-\;=\; -g\,\frac{\partial \eta}{\partial y} - b\,v
-       - \nu\!\left(\frac{\partial^2 v}{\partial x^2} + \frac{\partial^2 v}{\partial y^2}\right) \qquad (5)
-$$
+The PDE residual is evaluated at all $(\mathbf{x}_i, t_i)$
+collocation points simultaneously. *Nothing in the loss* requires
+that the solution at $t_2$ be a *consequence* of the solution at
+$t_1 < t_2$. The optimiser can find a globally inconsistent
+solution whose residual is small everywhere but whose
+time-direction information flow is wrong — invisible to the loss
+but obvious in the predicted trajectory.
 
-- $u(x, y, t),\ v(x, y, t)$ — height-averaged horizontal velocities
-  in the $x$ and $y$ directions.
-- $\eta(x, y, t)$ — surface elevation above the mean depth $H$.
-- $g$ — gravitational acceleration ($9.81\,\text{m/s}^2$).
-- $f$ — Coriolis coefficient (latitude-dependent).
-- $b$ — linear viscous drag coefficient.
-- $\nu$ — kinematic viscosity.
+[Wang et al. 2022](../references/references.qmd#ref-wang2022causal){target="_blank"}
+gave the clean diagnostic — residual histograms vs $t$ that don't
+decrease with training time — and the matching fix (causal
+training, §7.3). It's the failure mode that most often bites
+real-world inverse problems, including the Unit 1 shallow-water
+source-recovery example.
 
-(3) is mass conservation; (4)–(5) are the horizontal momentum
-balance with Coriolis, pressure gradient, drag, and viscous terms.
-The advective $u\,u_x + v\,u_y$ pieces are what make the system
-*nonlinear*.
+### A benchmark catalogue worth knowing about
 
-**Linearised reduction** — drop Coriolis, advective, and friction
-terms (de Wolff eq. 6–7):
+For a head-to-head comparison of vanilla PINNs against three
+non-trivial PDEs — a variable-depth wave equation, the 2-D
+linearised shallow-water system with Coriolis and viscosity, and
+SWE-driven advection–diffusion of a thermal anomaly —
+[de Wolff et al. 2021](../references/references.qmd#ref-dewolff2021){target="_blank"}
+is a useful reference. Their headline finding (vanilla PINN
+underperforms a pure-data MLP on all three) is consistent with the
+failure modes above; it's a *negative reproducibility* result, not
+a new diagnosis. We reproduce the cleanest case — the 1-D
+reduction of their linearised SWE — below to make the failure
+concretely visible before we discuss fixes.
 
-$$
-\frac{\partial \eta}{\partial t} + \nabla\!\cdot\!(H\,\mathbf{u}) \;=\; 0,
-\qquad
-\frac{\partial \mathbf{u}}{\partial t} + g\,\nabla \eta \;=\; \boldsymbol{\psi}, \qquad (6\text{–}7)
-$$
+### Worked example: naïve linearised shallow water
 
-with $\mathbf{u} = (u, v)$ and $\boldsymbol{\psi} \in \mathbb{R}^2$
-the atmospheric pressure / wind-stress forcing (de Wolff sets
-$\boldsymbol{\psi} = \mathbf{0}$). This linearisation makes the SWE
-look structurally like the wave equation — and it is the system the
-worked example below actually trains a PINN on.
-
-Parameters and conditions (de Wolff §4.2): $g = 9.81\,\text{m/s}^2$,
-$H = 10\,\text{m}$. Dirichlet BC $\mathbf{u} = \mathbf{0}$ on
-$\partial \Omega \times [0, T]$ and IC
-
-$$
-\eta(x, y, 0) = 10\,\exp\!\bigl(-(x-0.5)^2 - (y-0.75)^2\bigr),
-\quad \eta_t(x, y, 0) = 0, \quad \mathbf{U}(x, y, 0) = \mathbf{0}.
-$$
-
-Horizon $T_f = 1$, $n = 500$. The physics residual is the
-three-component
-$\mathbf{f}_{\text{SW}}[u, v, \eta] = (f_{\text{SW}}^1,
-f_{\text{SW}}^2, f_{\text{SW}}^3)$ collecting the LHS of (6)–(7).
-
-#### (iii) Advection–diffusion — §3.3, eq. (9)
-
-Heat transport with constant diffusivity, no sources or sinks, and
-temperature depending only on $(x, y, t)$:
-
-$$
-\frac{\partial T}{\partial t} \;=\; D\,\nabla^2 T \;-\; \mathbf{u}\cdot\nabla T
-\qquad (9)
-$$
-
-- $T(x, y, t)$ — temperature in K (or °C).
-- $D$ — thermal diffusivity, fixed at $0.1\,\text{m}^2/\text{s}$ in
-  the paper.
-- $\mathbf{u}(x, y, t)$ — the velocity field, *taken from the SWE
-  solve above*. The SWE drives the temperature passively.
-
-Mixed BCs and a hot-bump IC (de Wolff §4.3):
-
-$$
-T = 0 \text{ on } \{0, L_x\}\times[0, L_y], \quad
-\partial_n T = 0 \text{ on } [0, L_x]\times\{0, L_y\},
-$$
-
-$$
-T(x, y, 0) = 15 + 45\,\exp\!\bigl(-(x-0.5)^2 - (y-0.75)^2\bigr).
-$$
-
-A Gaussian thermal anomaly centred at $(0.5, 0.75)$ on top of a
-$15\,°\mathrm{C}$ background, transported and diffused by the SWE
-flow. The physics residual is $f_{\text{AD}}[u, v, T] \equiv
-T_t - D \nabla^2 T + \mathbf{u}\!\cdot\!\nabla T = 0$.
-
-#### Putting it together
-
-The PINN loss is the sum of a data term and one or more physics
-terms,
-
-$$
-\mathcal{L} \;=\; \mathcal{L}_{\text{data}} + w\,\mathcal{L}_{\text{physics}}
-\;=\; \sum_i (y_i - \hat y_i)^2 + w \sum_i f_i^2,
-$$
-
-with the physics weight $w$ tying the two. The paper's negative
-result is that, for these three problems with their published
-solvers, *vanilla* PINNs (one $w$, no Fourier features, no causal
-weights, no hard BC) train worse than a pure-data MLP using the
-same FEM-simulated training set. §§7.3 unpacks why and how the
-modern fixes close the gap. The next subsection reproduces the
-linearised-SWE case as the cleanest of the three failures to
-inspect.
-
-### Worked Example: Naïve Shallow Water (After de Wolff et al.)
-
-We focus on the 1-D reduction of the linearised SWE (drop the
-$y$-dependence in (6)–(7)) so the example trains in seconds; the
-2-D failure has the same flavour.
-[de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
-reported a *negative* result: vanilla PINN underperformed a pure
-data-driven NN. We reproduce the failure to motivate the fixes in §7.3.
+A 1-D reduction of the linearised SWE
+($\eta_t + H u_x = 0,\;u_t + g\eta_x = 0$ on $[0, 2]\times[0,
+0.05]$) trains in seconds and exhibits all three failure modes
+above. The same example in 2-D has the same flavour, just
+slower:
 
 ```{julia}
 #| eval: false
@@ -333,36 +258,12 @@ prob = discretize(pde_system, discretization)
 res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
-### Loss Imbalance Between Residual and Boundary Terms
-
-The total loss
-$\mathcal{L} = \lambda_r\,\mathcal{L}_{\text{PDE}}
-+ \lambda_b\,\mathcal{L}_{\text{BC}} + \lambda_i\,\mathcal{L}_{\text{IC}}$
-is a sum of terms whose magnitudes can differ by orders of magnitude.
-The optimiser drives the largest term to zero first; if that's a
-term you don't care about, the others stagnate. The classic failure
-mode: $\mathcal{L}_{\text{PDE}}$ is small but the BC is way off,
-producing a function that satisfies the equation in the interior
-but ignores the boundary.
-
-### Spectral Bias
-
-Standard MLPs with smooth activations are biased toward learning
-**low-frequency** components first ([Rahaman et al., 2019](../references/references.qmd#ref-rahaman2019){target="_blank"}; [Tancik et al., 2020](../references/references.qmd#ref-tancik2020){target="_blank"}). High-frequency features — sharp initial conditions,
-oscillatory solutions, fine spatial structure — take many more
-iterations or never converge. For PINNs this means a Gaussian
-initial bump might smooth too fast, or a wavy solution might miss
-the right wavelength entirely.
-
-### Causal Violation in Time-Dependent Problems
-
-For time-dependent problems, the PDE residual is evaluated at all
-$(\mathbf{x}_i, t_i)$ collocation points simultaneously. *Nothing
-in the loss* requires that the solution at $t_2$ be a *consequence*
-of the solution at $t_1 < t_2$. The optimiser can find a globally
-inconsistent solution whose residual is small everywhere but whose
-time-direction information flow is wrong — invisible to the loss
-but obvious in the prediction.
+Train this and you'll see all three pathologies above: the BC at
+$x = 0, 2$ never tightens because $\mathcal{L}_{\text{PDE}}$
+dominates the loss budget; the initial Gaussian bump oversmooths
+because of spectral bias; the predicted $\eta(x, t)$ at late times
+doesn't propagate the IC correctly because of causal violation.
+This is the **target failure** that §7.3 dismantles.
 
 ## 7.3 Modern Fixes
 
@@ -415,4 +316,141 @@ stay roughly balanced. Three families of approaches:
   weight to others.
 
 All beat hand-tuning. With these, the modern PINN is ready for the
-[capstone](../unit_08/unit_08.qmd).
+problems §7.4 catalogues.
+
+## 7.4 A taxonomy of PINN workflows
+
+"A PINN" isn't a single recipe — it's a family of training
+configurations differentiated by *which loss terms are present*
+and *what the network represents*. Four workflows account for
+almost everything in the published literature:
+
+### Workflow 1 — Forward solve (replace the numerical solver)
+
+**Setup.** Given a PDE + IC + BC, train $u_\theta(\mathbf{x}, t)$
+to satisfy them. Loss = $\mathcal{L}_{\text{PDE}}
++ \mathcal{L}_{\text{IC}} + \mathcal{L}_{\text{BC}}$. No data
+term.
+
+**When to reach for it.** Smooth PDEs in low dimension where you
+want a mesh-free solution, a continuous-resolution surrogate
+(query at any $(\mathbf{x}, t)$ without re-meshing), or
+differentiability of the solution with respect to inputs (for
+downstream optimisation).
+
+**When *not* to.** Most production solves where you already have
+a working FD/FV/FEM code. A PINN forward solve is rarely faster
+or more accurate than a well-tuned classical solver on its own
+mesh.
+
+### Workflow 2 — Parameter identification (inverse problem, scalar parameters)
+
+**Setup.** Same loss as Workflow 1 plus
+$\mathcal{L}_{\text{data}}$ matching observed
+$u(\mathbf{x}_i, t_i)$ samples, and *the equation contains
+unknown scalar parameters* $\boldsymbol{\xi}$ to be optimised
+jointly with $\theta$.
+
+**Canonical example.** Recover a diffusion coefficient $\alpha$
+in $u_t = \alpha\, u_{xx}$ from sparse measurements.
+
+**When to reach for it.** Parameter calibration when the
+parametric form is known and you have at least order-of-magnitude
+informative data. Beats classical inverse approaches when the
+forward map is hard to make adjoint-differentiable.
+
+### Workflow 3 — Source / driver recovery (functional inverse)
+
+**Setup.** As above, but the unknown is a *function* — a
+boundary-condition timeseries ψ(t), a spatially varying source
+$f(\mathbf{x})$, a closure law $g(\mathbf{u})$. Parameterise the
+unknown with a small auxiliary network or directly read it off
+the main network's value at a designated coordinate.
+
+**Canonical example.** The Unit 1 source-recovery problem:
+recover the unknown river-mouth ψ(t) given bay gauge
+observations. The capstone in
+[Unit 9](../unit_09/unit_09.qmd) is the same shape on a different
+geometry.
+
+**When to reach for it.** Almost any field-science inverse where
+the missing piece isn't a number but a shape. Classical adjoint
+methods can do this too (and often more reliably — see Unit 1's
+worked example), but PINNs are simpler to set up and don't need
+an existing adjoint code.
+
+### Workflow 4 — Data assimilation / hybrid simulator
+
+**Setup.** Combine a known PDE residual, sparse observations, and
+a learned closure / forcing term in one loss. This is the
+**Universal Differential Equation** picture of
+[Unit 4 §4.3](../unit_04/unit_04.qmd) lifted to PDEs. The network
+represents the unknown closure, not the full solution.
+
+**Canonical example.** Sub-grid turbulence closures in climate
+models; reaction-rate corrections in chemistry; bottom-friction
+laws in shallow-water models calibrated to gauge data.
+
+**When to reach for it.** Whenever you have trustworthy physics
+*and* observations *and* a known gap between them. This is the
+biggest growth area in scientific ML and the most defensible
+choice for production work because the learned piece is small,
+local, and interpretable.
+
+## 7.5 The inverse problem in practice
+
+Workflows 2 and 3 above are *the* operational reason to use
+PINNs in field science. They also fail in characteristic ways
+worth flagging.
+
+### When it works
+
+- **Reasonably dense observations.** The Unit 1 example uses 4
+  gauges over 6 hours, ~120 samples each — enough to identify a
+  smooth ψ(t).
+- **Well-posed forward physics.** If the forward map is invertible
+  *in principle* (i.e., the data determines the unknown up to a
+  small null space), regularisation gets you the rest of the way.
+- **Smooth unknowns.** Smooth ψ(t) / smooth source field; smooth-MLP
+  ansatz is well-matched.
+- **Modern fixes applied.** Causal training, Fourier features,
+  hard BC, adaptive weights — pre-§7.3 PINNs lose to classical
+  adjoint methods on most realistic inverse problems.
+
+### When it doesn't
+
+- **Severe ill-posedness.** Many possible unknowns produce
+  near-identical observations; no amount of data fixes this.
+  Tikhonov / Bayesian regularisation is required. The Unit 1
+  comparison ("naïve PINN fits the gauges but misses the source
+  amplitude") is exactly this story.
+- **Discontinuous unknowns** (step changes, shocks). Smooth-MLP
+  PINNs round them off. KANs ([Unit 2 §2.7](../unit_02/unit_02.qmd))
+  or spectral basis ansätze are alternatives worth trying.
+- **Very noisy data.** Without a noise model in the loss, PINNs
+  overfit observation noise. Adding a Gaussian-likelihood
+  $\mathcal{L}_{\text{data}}$ helps but isn't free.
+
+### A practical recipe
+
+For inverse problems of Workflow 2 or 3 flavour:
+
+1. **Start with the classical solution if you have one.** Adjoint
+   inversion or Tikhonov-regularised LSQ — these are battle-tested
+   on linear forward maps. Use them as the reference.
+2. **Set up the PINN forward problem first** (Workflow 1) and
+   verify it converges on a representative parameter set.
+3. **Add the data term gradually** — start with the data weight at
+   $10^{-2}\times$ the residual weight, then ramp it up. (Adaptive
+   weighting from §7.3 makes this automatic.)
+4. **Diagnose with residual histograms.** A PINN whose residual
+   doesn't decrease uniformly in $t$ is causality-violating; fix
+   that before believing the recovered source.
+5. **Sanity-check on a known truth.** Generate synthetic data
+   from a known ψ; recover it; ensure the recovered shape and
+   amplitude are within tolerance. Only then turn it loose on
+   real data.
+
+With those in hand, the modern PINN is ready for the
+[capstone](../unit_08/unit_08.qmd). [Unit 9](../unit_09/unit_09.qmd)
+walks Workflow 3 end-to-end on the AIMS thermistor column.
