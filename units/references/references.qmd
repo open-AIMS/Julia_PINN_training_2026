@@ -230,6 +230,117 @@ too-fast" failure flagged in Unit 5.5 and the motivation for Fourier
 features in Unit 7.3.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
 :::
 
+::: {#ref-raissi2020hfm}
+**Raissi, M., Yazdani, A., & Karniadakis, G. E.** (2020).
+*Hidden fluid mechanics: Learning velocity and pressure fields from
+flow visualizations.* **Science** 367(6481): 1026–1030.
+[doi:10.1126/science.aaw4741](https://www.science.org/doi/10.1126/science.aaw4741)
+
+[The flagship PINN application paper. Recovers full velocity +
+pressure fields of incompressible Navier-Stokes from
+*concentration imaging alone* (dye, smoke, MRI contrast). Demoed
+on a 3-D intracranial aneurysm and a 2-D cylinder wake. The
+go-to citation when justifying PINNs for inverse problems where
+the unknown is a field rather than a parameter.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-kissas2020}
+**Kissas, G., Yang, Y., Hwuang, E., Witschey, W. R., Detre, J. A.,
+& Perdikaris, P.** (2020). *Machine learning in cardiovascular flows
+modeling: Predicting arterial blood pressure from non-invasive 4D
+flow MRI data using physics-informed neural networks.*
+**Computer Methods in Applied Mechanics and Engineering** 358,
+112623.
+[doi:10.1016/j.cma.2019.112623](https://doi.org/10.1016/j.cma.2019.112623)
+
+[First PINN deployment on real noisy *clinical* data: thoracic
+aorta 4D flow MRI in, arterial blood-pressure waveforms out, with
+1-D reduced blood-flow equations as the physics constraint. Used
+in Unit 7 §7.7 as the cardiovascular keystone.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-sahlicostabal2020}
+**Sahli Costabal, F., Yang, Y., Perdikaris, P., Hurtado, D. E., &
+Kuhl, E.** (2020). *Physics-Informed Neural Networks for Cardiac
+Activation Mapping.* **Frontiers in Physics** 8, 42.
+[doi:10.3389/fphy.2020.00042](https://doi.org/10.3389/fphy.2020.00042)
+
+[Eikonal-equation PINN that reconstructs cardiac activation-time
+and conduction-velocity maps on patient atrial geometries from
+sparse catheter electroanatomic recordings — directly used in
+atrial-fibrillation workflows.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-tartakovsky2020}
+**Tartakovsky, A. M., Marrero, C. O., Perdikaris, P., Tartakovsky,
+G. D., & Barajas-Solano, D.** (2020). *Physics-Informed Deep Neural
+Networks for Learning Parameters and Constitutive Relationships in
+Subsurface Flow Problems.* **Water Resources Research** 56(5).
+[doi:10.1029/2019WR026731](https://doi.org/10.1029/2019WR026731)
+
+[Recovers both the spatial hydraulic-conductivity field *and* the
+unsaturated K(ψ) constitutive relation in Richards-equation flow
+from sparse pressure-head observations. Outperforms Gaussian-process
+regression in the data-sparse regime — the canonical subsurface
+inverse-problem PINN reference.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-song2021}
+**Song, C., Alkhalifah, T., & Waheed, U. B.** (2021). *Solving
+the frequency-domain acoustic VTI wave equation using
+physics-informed neural networks.* **Geophysical Journal
+International** 225(2): 846–859.
+[doi:10.1093/gji/ggab010](https://doi.org/10.1093/gji/ggab010)
+
+[Frequency-domain Helmholtz PINN for anisotropic VTI media, with a
+"PINNup" follow-up (arXiv:2109.14536) using frequency upscaling +
+neuron splitting to climb the frequency ladder. Reference point
+for seismic full-waveform inversion with PINNs.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-haghighat2021}
+**Haghighat, E., Raissi, M., Moure, A., Gomez, H., & Juanes, R.**
+(2021). *A physics-informed deep learning framework for inversion
+and surrogate modeling in solid mechanics.* **Computer Methods in
+Applied Mechanics and Engineering** 379, 113741.
+[doi:10.1016/j.cma.2021.113741](https://doi.org/10.1016/j.cma.2021.113741)
+
+[Multi-network PINN that enforces momentum balance + constitutive
+relations and identifies Lamé parameters in heterogeneous linear
+elasticity, then extends to von Mises elastoplasticity. Recovers
+parameters to ~1–2% from synthetic displacement fields. Authors
+flag the need for multi-network designs at stress
+concentrations.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-misyris2020}
+**Misyris, G. S., Venzke, A., & Chatzivasileiadis, S.** (2020).
+*Physics-Informed Neural Networks for Power Systems.* In **IEEE
+Power & Energy Society General Meeting** (PESGM), 2020.
+[arXiv:1911.03737](https://arxiv.org/abs/1911.03737)
+
+[Foundational power-systems PINN: embeds the swing equation into
+the loss to learn rotor-angle / frequency dynamics from far fewer
+trajectories than a pure data-driven RNN. Used for inverse
+identification of damping/inertia parameters; spawned the
+Chatzivasileiadis-group line including transient-stability PINNs
+(arXiv:2106.13638) and plug-and-play integration into conventional
+time-domain solvers (arXiv:2404.13325).]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-zubov2021}
+**Zubov, K., McCarthy, Z., Ma, Y., Calisto, F., Pagliarino, V.,
+Azeglio, S., Bottero, L., Lujan, E., Sulzer, V., Bharambe, A.,
+Vinchhi, N., Balakrishnan, K., Upadhyay, D., & Rackauckas, C.**
+(2021). *NeuralPDE: Automating Physics-Informed Neural Networks
+(PINNs) with Error Approximations.* [arXiv:2107.09443](https://arxiv.org/abs/2107.09443)
+
+[The companion paper for `NeuralPDE.jl`. Describes the
+ModelingToolkit + Lux + Optimization composition used throughout
+the workshop, with error-approximation
+schemes.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
 ::: {#ref-raissi2019}
 **Raissi, M., Perdikaris, P., & Karniadakis, G. E.** (2019).
 *Physics-informed neural networks: A deep learning framework for

@@ -454,3 +454,312 @@ For inverse problems of Workflow 2 or 3 flavour:
 With those in hand, the modern PINN is ready for the
 [capstone](../unit_08/unit_08.qmd). [Unit 9](../unit_09/unit_09.qmd)
 walks Workflow 3 end-to-end on the AIMS thermistor column.
+
+## 7.6 The PINN software ecosystem
+
+A practitioner reading the 2026 PINN literature will hit at least
+three software stacks. The next three subsubsections lay out the
+Julia, Python, and commercial offerings so the reader can place
+*any* PINN paper or product on the map. All claims are sourced from
+canonical project pages or release notes as of mid-2026.
+
+### Julia: the SciML stack
+
+The workshop standardises on the SciML stack — the same one
+[Zubov et al. 2021](../references/references.qmd#ref-zubov2021){target="_blank"}
+describe in the `NeuralPDE.jl` companion paper. The pieces every
+PINN workflow touches:
+
+| Package | Role |
+|---|---|
+| [`NeuralPDE.jl`](https://github.com/SciML/NeuralPDE.jl){target="_blank"} | Symbolic PINN solver — takes a `PDESystem` and builds the physics-informed loss automatically. |
+| [`Lux.jl`](https://lux.csail.mit.edu/stable/){target="_blank"} | Explicit-parameter neural-network framework; the recommended NN backend inside `NeuralPDE`. |
+| [`ModelingToolkit.jl`](https://github.com/SciML/ModelingToolkit.jl){target="_blank"} | Symbolic CAS — defines `PDESystem`, the canonical PDE input. |
+| [`MethodOfLines.jl`](https://github.com/SciML/MethodOfLines.jl){target="_blank"} | Finite-difference discretiser of `PDESystem`s — useful for FD reference solutions to benchmark a PINN against. |
+| [`OrdinaryDiffEq.jl`](https://github.com/SciML/OrdinaryDiffEq.jl){target="_blank"} | Tsit5, Rodas5P, QNDF, … — used inside Neural-ODE / UDE training and to generate ground-truth trajectories. |
+| [`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/){target="_blank"} | Unified wrapper over Optim, Optimisers, NLopt, … — what `NeuralPDE` drives for Adam / L-BFGS training. |
+| [`SciMLSensitivity.jl`](https://docs.sciml.ai/SciMLSensitivity/stable/){target="_blank"} | Forward / adjoint backends (`InterpolatingAdjoint`, `BacksolveAdjoint`, `EnzymeVJP`) for gradients through ODE/PDE solves. |
+| [`Zygote.jl`](https://github.com/FluxML/Zygote.jl){target="_blank"} / [`ForwardDiff.jl`](https://github.com/JuliaDiff/ForwardDiff.jl){target="_blank"} / [`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl){target="_blank"} | Reverse-mode, dual-number forward, and LLVM-level AD. Compose as Unit 5 §5.2 describes; Enzyme is increasingly the default in 2025–26. |
+| [`NeuralOperators.jl`](https://github.com/SciML/NeuralOperators.jl){target="_blank"} | DeepONet, FNO, Markov NO, NOMAD — pairs with `NeuralPDE` for PINO-style losses. |
+| [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"} | Lux-compatible KAN layers (see [Unit 2 §2.7](../unit_02/unit_02.qmd)). |
+
+A consolidation note worth knowing: the older Flux-based stack
+(`DiffEqFlux`, `FluxNeuralOperators`) is being superseded by the
+`Lux + Reactant + Enzyme` stack across SciML; new projects should
+start with the right column.
+
+### Python: DeepXDE, PhysicsNeMo, JAX, PyTorch
+
+The Python side is more fragmented because there's no single
+maintainer. The pieces:
+
+| Package | Role |
+|---|---|
+| [`DeepXDE`](https://github.com/lululxvi/deepxde){target="_blank"} | Reference Python PINN library (Lu Lu, originally Karniadakis group). Multi-backend (TF, PyTorch, JAX, PaddlePaddle); forward + inverse ODE/PDE/IDE with CSG geometries. |
+| [`NVIDIA PhysicsNeMo`](https://github.com/NVIDIA/physicsnemo){target="_blank"} | PyTorch-based physics-ML framework (formerly *Modulus*). Covers PINNs, FNOs, MeshGraphNets, diffusion surrogates. |
+| [`PhysicsNeMo-Sym`](https://github.com/NVIDIA/physicsnemo-sym){target="_blank"} | Symbolic PDE/BC layer (formerly *Modulus-Sym*) — closest Python analogue to `NeuralPDE.jl`. |
+| [`PINA`](https://github.com/mathLab/PINA){target="_blank"} | PyTorch-Lightning-based PINN + neural operator + PINO library (mathLab @ SISSA, Rozza group). |
+| [`Diffrax`](https://github.com/patrick-kidger/diffrax){target="_blank"} | JAX ODE/SDE/CDE solvers (Patrick Kidger) — the JAX counterpart to `OrdinaryDiffEq.jl`. |
+| [`Equinox`](https://github.com/patrick-kidger/equinox){target="_blank"} | Callable-PyTree NN layers in JAX; the foundation of `Diffrax` and most JAX PINN code. |
+| [`Flax (NNX)`](https://github.com/google/flax){target="_blank"} | Google's JAX NN library; NNX (2024) is the current object-oriented API. |
+| [`jinns`](https://github.com/mia-jinns/jinns){target="_blank"} | JAX-native PINN library (PINNs, SPINNs, HyperPINNs, adaptive weights) on Equinox + Optax. |
+| [`torchdiffeq`](https://github.com/rtqichen/torchdiffeq){target="_blank"} / [`torchdyn`](https://github.com/DiffEqML/torchdyn){target="_blank"} | Differentiable ODE solvers in PyTorch; standard for neural-ODE and Burgers-class PINN demos. |
+| [`PySINDy`](https://github.com/dynamicslab/pysindy){target="_blank"} | Sparse identification of nonlinear dynamics; the discovery-side companion to PINNs ([Unit 3 §3.4](../unit_03/unit_03.qmd)). |
+| [`pykan`](https://github.com/KindXiaoming/pykan){target="_blank"} | Reference KAN implementation accompanying Liu et al. 2024. |
+
+### Commercial and enterprise offerings
+
+The line between "PINN" and "AI surrogate trained on simulation
+data" is blurry in vendor marketing. Be precise: only the items
+in the *first* column below train against a PDE residual; the
+second column are physics-aware *data* surrogates (still useful,
+still physics-informed in a loose sense, but not PINNs).
+
+| Residual-loss PINN-aware | AI surrogate on simulation data |
+|---|---|
+| [NVIDIA PhysicsNeMo](https://developer.nvidia.com/physicsnemo){target="_blank"} (commercial framing of the open-source core) | [Ansys SimAI](https://www.ansys.com/products/ai/simai){target="_blank"} (physics-agnostic surrogate, FEM-trained) |
+| [Altair PhysicsAI](https://altair.com/physicsai){target="_blank"} (geometric DL + surrogate; explicit-dynamics speedups) | [COMSOL 6.2+ surrogate nodes](https://www.comsol.com/release/6.2/surrogate-models){target="_blank"} (DNN, GP, polynomial-chaos) |
+| [SimScale Physics AI](https://www.simscale.com/product/physics-ai/){target="_blank"} (built on PhysicsNeMo; centrifugal-pump foundation model GA March 2025) | [Siemens Simcenter AI assistants](https://plm.sw.siemens.com/en-US/simcenter/){target="_blank"} (post-processing + generative design) |
+| [Pasteur Labs SI Platform](https://pasteurlabs.ai/){target="_blank"} (pre-GA late 2025; differentiable simulators + AI; defence/energy) | [Wolfram](https://community.wolfram.com/groups/-/m/t/2557040){target="_blank"} (PINN as community notebooks, not branded product) |
+
+The Ansys × NVIDIA SeaScape integration (November 2024) is the
+hybrid case — Ansys' semiconductor signoff toolchain
+(RedHawk-SC, Totem-SC, PathFinder-SC) now embeds PhysicsNeMo for
+power-integrity surrogates.
+
+## 7.7 Where PINNs have shown success — a survey of the literature
+
+The published-results landscape is uneven: some domains have
+flagship PINN successes, others have *almost no* PINN
+penetration despite headline ML activity. This section names the
+keystone papers in seven application areas, with the
+limitations the original authors acknowledged. The three surveys
+worth keeping next to a screen
+([Karniadakis et al. 2021](../references/references.qmd#ref-karniadakis2021){target="_blank"},
+[Cuomo et al. 2022](../references/references.qmd#ref-cuomo2022){target="_blank"},
+[Toscano et al. 2025](../references/references.qmd#ref-toscano2025){target="_blank"})
+cover the same territory in much more depth.
+
+### Fluid mechanics and hidden physics
+
+The flagship PINN-for-fluids paper is
+[Raissi, Yazdani & Karniadakis (Science 2020)](../references/references.qmd#ref-raissi2020hfm){target="_blank"}
+— *Hidden Fluid Mechanics*. Given only passive-scalar
+concentration fields (smoke, dye, contrast-agent imaging), the
+PINN reconstructs the full velocity *and* pressure fields by
+enforcing the incompressible Navier–Stokes residual. Demoed on
+2-D cylinder wake, 3-D intracranial aneurysm, and synthetic
+blood-flow visualisations, recovering pressure (never directly
+measured) to a few-percent error. Limit acknowledged by the
+authors: long training times, struggles at high Reynolds
+number, fine-scale turbulence not demonstrated.
+
+### Cardiovascular and biomedical
+
+The keystone clinical-data PINN is
+[Kissas et al. 2020](../references/references.qmd#ref-kissas2020){target="_blank"}
+— 4D-flow MRI of a thoracic aorta in, arterial blood-pressure
+waveforms out, with reduced 1-D blood-flow equations as the
+physics constraint.
+[Sahli Costabal et al. 2020](../references/references.qmd#ref-sahlicostabal2020){target="_blank"}
+solves the Eikonal equation on patient atrial geometries to
+reconstruct cardiac activation maps for atrial-fibrillation
+workups, with uncertainty quantified via randomised priors. The
+EP-PINNs follow-up (Herrero Martin et al., *Front. Cardiovasc.
+Med.* 2021) handles full Aliev–Panfilov monodomain dynamics.
+Limit flagged by all three: small geometries, anisotropy and
+fibre orientation degrade accuracy.
+
+### Subsurface and geophysics
+
+The canonical groundwater reference is
+[Tartakovsky et al. 2020](../references/references.qmd#ref-tartakovsky2020){target="_blank"}
+— Richards-equation flow with both the hydraulic-conductivity
+field *and* the unsaturated K(ψ) constitutive relation recovered
+from sparse pressure-head observations; beats Gaussian-process
+regression in the data-sparse regime. For seismic full-waveform
+inversion,
+[Song, Alkhalifah & Waheed 2021](../references/references.qmd#ref-song2021){target="_blank"}
+parameterises the scattered Helmholtz wavefield in anisotropic
+VTI media; their PINNup follow-up
+([arXiv:2109.14536](https://arxiv.org/abs/2109.14536){target="_blank"})
+uses frequency upscaling + neuron splitting to climb the
+frequency ladder. Authors note vanilla PINNs fail in highly
+heterogeneous porous media — a mixed pressure-velocity
+formulation is required.
+
+### Materials and solid mechanics
+
+The keystone is
+[Haghighat et al. 2021](../references/references.qmd#ref-haghighat2021){target="_blank"}
+— momentum balance + constitutive relations enforced, Lamé
+parameters identified in heterogeneous linear elasticity, then
+extended to von Mises elastoplasticity using a multi-network
+architecture, recovering parameters to ~1–2% from synthetic
+displacement fields. For metal additive manufacturing the most
+commonly cited published example is Liao et al. 2024
+([arXiv:2401.02403](https://arxiv.org/abs/2401.02403){target="_blank"})
+— real-time 2D temperature-field prediction with <3% error on
+thin walls. Authors flag the need for multi-network designs at
+stress concentrations.
+
+### Weather and climate — the operator-vs-PINN distinction
+
+This is the area where students need the sharpest warning.
+**GraphCast** (Lam et al., *Science* 2023), **FourCastNet**
+(Pathak et al. 2023, NVIDIA), **ClimaX** (Nguyen et al., ICML
+2023) and the operational **NVIDIA Earth-2** systems are
+*operator-learning* models — GNNs, transformers, spherical
+neural operators — trained on ERA5 reanalysis without an
+explicit PDE-residual loss. They are *not* PINNs. Genuine
+PINN-for-atmosphere work exists but is narrower: e.g. atmospheric
+radiative transfer
+([Zhao et al. 2025, JQSRT](https://doi.org/10.1016/j.jqsrt.2024.109253){target="_blank"})
+and sparse-station weather reconstruction with Navier–Stokes
+regularisation
+([Vadyala/Betancourt et al. 2024, Open Res. Europe](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11308984/){target="_blank"}).
+For workshop-honest framing: cite GraphCast/FourCastNet as the
+*operator-learning* success story, not the PINN one. Their PINN
+niche is data-sparse reconstruction at regional scale.
+
+### Power systems and engineering
+
+The line was opened by
+[Misyris, Venzke & Chatzivasileiadis 2020](../references/references.qmd#ref-misyris2020){target="_blank"}
+— swing-equation PINN that learns rotor-angle / frequency
+dynamics from far fewer trajectories than a pure data-driven
+RNN, with the same network used for inverse identification of
+damping and inertia. Stiasny et al. 2021
+([arXiv:2004.04026](https://arxiv.org/abs/2004.04026){target="_blank"})
+and the transient-stability follow-up
+([arXiv:2106.13638](https://arxiv.org/abs/2106.13638){target="_blank"})
+accelerate IEEE-benchmark simulations by orders of magnitude.
+The most recent, Nellikkath/Stiasny et al. 2024
+([arXiv:2404.13325](https://arxiv.org/abs/2404.13325){target="_blank"}),
+integrates trained PINN components plug-and-play into a
+conventional time-domain solver. Limit: scaling to large
+networks is still open; current demos are a handful of buses.
+
+### Quantum and molecular
+
+The canonical demonstration is the nonlinear Schrödinger
+equation worked example in
+[Raissi, Perdikaris & Karniadakis 2019](../references/references.qmd#ref-raissi2019){target="_blank"}.
+Follow-ups cover the time-dependent linear Schrödinger equation
+(Shah et al.,
+[arXiv:2210.12522](https://arxiv.org/abs/2210.12522){target="_blank"})
+and quantum-spectrum eigenvalue problems (Brevi et al. 2024
+tutorial,
+[arXiv:2407.20669](https://arxiv.org/abs/2407.20669){target="_blank"}).
+This is largely a *method-development* literature — the
+chemistry/condensed-matter community has adopted neural
+wavefunctions (FermiNet, PauliNet) rather than residual-loss
+PINNs. Authors note PINNs struggle with high-dimensional
+many-body problems and lose orthogonality of eigenstates.
+
+### What's *not* in this list
+
+A useful honesty check: areas where PINNs are conspicuously
+*absent* from the success stories include large-scale turbulent
+CFD, multiphase flow, plasma physics for fusion, and
+high-Reynolds aerodynamics. The operator-learning approaches
+have eaten that lunch; whether PINNs ever return to it depends
+on whether the §7.3 modern fixes scale further than they
+currently do.
+
+## 7.8 Commercial and industrial deployments
+
+Where the residual-loss PINN idea has actually shipped. This is a
+narrower list than §7.7 — most production "physics-AI" is
+operator-learning or surrogate modelling, not strict PINN. The
+catalogue below is sectioned by maturity: **GA** (generally
+available product), **field-trial** (validated prototypes with
+named customers), and **R&D** (credible commercial sponsorship,
+no deployed product yet).
+
+### NVIDIA PhysicsNeMo — the most documented production stack
+
+PhysicsNeMo (formerly Modulus / SimNet) is the only ecosystem
+with a meaningful corpus of named, multi-year industrial
+deployments. The case studies on the NVIDIA developer page that
+*specifically* use a PINN flavour rather than a generic neural
+operator:
+
+- **Siemens Energy** — *field-trial*. PINN for static heat
+  conduction in transformer bushings (<4% error, sub-second
+  inference); GNN surrogate for gas-insulated-switchgear thermals
+  (~10,000× over transient CFD). Bushing models in customer
+  field-evaluation as of 2025.
+  ([NVIDIA case study](https://developer.nvidia.com/blog/spotlight-siemens-energy-accelerates-power-grid-asset-simulation-10000x-using-nvidia-physicsnemo/){target="_blank"})
+- **Siemens Energy HRSG digital twin** — *deployed prototype* on
+  AWS / A100, predicting corrosion in heat-recovery steam
+  generators across a 600-unit fleet (weeks → hours).
+  ([brief](https://resources.nvidia.com/en-us-omniverse-industrial-digital-twins/siemens-energy-hrsg){target="_blank"})
+- **Siemens Gamesa** — *active partnership*, wind-farm wake
+  modelling, ~4,000× over CFD (weeks → minutes).
+  ([NVIDIA blog](https://blogs.nvidia.com/blog/siemens-gamesa-wind-farms-digital-twins/){target="_blank"})
+- **SimScale centrifugal-pump foundation model** — *GA March
+  2025* to 600k+ users, ~2,700× over CFD design-point analysis.
+  ([SimScale press](https://www.simscale.com/press/simscale-unveils-worlds-first-foundation-ai-model-centrifugal-pump-simulation-built-nvidia-physicsnemo/){target="_blank"})
+- **Shell** — *R&D, paper-backed*. Nested Fourier Neural
+  Operator for CO₂ plume migration in CCS site screening, $\sim 10^5$
+  × faster than reservoir simulators.
+  ([NVIDIA spotlight](https://developer.nvidia.com/blog/spotlight-shell-accelerates-co2-storage-modeling-100000x-using-nvidia-physicsnemo/){target="_blank"} /
+  [paper](https://arxiv.org/abs/2503.11031){target="_blank"})
+- **Ansys × NVIDIA SeaScape** — *integration announced Nov 2024*,
+  demoed GTC 2025. PhysicsNeMo embedded into RedHawk-SC /
+  Totem-SC / PathFinder-SC for semiconductor power-integrity
+  signoff.
+  ([Ansys press](https://www.ansys.com/news-center/press-releases/11-19-24-ansys-integrates-nvidia-modulus-with-seascape){target="_blank"})
+
+### Other commercial offerings
+
+- **Altair PhysicsAI** — *GA*. The most explicitly "PINN-aware"
+  CAE product from a major vendor (geometric DL + surrogate),
+  ~1000× claims for explicit dynamics; bumper-impact case study
+  with Cyient.
+  ([Altair](https://altair.com/physicsai){target="_blank"})
+- **Pasteur Labs SI Platform** — *pre-GA late 2025*.
+  Brooklyn-based public-benefit corp commercialising
+  "Simulation Intelligence" (differentiable simulators + AI).
+  Acquired the Cornell-spinout FOSAI in August 2025, bringing
+  US Space Force / DARPA / commercial aerospace customers with
+  it. ([Pasteur Labs](https://pasteurlabs.ai/){target="_blank"})
+- **SandboxAQ** ($5.75 B valuation, $95 M raise July 2025) —
+  markets *Large Quantitative Models* — physics/chemistry-grounded
+  models, not residual-loss PINNs strictly. Real customers:
+  Vodafone, SoftBank, Mount Sinai, US government for cryptography
+  and drug discovery.
+  ([coverage](https://thequantuminsider.com/2025/07/15/sandboxaq-raises-95-million-to-advance-ai-models-that-solve-real-world-problems/){target="_blank"})
+
+### Honest disambiguation
+
+Three classes of marketing that look like PINN deployments but
+aren't:
+
+- **Ansys SimAI**, **COMSOL surrogate nodes**, **Siemens
+  Simcenter AI** — physics-agnostic surrogates trained on
+  FEM/CFD output. Useful, but not PINNs in the residual-loss
+  sense.
+- **NVIDIA Earth-2 / FourCastNet 3**, **GraphCast** — neural
+  *operator* models. Most production "physics ML" at scale is in
+  this bucket.
+- **"TSMC PINN production deployment"**, **"Aramco PINN reservoir
+  modelling"** — the named industrial partnerships involve PINN
+  research at KAUST / NVIDIA but the production tooling is
+  unverified or covered by NDA. Treat such claims as
+  R&D-with-industrial-sponsor, not deployed product.
+
+### Bottom line for the workshop
+
+The single most defensible message: **most "physics-AI" in
+production today is FEM-trained data surrogates or neural
+operators, not classic residual-loss PINNs.** The clearest
+residual-loss-PINN industrial story is Siemens Energy
+transformer-bushing thermals on NVIDIA PhysicsNeMo, currently in
+customer field trials. The §7.3 modern-fix toolkit is what makes
+that case work; the rest of the field is catching up.
+
+With those in hand, the modern PINN is ready for the
+[capstone](../unit_08/unit_08.qmd). [Unit 9](../unit_09/unit_09.qmd)
+walks Workflow 3 end-to-end on the AIMS thermistor column.
