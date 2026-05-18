@@ -27,6 +27,14 @@ AIMS capstone in §1.3.
 
 ## 1.1 An example scientific question
 
+Before we touch any code, let's set up a concrete problem and the
+gap between what we can *measure* in it and what we actually *want
+to know*. The next two subsections sketch (a) the physical setting
+— Brisbane's outflow into Moreton Bay — and (b) the asymmetry
+between cheap downstream observations and the hard-to-measure
+upstream forcing that drives them. That asymmetry is what the rest
+of the unit will try to close.
+
 ### Where the Brisbane River meets Moreton Bay
 
 Most of Brisbane's storm runoff and a meaningful slice of South-East
@@ -88,6 +96,16 @@ spend Units 5–9 learning the modern (PINN-based) tools that
 disambiguate it.
 
 ## 1.2 The worked example
+
+This section walks the full pipeline end-to-end: we set up a
+tractable model of the bay, write down the physics, run a forward
+simulation to generate synthetic measurements, then try to invert
+those measurements back to the river-mouth source two different
+ways. Each subsubsection is one stage of that pipeline. All code
+lives under
+[`units/unit_01/scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/scripts){target="_blank"}
+— the runtime + role table at the end of §1.2 gives the full
+inventory.
 
 ### The geography, made tractable
 
@@ -230,7 +248,9 @@ speed. We will revisit when each dropped term matters in
 :::
 
 We close the system with a **Dirichlet boundary condition at the
-river-mouth cell**,
+river-mouth cell** — a "Dirichlet" BC just means we pin the value
+of $\eta$ at that point, as opposed to a "Neumann" BC which would
+pin its derivative — :
 
 $$
 \eta(x_r, y_r, t) \;=\; \psi(t),
@@ -239,17 +259,24 @@ $$
 where $\psi(t)$ is the surface-elevation anomaly imposed by the
 river inflow. In the forward problem we *prescribe* $\psi(t)$; in
 the inverse problem we will *recover* it from gauge data. Solid
-coasts get the no-flux condition $\mathbf{u}\cdot\hat{\mathbf{n}}=0$,
-and a thin Rayleigh-damped sponge along the eastern edge of the
-domain lets surge waves leave through the open ocean without
-artificial reflection.
+coasts get the no-flux condition $\mathbf{u}\cdot\hat{\mathbf{n}}=0$
+(water doesn't cross the coast), and a thin **Rayleigh-damped
+sponge** — a strip of cells where we add an artificial $-\sigma\eta$
+relaxation term — along the eastern edge of the domain lets surge
+waves leave through the open ocean without bouncing back into the
+solution.
 
 ### A synthetic surge, propagated by finite differences
 
 To generate the data we will work with, we run the linearised SWE
-forward on a staggered Arakawa-C grid with explicit time stepping at
-$\Delta t = 12\,\text{s}$ for 6 hours
-([generate_surge_data.jl](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_data.jl)).
+forward on a **staggered Arakawa-C grid** — a layout where $\eta$
+lives at cell centres and the velocity components $u, v$ live at
+the corresponding cell *faces*, which avoids the spurious
+checkerboard modes a co-located grid would suffer from — with
+explicit time stepping at $\Delta t = 12\,\text{s}$ for 6 hours.
+The full driver is
+[`scripts/generate_surge_data.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_data.jl){target="_blank"};
+Unit 6 covers staggered-grid FD schemes properly.
 The "ground-truth" surge is a two-pulse profile
 
 $$
@@ -404,14 +431,21 @@ either listing in detail yet** — they are sketches of what the
 inverse problem looks like once you have Units 2–9 in your
 toolbox.
 
-**Method A — Naive PINN.** Train a smooth MLP $\eta_\theta(x, y, t)$
-on inputs scaled to $[-1, 1]^3$ to match the gauge observations,
-satisfy the wave equation (@eq-wave-eta) at random water collocation
-points, and respect the zero initial condition. Treat the recovered
-source as $\psi_\theta(t) := \eta_\theta(x_r, y_r, t)$. This is what
+**Method A — Naive PINN.** Train a smooth **MLP** (multi-layer
+perceptron, the basic feed-forward neural network — covered in
+[Unit 2](../unit_02/unit_02.qmd)) $\eta_\theta(x, y, t)$ on inputs
+scaled to $[-1, 1]^3$ to match the gauge observations, satisfy
+the wave equation (@eq-wave-eta) at random water **collocation
+points** (the random space-time points where we evaluate the PDE
+residual as a soft constraint on the network — covered in
+[Unit 5](../unit_05/unit_05.qmd)), and respect the zero initial
+condition. Treat the recovered source as
+$\psi_\theta(t) := \eta_\theta(x_r, y_r, t)$. This is what
 [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
 classified as the "vanilla PINN" baseline and what
 [§7.2](../unit_07/unit_07.qmd) of this course re-derives in detail.
+The full training driver is
+[`scripts/train_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_pinn.jl){target="_blank"}.
 
 ```{julia}
 #| eval: false
@@ -436,10 +470,14 @@ end
 
 **Method B — Adjoint inverse using the simulator as a forward map.**
 Because the linearised SWE is *linear* in $\psi$, the forward map
-$G: \psi(\cdot) \mapsto \eta_g(\cdot)$ is a linear operator.
-Compute its impulse response once (a single FD pass with a narrow
-Gaussian pulse), assemble $G$ as a Toeplitz convolution matrix, and
-solve the Tikhonov-regularised linear least-squares problem
+$G: \psi(\cdot) \mapsto \eta_g(\cdot)$ is a linear operator. Its
+columns are the **Green's function** of the bay — the response at
+every gauge to a unit-impulse source at the river mouth. Compute it
+once (a single FD pass with a narrow Gaussian pulse), assemble $G$
+as a **Toeplitz convolution matrix** (the standard "discrete
+convolution as a matrix" trick: each row of $G$ is the impulse
+response shifted in time by one sample), and solve the
+**Tikhonov-regularised** linear least-squares problem
 
 $$
 \hat\psi \;=\; \arg\min_\psi \;
@@ -447,9 +485,13 @@ $$
 \;+\; \tfrac{\lambda^2}{2}\,\|\mathrm{L}^{(2)} \psi\|_2^2,
 $$
 
-where $\mathrm{L}^{(2)}$ is the discrete second-difference operator
-(a smoothness prior on $\psi$). No neural network — but it uses the
-same physics that the PINN tries to learn.
+where $\mathrm{L}^{(2)}$ is the discrete second-difference operator.
+The first term says "the predicted gauges should match observations";
+the second term — Tikhonov regularisation, with strength $\lambda$ —
+penalises non-smooth $\psi$, which makes the otherwise ill-posed
+inversion stable. No neural network — but it uses the same physics
+that the PINN tries to learn. The full driver is
+[`scripts/train_inverse_adjoint.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_adjoint.jl){target="_blank"}.
 
 ```{julia}
 #| eval: false
@@ -465,19 +507,20 @@ b   = vcat(g_obs, zeros(size(L2, 1)), 0.0)
 
 ![Top panel: the true ψ(t) (red) vs the adjoint inverse (blue, using the
 SWE solver as forward map) vs the naive PINN (orange dashed, smooth-MLP
-η-network with ψ read at the source cell). Middle / bottom panels:
-predicted gauge timeseries at G1 (Brisbane Bar) and G2 (Wellington
-Point) overlaid on the noisy observations both methods see — both
+η-network with ψ read at the source cell). Bottom 2×2: predicted gauge
+timeseries at all four bay gauges — G1 (Brisbane Bar) and G2 (Wellington
+Point) along the top, G3 (Tangalooma) and G4 (Russell Channel) along
+the bottom — overlaid on the noisy observations both methods see. Both
 methods fit the gauges, only the adjoint inverse recovers the
 source.](figures/inverse_recovery.png)
 
 The plot is the centrepiece of Unit 1. Two observations matter
 pedagogically:
 
-1. **Both methods fit the gauge observations.** Look at the G1 / G2
-   panels: the adjoint prediction (blue) and the naive-PINN
-   prediction (dashed orange) both lie comfortably inside the
-   noisy cloud of observations. By the metric the algorithms are
+1. **Both methods fit the gauge observations.** Look at any of the
+   four gauge panels: the adjoint prediction (blue) and the
+   naive-PINN prediction (dashed orange) both lie inside the noisy
+   cloud of observations at G1–G4. By the metric the algorithms are
    optimising, both succeed.
 2. **They disagree wildly on what produced those gauges.** The
    adjoint inverse recovers both surge peaks at roughly correct
@@ -520,17 +563,19 @@ In one worked example we have touched, at an introductory depth,
 | **PINNs** | Naive PINN baseline, its failure mode, the path to fix it |
 
 The scripts for the actual SWE solver, animation, and both
-inversions all live under `units/unit_01/scripts/`:
+inversions all live under
+[`units/unit_01/scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/scripts){target="_blank"}.
+Click any filename to jump to the source on GitHub:
 
 | Script | Role | Runtime |
 |---|---|---|
-| `build_bay.jl` | bathymetry + land mask + gauge layout + bathymetry figure | ~$\!1$ s |
-| `generate_site_map.py` | OSM/CartoDB site-map figure | ~$\!10$ s |
-| `generate_surge_data.jl` | linearised-SWE forward solve, gauge timeseries, snapshots | ~$\!12$ s |
-| `generate_surge_frames.jl` | per-snapshot PNG frames for the slider | ~$\!90$ s |
-| `train_inverse_pinn.jl` | naive PINN inverse (Lux + Zygote) | ~$\!3$ min |
-| `train_inverse_adjoint.jl` | Green's-function / Tikhonov inverse | ~$\!15$ s |
-| `render_recovery_plot.jl` | the three-panel comparison plot | ~$\!2$ s |
+| [`build_bay.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/build_bay.jl){target="_blank"} | bathymetry + land mask + gauge layout + bathymetry figure | ~$\!1$ s |
+| [`generate_site_map.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_site_map.py){target="_blank"} | OSM/CartoDB site-map figure | ~$\!10$ s |
+| [`generate_surge_data.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_data.jl){target="_blank"} | linearised-SWE forward solve, gauge timeseries, snapshots | ~$\!12$ s |
+| [`generate_surge_frames.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_frames.jl){target="_blank"} | per-snapshot PNG frames for the slider | ~$\!90$ s |
+| [`train_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_pinn.jl){target="_blank"} | naive PINN inverse (`Lux.jl` for the network, `Zygote.jl` for autodiff — both covered in [Unit 2](../unit_02/unit_02.qmd) / [Unit 5](../unit_05/unit_05.qmd)) | ~$\!3$ min |
+| [`train_inverse_adjoint.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_adjoint.jl){target="_blank"} | Green's-function / Tikhonov inverse | ~$\!15$ s |
+| [`render_recovery_plot.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/render_recovery_plot.jl){target="_blank"} | the ψ + 2×2 gauge comparison plot | ~$\!2$ s |
 
 The whole pipeline is offline-reproducible on a single laptop CPU.
 Everything is written so it ports cleanly to a GPU once the rest of
@@ -566,25 +611,41 @@ different physics, and a richer inverse-problem story.
 
 ## 1.4 Course roadmap
 
-[Unit 2](../unit_02/unit_02.qmd) covers machine-learning basics and
-deep learning — the function-approximation toolkit you'll need to
-even *write* a PINN.
-[Unit 3](../unit_03/unit_03.qmd) surveys the broader Sci-ML and
-physics-informed ML landscape.
-[Unit 4](../unit_04/unit_04.qmd) introduces ODEs through universal
-approximation (Neural ODEs, UDEs).
-[Unit 5](../unit_05/unit_05.qmd) is your first PINN, on basic ODE
-and PDE models.
-[Unit 6](../unit_06/unit_06.qmd) covers formal PDE theory and
-classical numerics.
-[Unit 7](../unit_07/unit_07.qmd) covers modern PINN techniques for
-harder PDEs — including the exact failure mode we just saw on the
-naive PINN above.
-[Unit 8](../unit_08/unit_08.qmd) builds the full forward column +
-shallow-water capstone model.
-[Unit 9](../unit_09/unit_09.qmd) closes the loop by recovering an
-unknown driver from sparse mooring data — exactly the workflow you
-saw in §1.2, fully derived.
+Each remaining unit picks up one ingredient that today's worked
+example assumed without explanation. In order:
+
+- **[Unit 2](../unit_02/unit_02.qmd) — Machine-learning + deep-learning
+  basics.** The function-approximation toolkit (linear models, MLPs,
+  autodiff, optimisers) you'll need to even *write* a PINN.
+- **[Unit 3](../unit_03/unit_03.qmd) — Scientific-ML landscape.** A
+  survey of physics-informed ML approaches, how PINNs fit in, and
+  what other tools exist (Neural ODEs, operator learning, SINDy,
+  ...).
+- **[Unit 4](../unit_04/unit_04.qmd) — ODEs via universal
+  approximation.** Neural ODEs and Universal Differential Equations
+  (UDEs) — the gateway between classical dynamical systems and
+  learned components.
+- **[Unit 5](../unit_05/unit_05.qmd) — Your first PINN.** Basic ODE
+  and PDE models, the loss-as-physics-constraint pattern, the
+  collocation-points machinery used above.
+- **[Unit 6](../unit_06/unit_06.qmd) — Formal PDE theory + classical
+  numerics.** What a wave equation is, where finite differences
+  come from, why the staggered Arakawa-C grid we used isn't
+  arbitrary.
+- **[Unit 7](../unit_07/unit_07.qmd) — Modern PINN techniques for
+  harder PDEs.** Fourier features, causal training, hard BC
+  enforcement, adaptive loss weighting — the fixes for the exact
+  failure mode the naive PINN exhibited above.
+- **[Unit 8](../unit_08/unit_08.qmd) — Capstone forward model.**
+  Building the full 1-D ocean column + shallow-water driver for the
+  capstone scenario previewed in §1.3.
+- **[Unit 9](../unit_09/unit_09.qmd) — Capstone inverse.** Closing the
+  loop: recover an unknown driver from sparse mooring data —
+  exactly the workflow you saw in §1.2, fully derived from first
+  principles.
+- **[Unit 10](../unit_10/unit_10.qmd) — Capstone specification.** The
+  full problem statement, success criteria, and dataset for the
+  end-of-course capstone.
 
 ### 75 % Julia, 25 % Python
 
