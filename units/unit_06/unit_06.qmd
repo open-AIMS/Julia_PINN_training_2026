@@ -111,7 +111,192 @@ the same boundary of an elliptic equation generally has no solution.
 PINNs inherit this constraint: an ill-posed problem will train to a
 residual minimum that is not the (non-existent) classical solution.
 
-## 6.2 Mechanisms: Diffusion, Advection, Reaction
+## 6.2 Explicit Solution Techniques
+
+Before we approximate a PDE numerically (let alone with a neural
+network), it pays to know which problems admit a **closed-form
+solution** and how those solutions are derived. The classical
+techniques aren't museum pieces: they're the source of the
+*correct answers* against which every numerical scheme — finite
+differences, finite volumes, finite elements, PINNs — is
+benchmarked. The next three subsubsections walk the three main
+tools: **separation of variables**, **Fourier series**, and
+**Laplace transforms**. Each is presented at a level that yields
+one concrete worked solution.
+
+### Separation of variables: heat equation on a rod
+
+The cleanest example. Take the heat equation on a finite rod of
+length $L$ with both ends held at zero:
+
+$$
+u_t \;=\; \alpha\, u_{xx},
+\qquad 0 < x < L,\ t > 0,
+$$
+
+with Dirichlet boundaries $u(0, t) = u(L, t) = 0$ and initial
+profile $u(x, 0) = f(x)$.
+
+**Step 1 — assume a separated form** $u(x, t) = X(x)\,T(t)$.
+Substitute:
+
+$$
+X(x)\,T'(t) = \alpha\, X''(x)\, T(t)
+\quad\Longleftrightarrow\quad
+\frac{T'(t)}{\alpha\, T(t)} = \frac{X''(x)}{X(x)} = -\lambda,
+$$
+
+where the constant $-\lambda$ (the **separation constant**) must
+hold because the left side depends only on $t$, the right only on
+$x$.
+
+**Step 2 — solve each ODE.** The spatial eigenproblem
+$X'' + \lambda X = 0$ with $X(0) = X(L) = 0$ has solutions only
+when $\lambda = \lambda_n = (n\pi/L)^2$ for $n = 1, 2, 3, \ldots$,
+namely $X_n(x) = \sin(n\pi x / L)$. The time equation
+$T' = -\alpha\lambda_n T$ has $T_n(t) = e^{-\alpha\lambda_n t}$.
+
+**Step 3 — superpose**. Linearity of the PDE means any sum
+$u(x, t) = \sum_{n=1}^{\infty} b_n \sin(n\pi x/L)\, e^{-\alpha (n\pi/L)^2 t}$
+is also a solution. The initial condition fixes the coefficients:
+
+$$
+f(x) \;=\; \sum_{n=1}^{\infty} b_n \sin(n\pi x / L)
+\qquad\Longrightarrow\qquad
+b_n \;=\; \frac{2}{L}\int_0^L f(x)\,\sin(n\pi x / L)\, dx.
+$$
+
+The complete solution is
+
+$$
+\boxed{\;
+u(x, t) \;=\; \sum_{n=1}^{\infty} b_n\, e^{-\alpha (n\pi/L)^2 t}\, \sin\!\bigl(n\pi x / L\bigr).
+\;}
+$$
+
+Three observations that recur all the way through the rest of the
+course:
+
+1. **High-frequency modes decay fastest.** The mode $n$ decays
+   like $e^{-\alpha n^2 \pi^2 t / L^2}$ — a factor of $n^2$ in
+   the exponent. This is why diffusion *smooths*: sharp features
+   (high $n$) die quickly; the long-wavelength shape survives. It
+   is also why MLP-PINNs ([Unit 5 §5.6](../unit_05/unit_05.qmd))
+   struggle to fit sharp initial data — the loss surface is
+   dominated by the slow low-frequency modes (a different reason,
+   but a related one called **spectral bias**).
+2. **Linearity of the PDE → superposition of eigenmodes.**
+   Nonlinear PDEs (Burgers, Navier–Stokes, the full shallow-water
+   equations) don't admit this decomposition. That's the
+   structural reason they're harder.
+3. **The eigenmodes are determined by the boundary conditions.**
+   Dirichlet boundaries gave us $\sin(n\pi x / L)$. Neumann
+   boundaries would give $\cos$; periodic would give complex
+   exponentials. Everything downstream cascades from the BC choice.
+
+### Fourier series: the eigenmode toolbox
+
+The expansion $f(x) = \sum_n b_n \sin(n\pi x / L)$ from Step 3 is
+a **Fourier sine series**. More generally, a function on
+$[-L, L]$ has a full Fourier series
+
+$$
+f(x) \;=\; \frac{a_0}{2}
+       + \sum_{n=1}^{\infty}\Bigl[a_n \cos\!\bigl(n\pi x / L\bigr)
+                                   + b_n \sin\!\bigl(n\pi x / L\bigr)\Bigr],
+\qquad
+\begin{aligned}
+a_n &= \tfrac{1}{L} \int_{-L}^{L} f(x)\cos(n\pi x/L)\, dx, \\
+b_n &= \tfrac{1}{L} \int_{-L}^{L} f(x)\sin(n\pi x/L)\, dx.
+\end{aligned}
+$$
+
+The Fourier coefficients are the *coordinates* of $f$ in the
+orthonormal basis of trig functions — the same way you'd write a
+vector in $\mathbb{R}^n$ in terms of basis vectors. Three uses
+that turn up across the rest of the workshop:
+
+- **Solve linear PDEs by mode-by-mode evolution.** Take the
+  Fourier transform of the initial condition, multiply each mode
+  by its time-dependent factor (exponential decay for heat,
+  sinusoidal oscillation for wave), then inverse-transform. This
+  is the basis of **spectral methods**.
+- **Diagnose numerical schemes.** Von Neumann stability analysis
+  (covered in §6.4) studies how an FD scheme amplifies *each
+  Fourier mode*. The CFL condition falls out automatically.
+- **Diagnose PINN failure modes.** The "spectral bias" of MLPs
+  (slow learning of high-frequency components, Rahaman et al.
+  2019) and the Fourier-feature embedding fix
+  ([Tancik et al. 2020](../references/references.qmd#ref-tancik2020){target="_blank"};
+  details in [Unit 7](../unit_07/unit_07.qmd)) are stated and
+  understood in the Fourier basis.
+
+### Laplace transforms: turning ODEs into algebra
+
+For initial-value problems (parabolic and hyperbolic PDEs in time),
+the **Laplace transform** $\mathcal{L}\{f(t)\}(s) = \int_0^\infty f(t)\,e^{-st}\, dt$
+converts time derivatives into multiplication:
+
+$$
+\mathcal{L}\{f'(t)\}(s) \;=\; s\,F(s) - f(0),
+\qquad
+\mathcal{L}\{f''(t)\}(s) \;=\; s^2\,F(s) - s\, f(0) - f'(0).
+$$
+
+Apply it to a PDE in $t$ and you get an *ODE* in the remaining
+spatial variables, parameterised by $s$. Solve the spatial ODE,
+inverse-transform back to $t$.
+
+The canonical worked example is the 1-D heat equation on the
+half-line $x > 0$ with a suddenly imposed boundary temperature
+$u(0, t) = u_0$ and $u(x, 0) = 0$. Laplace-transforming in $t$:
+
+$$
+s\, U(x, s) \;=\; \alpha\, U_{xx}(x, s),
+\quad
+U(0, s) = u_0 / s,
+\quad
+U(x, s) \to 0 \text{ as } x \to \infty.
+$$
+
+A second-order ODE in $x$ with constant coefficients. Solving
+gives $U(x, s) = (u_0/s)\, e^{-x\sqrt{s/\alpha}}$, and the inverse
+Laplace transform yields the famous closed-form:
+
+$$
+u(x, t) \;=\; u_0 \,\operatorname{erfc}\!\left(\frac{x}{2\sqrt{\alpha t}}\right).
+$$
+
+The pattern — *transform → solve algebraic / lower-order problem
+→ inverse-transform* — is exactly what the Fourier method does in
+the spatial direction. They're two faces of the same idea:
+expand in eigenfunctions of the differential operator.
+
+### When closed forms run out
+
+Almost everything in this course fails one or more of the
+conditions for these methods to work:
+
+- **Nonlinearity** kills separation of variables and superposition
+  (Burgers, Navier–Stokes, the shallow-water equations as soon as
+  you re-introduce the advective $\mathbf{u}\!\cdot\!\nabla\mathbf{u}$
+  term).
+- **Variable coefficients** ($\alpha = \alpha(x)$, $H = H(x, y)$
+  as in Unit 1's bay) prevent the spatial eigenproblem from
+  having sinusoidal eigenfunctions.
+- **Irregular geometries** (the Moreton Bay coastline, anything
+  with a hole in it) defeat any analytic eigenbasis.
+
+That's why the rest of this unit — and the rest of the course —
+is about numerical methods. But the classical methods give us the
+*test problems* against which every numerical method is judged.
+The §6.4 FD code below converges to the separation-of-variables
+solution; the SWE PINN in [Unit 7](../unit_07/unit_07.qmd) is
+benchmarked against a high-resolution FD reference; the column
+PINN in [Unit 9](../unit_09/unit_09.qmd) starts its sanity-checks
+on a constant-$\alpha$ problem with a known erfc solution.
+
+## 6.3 Mechanisms: Diffusion, Advection, Reaction
 
 ### The Heat Equation
 
@@ -143,7 +328,13 @@ Real-world models combine all three mechanisms:
 | $u_t + c\,u_x = \alpha\,u_{xx}$ | Advection + diffusion | Nutrient dispersal |
 | $u_t = \alpha\,u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement |
 
-## 6.3 Finite Differences and the Shallow Water Equations
+## 6.4 Finite Differences and Stability Analysis
+
+The classical workhorse — and the method actually used by Unit 1's
+shallow-water solver. The next three subsubsections cover the
+discretisation rules, the stability constraint they impose (CFL,
+von Neumann), and a worked benchmark against the
+separation-of-variables answer.
 
 ### Discretisation in Space and Time
 
@@ -184,28 +375,159 @@ plot(x, u, label="t = $T", xlabel="x", ylabel="u(x, t)", lw=2)
 
 ### CFL, Stability, Numerical Diffusion
 
-The **Courant–Friedrichs–Lewy (CFL) condition** ensures the numerical
-domain of dependence contains the physical one:
+The **Courant–Friedrichs–Lewy (CFL) condition** ensures the
+numerical domain of dependence contains the physical one — i.e.,
+information can't propagate faster in the *physics* than the grid
+can pass it along:
 
 - Diffusion: $\alpha\,\Delta t / \Delta x^2 \leq 0.5$
 - Advection / wave: $|c|\,\Delta t / \Delta x \leq 1$
 
-Violating CFL causes exponential blow-up. First-order upwind schemes
-introduce **numerical diffusion** (smearing) even at stable step sizes
-— a real artefact, not just a bug.
+Violating CFL causes exponential blow-up. Where does the CFL number
+come from? **Von Neumann analysis**: substitute a discrete Fourier
+mode $u_i^n = G^n\, e^{i k x_i}$ into the scheme, solve for the
+amplification factor $|G(k)|$, and demand $|G(k)| \leq 1$ for every
+$k$. Working through this for FTCS on the heat equation yields
+exactly the $\alpha\,\Delta t / \Delta x^2 \leq 1/2$ bound above.
+The Fourier-mode analysis from §6.2 is the analytic tool that
+makes the numerical stability constraint *predictable*.
 
-### Worked Example: Linearised Shallow Water
+Two other artefacts of low-order schemes to be aware of:
 
-The 1D linearised shallow water equations couple surface elevation
-$\eta$ and depth-averaged velocity $u$:
+- **Numerical diffusion.** First-order upwind for advection
+  smears sharp features even at stable step sizes. The "diffusion"
+  is real (it shows up in the modified equation) but artificial.
+  Higher-order schemes (Lax–Wendroff, WENO, discontinuous Galerkin)
+  reduce it at the cost of *new* artefacts (oscillations near
+  shocks).
+- **Numerical dispersion.** Different Fourier modes travel at
+  slightly different speeds in the discrete scheme even if the
+  physics is non-dispersive. Long-time simulations of wave-like
+  problems accumulate phase errors. Spectral methods don't suffer
+  this; FD does.
 
-$$\frac{\partial \eta}{\partial t} + H\,\frac{\partial u}{\partial x} = 0,
+### Worked Example: Heat Equation vs the Exact Solution
+
+A useful self-test for any FD scheme: pose the heat equation with
+the same Dirichlet BCs as the separation-of-variables solution
+from §6.2 (homogeneous Dirichlet, $u(x, 0) = \sin(\pi x / L)$,
+$L = 1$), run the FTCS scheme above, and compare against the
+closed form $u(x, t) = \sin(\pi x)\, e^{-\alpha \pi^2 t}$. For
+$\alpha = 0.01$, $\Delta x = 0.01$, $\Delta t = 0.4\,\Delta x^2 /
+\alpha$, the FTCS solution agrees with the exact answer to
+$\sim 10^{-3}$ over $t \in [0, 5]$ — better than the rounded
+plot you'd see by eye. The script in §6.3 above is one line away
+from this benchmark (swap the IC).
+
+## 6.5 Revisiting Unit 1: the shallow-water solver in detail
+
+[Unit 1](../unit_01/unit_01.qmd) showed a complete linearised
+shallow-water solver as a black box: input ψ(t), output gauge
+timeseries plus snapshots of $\eta$. Now that we have classical
+PDE language, we can unpack what that solver does, why each
+ingredient was needed, and what kinds of numerical issues
+necessarily came up.
+
+### The system, in PDE language
+
+The 2-D linearised shallow-water equations Unit 1 used are
+
+$$
+\underbrace{\eta_t + \nabla\!\cdot\!(H\,\mathbf{u}) = 0}_{\text{continuity}},
 \qquad
-\frac{\partial u}{\partial t} + g\,\frac{\partial \eta}{\partial x} = 0,$$
+\underbrace{\mathbf{u}_t + g\,\nabla\eta = -b\,\mathbf{u}}_{\text{momentum}}.
+$$
 
-with wave speed $c = \sqrt{gH}$. A Gaussian bump in $\eta$ splits into
-two counter-propagating waves. We revisit this system as a PINN in
-[Unit 7](../unit_07/unit_07.qmd) and as the horizontal driver for the
-column model in [Unit 8](../unit_08/unit_08.qmd).
+By the §6.1 classification this is a **hyperbolic system** — the
+characteristic speeds are $\pm \sqrt{g\,H}$, propagating
+information through the bay at $\sim 8$–$15$ m/s depending on
+depth. Two implications follow immediately:
 
-*Reference finite-volume implementation — code coming soon.*
+- **Both ICs and BCs are needed.** Hyperbolic systems propagate
+  information along characteristics, so a well-posed problem needs
+  both an initial state (provided: $\eta = 0$, $\mathbf{u} = 0$
+  everywhere at $t = 0$) and boundary data on the *inflow*
+  characteristics (provided: the Dirichlet ψ(t) at the river mouth,
+  no-flux at solid coasts).
+- **CFL is set by the fastest wave.** $\Delta t \leq \Delta x /
+  \max\sqrt{g\,H}$. Unit 1 uses $\Delta x = 500$ m and max depth
+  ~50 m → $c_{\max} \approx 22$ m/s, so $\Delta t \lesssim 22.7$ s.
+  The chosen $\Delta t = 12$ s sits comfortably inside that bound.
+
+### The staggered Arakawa-C grid
+
+Unit 1's solver lives on an **Arakawa-C grid**: $\eta$ at cell
+centres, $u$ at vertical cell faces, $v$ at horizontal cell faces.
+The reason matters. On a *co-located* grid — all variables at cell
+centres — central differences of $\nabla \eta$ in the momentum
+equation skip the immediate neighbours, producing a checkerboard
+mode that the scheme cannot damp. The staggered layout makes
+$\nabla \eta$ in the momentum equation use *adjacent* face-to-face
+differences, killing the spurious mode at source. This is one of
+the oldest fixes in geophysical fluid dynamics
+([Arakawa & Lamb 1977](https://en.wikipedia.org/wiki/Arakawa_grids){target="_blank"})
+and it's why every operational ocean / atmosphere model uses some
+flavour of staggered grid.
+
+### The eastern sponge layer
+
+A finite computational domain has hard boundaries the real ocean
+doesn't. Without intervention, a surge wave reaching the eastern
+edge would **reflect** back into the bay, contaminating the
+gauge signal. Unit 1 fixes this with a **Rayleigh-damped sponge**:
+a strip of cells where an extra term $-\sigma(x)\,\eta$ is added
+to the continuity equation, with $\sigma$ ramping smoothly from
+$0$ inside the domain to a large value at the edge.
+
+In PDE terms the sponge approximates a **radiation (open)
+boundary condition** — outgoing energy leaves, incoming energy is
+zero. Doing this exactly for a multi-frequency wave equation is
+hard (perfectly-matched layers, PMLs, are the modern best-practice
+solution). The Rayleigh sponge is the cheap and cheerful
+approximation that nonetheless gets you 99% of the way there.
+
+### What can still go wrong
+
+Even with a staggered grid + sponge + correct CFL, a hyperbolic
+FD solver has a few characteristic failure modes worth flagging:
+
+- **Numerical dispersion** of short-wavelength surges. The 500 m
+  grid resolves features down to maybe 1–2 km; anything sharper
+  gets travel-speed errors. Unit 1's two-pulse surge is broad
+  enough that this is invisible — a *sharp* injected impulse would
+  show frequency-dependent travel times.
+- **Numerical diffusion** from the upwind treatment of any
+  remaining advective terms. Not an issue in Unit 1's linearised
+  setting (no advection), but the moment we add a real surge
+  current the standard 1st-order upwind would smear it.
+- **Reflection from imperfect sponges.** The Rayleigh sponge has
+  a small impedance mismatch with the inner domain; ~1% of the
+  incoming wave reflects. Long-time simulations or noise-sensitive
+  inverse problems will see it. PMLs help but cost more.
+
+### Why a PINN at all?
+
+Given that the FD solver in Unit 1 works fine for the *forward*
+problem, why would we ever reach for a PINN? Three reasons,
+foreshadowing [Units 7 / 9](../unit_07/unit_07.qmd):
+
+1. **Inverse problems.** The FD forward solve is the easy part.
+   Inverting *backward* — given gauge data, recover the source
+   ψ(t) — needs gradients of the forward map with respect to the
+   inputs. PINNs have those by construction (they're trained by
+   gradient descent through autodiff); the FD solver needs the
+   adjoint-method machinery of [Unit 4 §4.2](../unit_04/unit_04.qmd).
+2. **Continuous-resolution inference.** The FD solution lives on
+   a fixed 500 m grid. A trained PINN can evaluate $\eta(x, y, t)$
+   at any continuous coordinate — useful for upscaling, sub-grid
+   interpolation, or fitting irregular gauge layouts.
+3. **Sparse-data regimes.** When the data are sparse enough that
+   the FD inverse problem is severely ill-posed, the PINN's
+   smooth-function prior can stabilise the reconstruction in a way
+   the FD adjoint cannot.
+
+The three reasons above are *not* "PINNs are faster" or "PINNs are
+more accurate" — for the Unit 1 forward problem they're neither.
+They're: PINNs offer a different kind of access to the solution.
+[Unit 7](../unit_07/unit_07.qmd) makes that access actually work
+in practice.
