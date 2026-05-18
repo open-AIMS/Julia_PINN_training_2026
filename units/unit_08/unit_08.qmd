@@ -76,6 +76,56 @@ water is at rest — but their *effect on the column* is summarised
 through one quantity: the vertical velocity $w(z, t)$ those
 horizontal flows induce via continuity.
 
+![Schematic of the 1-D thermistor column. Five sensors at fixed depths $z_1, \ldots, z_5$ sample temperature $T(z_k, t)$ while the column evolves under vertical advection $w(z, t)$ (green), turbulent diffusion $\kappa(z, t)$ (purple), three surface fluxes (red — $Q_{\text{SW}}$ penetrating, $Q_{\text{LW}}$, $Q_{\text{lat}} + Q_{\text{sens}}$ non-penetrating), penetrating shortwave decaying through the water (orange), and a fixed deep reservoir at $z = -H$. The right-hand panels collect the governing PDE, its boundary conditions, and the externally prescribed forcings.](figures/column_diagram.svg){#fig-column width=92%}
+
+### How the column equation falls out of 3-D
+
+Starting from the 3-D advection–diffusion equation for a passive
+scalar $T(\mathbf{x}, t)$,
+
+$$
+\frac{\partial T}{\partial t}
+\;+\; \mathbf{u}\!\cdot\!\nabla T
+\;=\; \nabla\!\cdot\!\bigl(\kappa\,\nabla T\bigr) \;+\; \mathcal{S},
+$$
+
+assume horizontal homogeneity ($\partial_x T = \partial_y T = 0$
+inside the column) and split the velocity into its horizontal and
+vertical parts $\mathbf{u} = (u_h, v_h, w)$. The horizontal
+advection $u_h\,\partial_x T + v_h\,\partial_y T$ vanishes by the
+homogeneity assumption; what survives is the 1-D equation in
+@fig-column,
+
+$$
+\boxed{\;\;
+\frac{\partial T}{\partial t}
+\;=\;
+\underbrace{-\, w(z, t)\,\frac{\partial T}{\partial z}}_{\text{vertical advection}}
+\;+\;
+\underbrace{\frac{\partial}{\partial z}\!\left(\kappa(z, t)\,\frac{\partial T}{\partial z}\right)}_{\text{Reynolds-averaged turbulent diffusion}}
+\;+\;
+\underbrace{\mathcal{S}(z, t)}_{\text{penetrating shortwave (Beer–Lambert)}}
+\;\;}
+$$ {#eq-column}
+
+closed by the two boundary conditions
+
+$$
+-\,\rho\, c_p\, \kappa(0, t)\,\frac{\partial T}{\partial z}\bigg|_{z = 0}
+\;=\; Q_{\text{np}}(t),
+\qquad
+T(-H, t) \;=\; T_{\text{deep}}.
+$$ {#eq-column-bcs}
+
+The Neumann condition at the surface is the **bulk air–sea heat-flux
+relation**: the diffusive temperature flux out of the column equals
+the non-penetrating heat loss $Q_{\text{np}}$ (longwave + sensible +
+latent). The Dirichlet condition at $z = -H$ pins the bottom to a
+much-slower-varying deep reservoir. $\rho \approx 1025\,\mathrm{kg/m^3}$
+and $c_p \approx 3990\,\mathrm{J\,kg^{-1}\,K^{-1}}$ are the seawater
+density and heat capacity — they're the only "where do these
+numbers come from" constants in @eq-column-bcs.
+
 ::: {.callout-note}
 ## When the column idealisation breaks
 
@@ -125,15 +175,44 @@ Real ocean turbulence is chaotic on scales below ~1 m. We don't
 resolve it. What we *do* notice is that, averaged over a few
 minutes, turbulence mixes the column the way molecular diffusion
 mixes a gas — gradient-down, with an effective diffusivity $\kappa$
-many orders of magnitude larger than the molecular value:
+many orders of magnitude larger than the molecular value
+($\kappa_{\text{molecular}} \sim 1.4\times 10^{-7}\,\text{m}^2/\text{s}$
+vs $\kappa_{\text{turbulent}} \sim 10^{-5}$ to $10^{-3}\,\text{m}^2/\text{s}$):
 
 $$\left.\frac{\partial T}{\partial t}\right|_{\text{diffusion}}
 = \frac{\partial}{\partial z}\!\left(\kappa(z, t)\,\frac{\partial T}{\partial z}\right).$$
 
-This is the **Reynolds closure** applied to temperature: we replace
-unresolved fluctuations by an effective transport coefficient. The
-coefficient is large near the wind-driven surface (the *mixed
-layer*) and small at depth.
+This is the **Reynolds closure** applied to temperature: split
+$T = \bar T + T'$ into mean and fluctuation, average the advection
+equation, and identify the unresolved correlation
+$\overline{w' T'}$ as $-\kappa\,\partial_z \bar T$ by analogy with
+molecular diffusion. The "closure" is the choice of $\kappa$.
+
+How $\kappa(z, t)$ is *actually* set is the central design choice
+in any column model. Three standard parameterisations:
+
+- **K-profile / KPP closure** ([Large, McWilliams & Doney 1994](https://agupubs.onlinelibrary.wiley.com/doi/10.1029/94RG01872){target="_blank"})
+  — the operational default. Splits the column into a *boundary
+  layer* (depth diagnosed from a bulk Richardson criterion) where
+  $\kappa$ has a smooth cubic profile, and an interior with a
+  small background diffusivity plus shear-instability and
+  internal-wave terms.
+- **Mellor–Yamada level-2.5** ([Mellor & Yamada 1982](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/RG020i004p00851){target="_blank"})
+  — a two-equation second-moment closure that carries turbulent
+  kinetic energy and a length scale as prognostic variables.
+  Heavier and slower than KPP but more honest about transients.
+- **Pacanowski–Philander** ([Pacanowski & Philander 1981](https://journals.ametsoc.org/view/journals/phoc/11/11/1520-0485_1981_011_1443_pomite_2_0_co_2.xml){target="_blank"})
+  — a simple Richardson-number-dependent diffusivity. Cheap, used
+  in many GCMs for the interior, but blind to surface-driven
+  boundary-layer dynamics.
+
+For the capstone we use a **prescribed** $\kappa(z, t)$ — the
+column inherits it from a parent regional model or a simple
+analytical profile that mimics KPP — rather than running a closure
+internally. The recovery question in [Unit 9](../unit_09/unit_09.qmd)
+is about *inferring effective $\kappa$* from sparse mooring data,
+which is exactly what KPP and Mellor–Yamada try to do
+*prognostically*.
 
 The two mechanisms compete. The **Péclet number** $\mathrm{Pe} = wH /
 \kappa$ measures who wins on the column scale: $\mathrm{Pe} \gg 1$ is
@@ -159,18 +238,49 @@ two parts:
 the surface and is absorbed *inside* the water, exponentially with
 depth — red light absorbed in the top few centimetres, blue–green
 light reaching tens of metres. This is a **body source**, not a
-boundary flux.
+boundary flux. The Beer–Lambert decay model splits insolation into
+two bands (one absorbed near the surface, one penetrating deeper):
 
-**Non-penetrating fluxes $Q_{\text{np}}$.** Longwave radiation,
-sensible heat, latent heat (evaporation). All act *at* the surface
-and add up to a single boundary flux. Cooling typically wins at
-night and on cloudy days; heating wins on still sunny afternoons.
+$$
+\mathcal{S}(z, t) \;=\; \frac{Q_{\text{SW}}(t)}{\rho\,c_p}\,
+\Bigl[\, R\, k_1\, e^{k_1 z} \;+\; (1 - R)\, k_2\, e^{k_2 z}\, \Bigr],
+\qquad z \leq 0,
+$$
 
-The boundary condition at $z = 0$ becomes a Neumann condition on
-the diffusive flux of temperature, sourced by $Q_{\text{np}}$. The
-penetrating shortwave shows up as a body source $\mathcal{S}(z, t)$
-in the equation interior. The full forms are in
-[Unit 9](../unit_09/unit_09.qmd) §9.4 and §9.5.
+with $R \approx 0.58$ the red-band fraction, $k_1 \approx 0.5\,\text{m}^{-1}$
+(red, decays fast), $k_2 \approx 1/14\,\text{m}^{-1}$ (blue-green,
+reaches the thermocline). The two-band model is the classical
+[Paulson & Simpson (1977)](https://journals.ametsoc.org/view/journals/phoc/7/6/1520-0485_1977_007_0952_imitur_2_0_co_2.xml){target="_blank"}
+parameterisation used by essentially every coastal column model.
+
+**Non-penetrating fluxes $Q_{\text{np}}$.** Three contributions
+that all act *at* the surface and add up to a single boundary flux:
+
+$$
+Q_{\text{np}}(t) \;=\;
+\underbrace{Q_{\text{LW}}(t)}_{\text{net longwave}} \;+\;
+\underbrace{Q_{\text{sens}}(t)}_{\text{sensible heat}} \;+\;
+\underbrace{Q_{\text{lat}}(t)}_{\text{latent heat (evaporation)}}.
+$$
+
+Each term has a standard **bulk formula** that ties it to the
+near-surface atmosphere ([Fairall et al. 2003 — COARE 3.0](https://journals.ametsoc.org/view/journals/clim/16/4/1520-0442_2003_016_0571_bpoasf_2.0.co_2.xml){target="_blank"}
+is the reference):
+
+- **Sensible:** $Q_{\text{sens}} = \rho_a\, c_{p,a}\, C_H\, U_{10}\,(T_a - T_s)$
+- **Latent:** $Q_{\text{lat}} = \rho_a\, L_v\, C_E\, U_{10}\,(q_a - q_s)$
+- **Longwave:** $Q_{\text{LW}} = \varepsilon\,\sigma_{\text{SB}}\,T_s^4 - Q_{\text{LW}}^{\downarrow}$
+
+with $U_{10}$ the 10-m wind, $T_a, q_a$ air temperature/humidity,
+$T_s, q_s$ skin-temperature/saturated humidity, $C_H, C_E$ exchange
+coefficients ($\sim 1.2 \times 10^{-3}$), and
+$\sigma_{\text{SB}} = 5.67 \times 10^{-8}\,\text{W m}^{-2} \text{K}^{-4}$
+the Stefan–Boltzmann constant. Cooling typically wins at night and
+on cloudy days; heating wins on still sunny afternoons. For our
+forward solves we treat $Q_{\text{np}}(t)$ and $Q_{\text{SW}}(t)$ as
+*prescribed inputs* — observed at the mooring or pulled from
+reanalysis — rather than computing them from atmospheric
+fields.
 
 ::: {.callout-tip}
 ## A useful intuition
@@ -240,7 +350,60 @@ fingerprint deeper than naive cooling would suggest, why SST cools
 slowly under upwelling, and why the steady state is reached only
 over many months.
 
-## 8.7 From concepts to the capstone column
+## 8.7 Where this kind of column modelling appears in the literature
+
+The 1-D thermistor-column problem of @fig-column isn't a workshop
+invention — it's the standard way physical oceanographers reason
+about a single mooring's worth of data. A few entry points:
+
+- **Mixed-layer / column foundations.**
+  [Price, Weller & Pinkel 1986](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/JC091iC07p08411){target="_blank"}
+  ("Diurnal cycling: Observations and models of the upper ocean
+  response to diurnal heating, cooling, and wind mixing") is the
+  canonical paper for upper-ocean column response to surface
+  forcing — the diurnal-warm-layer paragraph in §8.6 is a direct
+  paraphrase. The KPP paper of
+  [Large, McWilliams & Doney 1994](https://agupubs.onlinelibrary.wiley.com/doi/10.1029/94RG01872){target="_blank"}
+  is the closure most operational column models use today.
+- **Great Barrier Reef specifically.**
+  [Wolanski & Pickard 1985](https://www.publish.csiro.au/MF/MF9850521){target="_blank"}
+  and the long line of subsequent AIMS / James Cook University
+  papers (e.g. Lambrechts et al. 2008; Hancock & Hughes 2017)
+  describe the GBR's lagoonal-vs-shelf thermal regimes — the
+  observational backdrop the capstone synthesises.
+- **Coral thermal stress as a column-modelling problem.**
+  [Liu et al. 2014](https://link.springer.com/article/10.1007/s00338-013-1097-y){target="_blank"}
+  ("Reef-scale thermal stress monitoring of coral ecosystems")
+  and the NOAA Coral Reef Watch operational product use SST and
+  Degree-Heating-Weeks — proxies that miss the *vertical*
+  distribution the column model resolves. The DHW shortcoming is
+  the operational motivation for column modelling at AIMS.
+- **Inverse problems on column data.**
+  [Kunze 1985](https://journals.ametsoc.org/view/journals/phoc/15/5/1520-0485_1985_015_0544_nirfia_2_0_co_2.xml){target="_blank"}
+  ("Near-inertial wave propagation in geostrophic shear") is the
+  classical "what does this mooring tell me?" inverse-problem
+  paper for internal-wave kinematics; modern variational
+  data-assimilation work (e.g. ROMS 4D-Var at coastal scale) does
+  the same thing at GCM cost.
+- **PINN-style ocean-column work specifically.** There's a small
+  but growing literature on physics-informed networks for ocean
+  mixed-layer dynamics — e.g. column wind-mixing recovery
+  ([Bolton & Zanna 2019](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2018MS001472){target="_blank"}
+  is the precursor on subgrid closure; closer-to-PINN work has
+  appeared in *Ocean Modelling* and JAMES through 2024–25). The
+  AIMS-side AI4DA initiative at CSIRO is doing exactly this kind
+  of column-model inverse problem with PINN-flavoured tooling.
+
+For the workshop, the column model in @eq-column is *deliberately
+simple* — KPP-style $\kappa$, two-band penetrating shortwave,
+bulk surface fluxes prescribed — so the focus stays on the
+inverse-problem mechanics rather than the closure menagerie. A
+realistic operational tool would substitute KPP for the
+prescribed $\kappa(z, t)$ and replace prescribed $w(z, t)$ with a
+coupled regional ocean model (ROMS / SHOC / SLIM /
+MITgcm-Coastal).
+
+## 8.8 From concepts to the capstone column
 
 The capstone in [Unit 9](../unit_09/unit_09.qmd) is the column
 idealisation written down concretely:
