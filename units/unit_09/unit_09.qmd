@@ -99,7 +99,7 @@ The linearised shallow water equations on a 2D domain produce
 horizontal velocity $\mathbf{u}_h(x, y, t)$ in response to a
 wind-stress forcing. We use these as the **driver** of the
 column's upwelling, not as a coupled-PDE PINN problem (that's the
-path de Wolff et al. found brittle). The SWE solve is offline; its
+path [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"} found brittle). The SWE solve is offline; its
 output is a time series at the mooring location.
 
 ### Coupling: $w$ from $\nabla_h\!\cdot\!\mathbf{u}_h$

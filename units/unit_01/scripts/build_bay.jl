@@ -113,19 +113,19 @@ const STRADBROKE = [
     (153.395, -27.555),
 ]
 
-# South Stradbroke Island — the long, narrow sand spit running south from
-# Jumpinpin Bar (≈-27.745, 153.43) to the Gold Coast Seaway region just
-# below the domain. We give it a slight wiggle to leave a thin Broadwater
-# channel between the spit and the mainland coast.
+# South Stradbroke Island — long, narrow sand spit running ~N-S from
+# Jumpinpin Bar (≈-27.745) down past the southern domain edge. Modelled as a
+# single clean lozenge ~3 km wide, with the southern vertices pushed just
+# past LAT_MIN so the polygon cleanly cuts the domain edge (avoids a thin
+# disconnected sliver at the rasterisation).
 const SOUTH_STRADBROKE = [
-    (153.430, -27.745),
-    (153.460, -27.760),
-    (153.475, -27.800),
-    (153.475, -27.850),
-    (153.445, -27.850),
-    (153.430, -27.820),
-    (153.420, -27.780),
-    (153.420, -27.755),
+    (153.435, -27.745),   # N tip at Jumpinpin
+    (153.465, -27.770),
+    (153.475, -27.810),
+    (153.475, -27.870),   # SE, past domain edge
+    (153.435, -27.870),   # SW, past domain edge
+    (153.430, -27.810),
+    (153.420, -27.770),
 ]
 
 # Russell / Macleay / Lamb / Karragarra island cluster — these crowd
@@ -215,14 +215,27 @@ const TROUGH_LINE = [
     (153.410, -27.440),
 ]
 
-# Brisbane River dredged channel — from river mouth (153.06, -27.38) heading
-# E then SE to join the trough
+# Brisbane River dredged channel — from river mouth heading E and bending SE
+# to merge into the eastern trough WELL before reaching Moreton Island
+# (Moreton's W edge sits near lon 153.34–153.36 at lat ≈ -27.42).
 const RIVER_CHANNEL = [
     (153.080, -27.382),
-    (153.150, -27.390),
-    (153.220, -27.400),
-    (153.290, -27.420),
-    (153.360, -27.430),
+    (153.150, -27.388),
+    (153.220, -27.395),
+    (153.280, -27.405),
+    (153.310, -27.420),   # joins TROUGH_LINE near (153.395, -27.360)
+]
+
+# Northwest Channel — the deep N-S passage that real Moreton Bay uses to
+# exchange water with the open ocean through its NORTHERN entrance. Sits
+# between the mainland coast and Moreton Island's western shore, then bends
+# slightly W toward the northern domain edge where the bay opens to the sea.
+const NORTH_CHANNEL = [
+    (153.300, -27.060),   # northern entrance (top of domain)
+    (153.310, -27.140),
+    (153.320, -27.220),
+    (153.335, -27.300),
+    (153.355, -27.370),   # merges into the eastern trough
 ]
 
 # Distance from a point to a polyline (in metres, using local projection)
@@ -280,17 +293,16 @@ function depth_at(λ, φ)
     d_river = dist_to_polyline(λ, φ, RIVER_CHANNEL)
     bonus_river = 7.0 * exp(-(d_river / 1200.0)^2)
 
+    # Northwest Channel — deep northern entrance, ~2.5 km wide, +12 m
+    d_nwc = dist_to_polyline(λ, φ, NORTH_CHANNEL)
+    bonus_nwc = 12.0 * exp(-(d_nwc / 2200.0)^2)
+
     # shoals near river mouth (subtract a bit of depth in a small patch)
     d_mouth = hypot(x_of_lon(λ) - x_of_lon(153.07),
                     y_of_lat(φ) - y_of_lat(-27.385))
     shoal_pen = -2.5 * exp(-(d_mouth / 2500.0)^2)
 
-    # gentle deepening toward the northern entrance (between Moreton & Bribie)
-    d_npass = hypot(x_of_lon(λ) - x_of_lon(153.30),
-                    y_of_lat(φ) - y_of_lat(-27.05))
-    bonus_npass = 6.0 * exp(-(d_npass / 5000.0)^2)
-
-    return max(1.5, d_base + bonus_trough + bonus_river + shoal_pen + bonus_npass)
+    return max(1.5, d_base + bonus_trough + bonus_river + bonus_nwc + shoal_pen)
 end
 
 # --- Rasterise -------------------------------------------------------------
@@ -326,7 +338,7 @@ const GAUGES = [
         "southern bay · west of Russell Is."),
 ]
 
-const RIVER_MOUTH = ("RM", "Brisbane River mouth", -27.388, 153.105,
+const RIVER_MOUTH = ("RM", "Brisbane River mouth", -27.378, 153.165,
     "unknown surge inflow ψ(t)")
 
 function snap_to_water(lat, lon; max_r = 10)

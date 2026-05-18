@@ -25,7 +25,7 @@ together every theme you will revisit over the next nine units:
 ocean / water modelling, and PINNs**. Then it previews the larger
 AIMS capstone in §1.3.
 
-## 1.1 A scientific question, in your back yard
+## 1.1 An example scientific question
 
 ### Where the Brisbane River meets Moreton Bay
 
@@ -140,8 +140,10 @@ is the smallest one that gets the shape of the answer right; it
 takes the place a real bathymetry file would in production.
 :::
 
-The bay model is produced by `units/unit_01/scripts/build_bay.jl`
-and stored as plain CSVs in `units/unit_01/data/`:
+The bay model is produced by
+[`scripts/build_bay.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/build_bay.jl){target="_blank"}
+and stored as plain CSVs in
+[`units/unit_01/data/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/data){target="_blank"}:
 
 ```{julia}
 #| eval: false
@@ -152,23 +154,57 @@ gauges = CSV.read("units/unit_01/data/bay_gauges.csv",   DataFrame)
 river  = CSV.read("units/unit_01/data/river_source.csv", DataFrame)
 ```
 
+::: {.callout-note collapse="true"}
+## How to get these files
+The CSVs are committed in the repo, so you have three options:
+
+1. **Clone the whole course** (recommended for hands-on work):
+   `git clone https://github.com/open-AIMS/Julia_PINN_training_2026`
+2. **Download individual files** straight from GitHub — click any of
+   the linked filenames above and use *Raw → Save as*.
+3. **Regenerate them** with `julia --project=. units/unit_01/scripts/build_bay.jl`
+   from the repo root. The script is fast (a few seconds) and the
+   only inputs are the constants at the top of the file, so you can
+   change the grid, coastline, or gauge layout and rebuild.
+
+Throughout the course, paths shown in backticks (e.g.
+`scripts/build_bay.jl`) are repo-relative; the same path also works
+as a GitHub link when rendered.
+:::
+
 ### The physics in one paragraph
 
 The water motion is described by the **linearised shallow-water
-equations** (de Wolff et al. 2021, eq. 6–7; reproduced in detail in
+equations** ([de Wolff et al. 2021](../references/references.qmd#ref-dewolff2021){target="_blank"}, eq. 6–7; reproduced in detail in
 [§7.2](../unit_07/unit_07.qmd#sec-de-wolff)). With $H(x,y)$ the
 local depth, $g$ gravity, and $b$ a small linear drag, the surface
 elevation $\eta(x, y, t)$ and depth-averaged horizontal velocity
 $\mathbf{u}(x, y, t) = (u, v)$ satisfy
 
 $$
-\frac{\partial \eta}{\partial t} + \nabla\!\cdot\!\bigl(H\,\mathbf{u}\bigr) = 0,
-\qquad
-\frac{\partial \mathbf{u}}{\partial t} + g\,\nabla \eta = -b\,\mathbf{u}.
-$$ {#eq-swe-linear}
+\underbrace{\frac{\partial \eta}{\partial t}
+            + \nabla\!\cdot\!\bigl(H\,\mathbf{u}\bigr) = 0}_{\textbf{continuity (mass)}}
+$$ {#eq-swe-continuity}
 
-Eliminating $\mathbf{u}$ between the two equations gives a single
-2-D **wave equation** for $\eta$,
+$$
+\underbrace{\frac{\partial \mathbf{u}}{\partial t}
+            + g\,\nabla \eta = -b\,\mathbf{u}}_{\textbf{momentum}}
+$$ {#eq-swe-momentum}
+
+To see what kind of physics this encodes, take $\partial/\partial t$
+of the continuity equation and substitute
+$\partial \mathbf{u}/\partial t$ from the momentum equation:
+
+$$
+\frac{\partial^2 \eta}{\partial t^2}
+\;=\; -\nabla\!\cdot\!\Bigl(H\,\tfrac{\partial \mathbf{u}}{\partial t}\Bigr)
+\;=\; \nabla\!\cdot\!\bigl(g\,H\,\nabla \eta\bigr)
+       \;+\; \nabla\!\cdot\!\bigl(H\,b\,\mathbf{u}\bigr).
+$$
+
+The drag term is small over the few-hour surge window (we revisit it
+in the callout below); dropping it leaves a single 2-D **wave
+equation** for $\eta$,
 
 $$
 \frac{\partial^2 \eta}{\partial t^2}
@@ -228,7 +264,8 @@ catchment rain, followed by a $\sim 18\,\text{cm}$ follow-on bulge
 about two hours later. These amplitudes are realistic for the
 de-tided residual of a moderate Brisbane River flood.
 
-The inner FD step is just a discretisation of @eq-swe-linear — the
+The inner FD step is just a discretisation of @eq-swe-continuity
+and @eq-swe-momentum — the
 listing below is what the code actually executes:
 
 ```{julia}
