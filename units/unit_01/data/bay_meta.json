@@ -1,0 +1,16 @@
+{
+    "lx_m": 50000,
+    "dy_m": 1000,
+    "lon_max": 153.52736950270494,
+    "ny": 95,
+    "ly_m": 95000,
+    "lat_min": -27.85,
+    "lat_ref": -27.4,
+    "nx": 50,
+    "m_per_deg_lat": 111000,
+    "m_per_deg_lon": 98547.50775014055,
+    "depth_units": "m, positive down; NaN = land",
+    "lon_min": 153.02,
+    "dx_m": 1000,
+    "lat_max": -26.994144144144144
+}

@@ -1,0 +1,5 @@
+gauge_id,name,lat,lon,ix,iy,blurb,snap_lon,snap_lat,depth_m
+G1,Brisbane Bar,-27.3670,153.1660,15,54,north of river mouth · main channel,153.1671,-27.3680,6.05
+G2,Wellington Point,-27.4800,153.2360,22,42,central bay · across from river,153.2382,-27.4761,6.00
+G3,Tangalooma Roads,-27.2050,153.3200,30,72,Moreton Is. lee · NE bay,153.3193,-27.2059,6.38
+G4,Russell Channel,-27.6600,153.3450,33,22,southern bay · between Russell & mainland,153.3498,-27.6563,6.00
