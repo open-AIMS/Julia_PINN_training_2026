@@ -15,10 +15,10 @@ equation discovery. The unit closes with a conceptual preview of
 [Units 5–9](../unit_05/unit_05.qmd) implement against the AIMS
 capstone.
 
-Before any of that, a short ODE refresher — the dynamics language we
+Before any of that, an ODE refresher — the dynamics language we
 need to start meaningful Sci-ML.
 
-## 3.1 A short ODE review
+## 3.1 An ODE refresher
 
 An **ordinary differential equation (ODE)** is a relation between a
 function and its derivatives in *one* independent variable
@@ -45,9 +45,67 @@ Vocabulary worth keeping straight:
   *nonlinear* otherwise. Linear systems have explicit solutions
   via matrix exponentials; nonlinear systems generally do not.
 
-### Worked example: the harmonic oscillator
+The next three subsubsections walk three ODEs in increasing
+complexity — exponential decay, the undamped harmonic oscillator,
+and a second-order system *with* damping. Each comes with Julia and
+Python code so the ecosystem fluency built in [Unit 2](../unit_02/unit_02.qmd)
+carries over.
 
-The simplest non-trivial ODE — a mass on a spring,
+### The simplest ODE: exponential decay
+
+A scalar, first-order, linear, autonomous ODE — the canonical
+warm-up:
+
+$$\dot x \;=\; -\lambda\, x, \qquad x(0) = x_0, \qquad \lambda > 0,$$
+
+with exact solution $x(t) = x_0\, e^{-\lambda t}$. It models
+radioactive decay, RC-circuit discharge, drug clearance from a
+bloodstream — anything where the rate of change is proportional to
+the current amount. The point of starting here is that we *can*
+compare numerical integration to a known closed-form answer, which
+makes solver choices concrete.
+
+In Julia, using the `OrdinaryDiffEq` ecosystem that the rest of the
+workshop standardises on:
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+λ, x0 = 0.5, 1.0
+decay(x, p, t) = -λ * x
+prob = ODEProblem(decay, x0, (0.0, 6.0))
+sol  = solve(prob, Tsit5(); saveat = 0.05)
+
+plot(sol.t, sol.u; label = "Tsit5 (numerical)", lw = 2,
+     xlabel = "t", ylabel = "x(t)",
+     title = "Exponential decay: ẋ = -λx,  λ = $λ")
+plot!(sol.t, x0 .* exp.(-λ .* sol.t);
+      label = "exact: x₀·e^(-λt)", ls = :dash, c = :black)
+```
+
+In Python with `scipy.integrate.solve_ivp` (the SciPy equivalent of
+`OrdinaryDiffEq`):
+
+```{.python filename="units/unit_03/scripts/decay_python.py"}
+import numpy as np
+from scipy.integrate import solve_ivp
+
+lam, x0 = 0.5, 1.0
+sol = solve_ivp(lambda t, x: -lam * x,
+                t_span=(0.0, 6.0), y0=[x0],
+                method="RK45", dense_output=True)
+
+t = np.linspace(0, 6, 121)
+print("max |numerical - exact| =",
+      float(np.max(np.abs(sol.sol(t)[0] - x0 * np.exp(-lam * t)))))
+```
+
+The max error is $\sim 10^{-6}$ for both solvers at default
+tolerances — a useful baseline before we ask anything harder.
+
+### A second-order system: the harmonic oscillator
+
+The simplest non-trivial *second-order* ODE — a mass on a spring,
 
 $$\ddot{x} + \omega^2 x = 0
 \quad\Longleftrightarrow\quad
@@ -55,11 +113,11 @@ $$\ddot{x} + \omega^2 x = 0
 \begin{pmatrix} 0 & 1 \\ -\omega^2 & 0 \end{pmatrix}
 \begin{pmatrix} x \\ v \end{pmatrix},$$
 
-with $v = \dot{x}$. The exact solution is sinusoidal; the energy
-$E = \tfrac{1}{2}(v^2 + \omega^2 x^2)$ is conserved exactly. The
-*phase portrait* — trajectories in the $(x, v)$ plane — is a family
-of concentric ellipses. We solve and plot it in Julia in a few
-lines:
+with $v = \dot{x}$. Energy $E = \tfrac{1}{2}(v^2 + \omega^2 x^2)$ is
+conserved exactly; the *phase portrait* — trajectories in the
+$(x, v)$ plane — is a family of concentric ellipses. This is the
+example the Hamiltonian / Lagrangian neural networks of §3.3 are
+designed to handle without drifting.
 
 ```{julia}
 using OrdinaryDiffEq, Plots
@@ -67,18 +125,16 @@ using OrdinaryDiffEq, Plots
 ω = 2π                                # one cycle per second
 oscillator(u, p, t) = [u[2], -ω^2 * u[1]]
 
-# three different initial energies
-u0s = [[1.0, 0.0], [1.5, 0.0], [2.0, 0.0]]
+u0s  = [[1.0, 0.0], [1.5, 0.0], [2.0, 0.0]]
 tspan = (0.0, 2.0)
 
-plt = plot(xlabel="x", ylabel="v",
-           title="Harmonic oscillator phase portrait",
+plt = plot(xlabel = "x", ylabel = "v",
+           title = "Harmonic oscillator phase portrait",
            aspect_ratio = :equal, legend = :outerright)
 for u0 in u0s
     sol = solve(ODEProblem(oscillator, u0, tspan), Tsit5();
                 saveat = 0.01)
-    plot!(plt, sol[1, :], sol[2, :],
-          label = "x(0) = $(u0[1])")
+    plot!(plt, sol[1, :], sol[2, :], label = "x(0) = $(u0[1])")
 end
 plt
 ```
@@ -90,6 +146,73 @@ implicit solver like `QNDF()` or `Rodas5P()` instead. *Choosing the
 solver* is most of classical numerics; in [Unit 4](../unit_04/unit_04.qmd)
 we'll let the network learn the dynamics directly and side-step the
 choice.
+
+### Adding damping: the three regimes
+
+Real oscillators bleed energy. Add a velocity-proportional drag
+$2\zeta\omega\dot x$ and the equation becomes
+
+$$\ddot{x} + 2\zeta\omega\, \dot{x} + \omega^2 x = 0,$$
+
+with **damping ratio** $\zeta \geq 0$ — the dimensionless number
+that controls *how* the oscillator decays:
+
+- $\zeta < 1$ — **underdamped**. Oscillation with an exponential
+  envelope $e^{-\zeta\omega t}$. The default for, e.g., a car
+  suspension or a ringing bell.
+- $\zeta = 1$ — **critically damped**. Fastest return to zero with
+  no overshoot. The design target for, e.g., a closing door or a
+  feedback controller.
+- $\zeta > 1$ — **overdamped**. Slow exponential return; no
+  oscillation. Heavy honey on a spring.
+
+A single Julia script overlays the three regimes:
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+ω = 2π
+function damped(u, p, t)
+    ζ = p[1]
+    [u[2], -ω^2 * u[1] - 2ζ * ω * u[2]]
+end
+
+u0  = [1.0, 0.0]
+ts  = (0.0, 3.0)
+plt = plot(xlabel = "t", ylabel = "x(t)",
+           title = "Damped oscillator: ẍ + 2ζω ẋ + ω²x = 0",
+           legend = :topright)
+for (ζ, label) in [(0.1, "ζ=0.1 (under)"),
+                   (1.0, "ζ=1.0 (critical)"),
+                   (2.0, "ζ=2.0 (over)")]
+    sol = solve(ODEProblem(damped, u0, ts, [ζ]), Tsit5(); saveat = 0.01)
+    plot!(plt, sol.t, [u[1] for u in sol.u], label = label, lw = 2)
+end
+plt
+```
+
+Same model in Python — same shape:
+
+```{.python filename="units/unit_03/scripts/damped_python.py"}
+import numpy as np
+from scipy.integrate import solve_ivp
+
+omega = 2 * np.pi
+def damped(t, u, zeta):
+    return [u[1], -omega**2 * u[0] - 2 * zeta * omega * u[1]]
+
+for zeta in (0.1, 1.0, 2.0):
+    sol = solve_ivp(damped, (0.0, 3.0), [1.0, 0.0],
+                    args=(zeta,), t_eval=np.linspace(0, 3, 301))
+    print(f"ζ={zeta}: x(3.0) = {sol.y[0, -1]:+.4f}")
+```
+
+Notice $\zeta = 1$ minimises the time to "land" near zero — a fact
+control engineers exploit. We'll come back to damped oscillators
+when we discuss the inverse problem in [Unit 4](../unit_04/unit_04.qmd):
+recovering $\zeta$ from a noisy trajectory is the simplest possible
+"physics parameter from data" problem and a useful sanity check
+before attempting the AIMS capstone in [Unit 8–9](../unit_08/unit_08.qmd).
 
 ### Why ODEs matter for the rest of the unit
 
@@ -191,21 +314,56 @@ extrapolation horizons.
 
 ## 3.4 Equation discovery: SINDy
 
+The next three subsubsections cover (a) the sparse-regression
+idea, (b) how to choose the candidate-term library, and (c) a
+worked Lorenz example in Julia *and* Python. We then close with
+when SINDy beats — and loses to — black-box function approximators.
+
 ### The sparse regression idea
 
 **SINDy** (Sparse Identification of Nonlinear Dynamics)
-([Brunton et al., 2016](../references/references.qmd#ref-brunton2016){target="_blank"}) assumes the right-hand side of
-$\dot{\mathbf{x}} = f(\mathbf{x})$ is a *sparse* combination of
-candidate terms — polynomials, trigonometric functions, products.
-Build a feature library
+([Brunton et al., 2016](../references/references.qmd#ref-brunton2016){target="_blank"})
+asks: instead of fitting a black-box neural network to data, can
+we directly *recover the governing equation* by assuming it's a
+short symbolic expression? The construction:
 
-$$\Theta(\mathbf{x}) \;=\;
-[1,\ x_1,\ x_2,\ \ldots,\ x_1^2,\ x_1 x_2,\ \ldots,\ \sin x_1,\ \cos x_1,\ \ldots],$$
+1. Observe time-series data $X = [\mathbf{x}(t_1), \mathbf{x}(t_2), \ldots]$.
+2. Numerically differentiate to estimate $\dot X$ (the hard part —
+   noise destroys naive finite differences; total-variation
+   regularised differentiation or smoothing splines help).
+3. Build a **library matrix** of candidate right-hand-side terms
+   evaluated at each sample,
+   $$\Theta(\mathbf{x}) \;=\;
+   [1,\ x_1,\ x_2,\ \ldots,\ x_1^2,\ x_1 x_2,\ \ldots,\ \sin x_1,\ \cos x_1,\ \ldots].$$
+4. Solve the **sparse regression** $\dot X = \Theta(X)\,\Xi$ for a
+   sparse coefficient matrix $\Xi$. The nonzero entries *are* the
+   equation.
 
-then regress $\dot X$ against $\Theta(X)$ with $\ell_1$
-regularisation. The active terms — the few with nonzero
-coefficients — *are* the equation. The output is a **symbolic
-equation**, not a black-box function. That's the headline win.
+The sparsity is enforced either by $\ell_1$ regularisation (LASSO)
+or by **STLSQ** — Sequentially Thresholded Least Squares:
+ordinary least squares → set small coefficients to zero → refit on
+the survivors → repeat until stable. STLSQ is what the original
+Brunton paper proposed and what the workshop script uses.
+
+**Why SINDy is popular.** Compared to fitting a neural network to
+the same dynamics, SINDy offers:
+
+- **Interpretability.** The output is a human-readable equation,
+  not a 10-layer black box. Domain experts can sanity-check it.
+- **Extrapolation.** A 3-term equation is far more likely to be
+  *correct* outside its training regime than a network that
+  memorised the training trajectory.
+- **Data efficiency.** Hundreds of samples are usually enough,
+  vs. tens of thousands for a deep model on the same task.
+- **Compatibility with downstream physics.** Once you have an
+  equation, you can hand it to a stiff ODE solver, do stability
+  analysis, derive control laws — any classical tool works.
+
+Compared to physics-informed neural networks (next units), SINDy
+is the right move when you *don't know the equation but suspect
+it's sparse*. PINNs assume the equation is given and solve it;
+SINDy discovers the equation in the first place. They're
+complementary, not competing.
 
 ### Building a library
 
@@ -243,6 +401,41 @@ Captured output from `./build.sh execute 3`:
 
 {{< include output/sindy_lorenz.md >}}
 
+The same workflow in Python uses the
+[`pysindy`](https://github.com/dynamicslab/pysindy){target="_blank"}
+package — the canonical SINDy implementation, maintained by the
+Brunton group:
+
+```{.python filename="units/unit_03/scripts/sindy_lorenz_python.py"}
+# pip install pysindy
+import numpy as np
+from scipy.integrate import solve_ivp
+import pysindy as ps
+
+sigma, rho, beta = 10.0, 28.0, 8.0 / 3.0
+def lorenz(t, u): return [sigma * (u[1] - u[0]),
+                          u[0] * (rho - u[2]) - u[1],
+                          u[0] * u[1] - beta * u[2]]
+
+t = np.linspace(0, 10, 5001)
+sol = solve_ivp(lorenz, (t[0], t[-1]), [-8.0, 7.0, 27.0],
+                t_eval=t, rtol=1e-9, atol=1e-9)
+X = sol.y.T
+
+model = ps.SINDy(
+    feature_library=ps.PolynomialLibrary(degree=2),
+    optimizer=ps.STLSQ(threshold=0.1),
+)
+model.fit(X, t=t)
+model.print()
+```
+
+PySINDy bundles all the choices we made explicit in the Julia
+script (library, optimiser, differentiation) into a `scikit-learn`
+style estimator; the trade-off is less visibility into the inner
+loop. Both produce the same Lorenz equation, recovered to ~3
+significant figures.
+
 ### When discovery beats approximation
 
 SINDy wins when
@@ -256,7 +449,158 @@ It loses when the dynamics are intrinsically high-dimensional, the
 right basis isn't in your library, or the noise drowns the
 derivatives.
 
-## 3.5 Physics-informed machine learning: a conceptual preview
+## 3.5 Proper Orthogonal Decomposition (POD)
+
+Dynamical systems often look high-dimensional but live on a
+low-dimensional manifold — a turbulent flow field has millions of
+grid cells but the *coherent* motion (vortices, waves) is described
+by a handful of modes. **Proper Orthogonal Decomposition (POD)**
+— also called Principal Component Analysis when applied to
+snapshot matrices — extracts those modes systematically. It's the
+classical workhorse for **reduced-order modelling** (ROM) and the
+first thing to reach for when you suspect your system has hidden
+low-dimensional structure.
+
+### The snapshot SVD
+
+Collect $N$ snapshots of the state $\mathbf{x}_k \in \mathbb{R}^M$
+(e.g. $M$ = number of grid cells, $N$ = number of time samples)
+into a snapshot matrix:
+
+$$
+X \;=\; \bigl[\mathbf{x}_1 \;|\; \mathbf{x}_2 \;|\; \ldots \;|\; \mathbf{x}_N\bigr]
+\;\in\; \mathbb{R}^{M \times N}.
+$$
+
+Compute its singular value decomposition,
+
+$$
+X \;=\; U \Sigma V^\top,
+\qquad
+U \in \mathbb{R}^{M \times r},\ \Sigma \in \mathbb{R}^{r \times r},\ V \in \mathbb{R}^{N \times r},
+$$
+
+with $\Sigma = \mathrm{diag}(\sigma_1 \geq \sigma_2 \geq \ldots \geq \sigma_r > 0)$.
+The columns of $U$ are the **POD modes** — an orthonormal basis for
+the snapshots, ranked by how much variance they explain. Keep the
+first $k \ll r$ modes and you have a $k$-dimensional approximation:
+
+$$
+\mathbf{x}(t) \;\approx\; U_k \, \mathbf{a}(t),
+\qquad
+\mathbf{a}(t) = U_k^\top \mathbf{x}(t)
+\;\in\; \mathbb{R}^k.
+$$
+
+The decay of $\sigma_i$ tells you whether the reduction will work.
+Fast decay → a few modes capture almost everything → ROM is
+viable. Slow decay → genuinely high-dimensional → POD will lose
+detail.
+
+### Worked example: damped oscillator chain
+
+A chain of $M = 50$ masses coupled by springs, given a localised
+initial push and lightly damped, is a useful test bench. The
+state-space dimension is 100 (positions + velocities) but a handful
+of normal modes carry almost all the energy:
+
+```{.julia filename="units/unit_03/scripts/pod_chain.jl"}
+using OrdinaryDiffEq, LinearAlgebra, Plots
+
+# 50-mass chain: x¨ᵢ = ω²(xᵢ₋₁ - 2xᵢ + xᵢ₊₁) - 2ζω x˙ᵢ  (free at endpoints)
+M, ω, ζ = 50, 2π, 0.02
+function chain!(du, u, p, t)
+    x, v = @views u[1:M], u[M+1:end]
+    du[1:M] .= v
+    @inbounds for i in 1:M
+        l = i == 1     ? 0.0 : x[i - 1]
+        r = i == M     ? 0.0 : x[i + 1]
+        du[M + i] = ω^2 * (l - 2x[i] + r) - 2ζ * ω * v[i]
+    end
+end
+
+u0 = zeros(2M); u0[M ÷ 2] = 1.0          # localised initial displacement
+sol = solve(ODEProblem(chain!, u0, (0.0, 8.0)), Tsit5(); saveat = 0.02)
+
+# Snapshot matrix: rows = positions, columns = time samples
+X = reduce(hcat, [u[1:M] for u in sol.u])
+U, Σ, V = svd(X)
+
+println("first 10 singular values (relative):")
+foreach(i -> println("  σ_$i / σ_1 = ", round(Σ[i] / Σ[1]; digits = 4)),
+        1:10)
+
+# Reconstruction error vs number of modes kept
+k_range = 1:15
+errs = [norm(X - U[:, 1:k] * Diagonal(Σ[1:k]) * V[:, 1:k]') / norm(X)
+        for k in k_range]
+plot(k_range, errs; lw = 2, marker = :circle,
+     xlabel = "modes kept k", ylabel = "relative reconstruction error",
+     title = "POD spectrum: 50-mass damped chain", yaxis = :log)
+```
+
+Typical behaviour: ~6 modes recover $>99\%$ of the variance even
+though the system has 100 state-space dimensions. The first mode is
+the symmetric breathing of the chain, the second is the
+first-overtone shape, and so on — modes hierarchically encoded by
+spatial frequency, exactly as a Fourier basis would predict for
+this linear system.
+
+Same workflow in Python — `scipy.linalg.svd` is the SVD; the rest
+is `numpy`:
+
+```{.python filename="units/unit_03/scripts/pod_chain_python.py"}
+import numpy as np
+from scipy.integrate import solve_ivp
+from scipy.linalg import svd
+
+M, omega, zeta = 50, 2 * np.pi, 0.02
+def chain(t, u):
+    x, v = u[:M], u[M:]
+    du = np.zeros_like(u)
+    du[:M] = v
+    for i in range(M):
+        l = 0.0 if i == 0     else x[i - 1]
+        r = 0.0 if i == M - 1 else x[i + 1]
+        du[M + i] = omega**2 * (l - 2 * x[i] + r) - 2 * zeta * omega * v[i]
+    return du
+
+u0 = np.zeros(2 * M); u0[M // 2] = 1.0
+sol = solve_ivp(chain, (0.0, 8.0), u0, t_eval=np.linspace(0, 8, 401))
+X = sol.y[:M, :]                                       # (M, N) positions
+
+U, Sigma, Vt = svd(X, full_matrices=False)
+print("first 6 singular values (relative):",
+      np.round(Sigma[:6] / Sigma[0], 4))
+print(f"variance captured by k=6 modes: "
+      f"{(Sigma[:6]**2).sum() / (Sigma**2).sum():.4f}")
+```
+
+### POD's role in modern Sci-ML
+
+POD by itself is *linear* and *deterministic* — it pre-dates deep
+learning by half a century. But it shows up everywhere in
+contemporary work:
+
+- **As a preprocessor.** Reduce 1M-dimensional snapshots to 100
+  POD coefficients, then learn the *evolution* of those
+  coefficients with a small neural ODE or transformer. Modern
+  weather emulators (Pangu-Weather, GraphCast) lean on this idea.
+- **As a sanity check.** If POD already captures 99% of variance
+  in 5 modes, you don't need deep learning — a linear ROM is
+  enough.
+- **As a comparison baseline.** Any nonlinear surrogate should beat
+  the POD-truncation baseline; if it doesn't, the nonlinearity
+  isn't pulling its weight.
+
+POD's nonlinear cousins — **autoencoders**, **dynamic mode
+decomposition (DMD)**, **Koopman operators** — generalise the
+idea: project the dynamics onto a learned (possibly nonlinear)
+low-dimensional manifold, then evolve there. We won't go deep into
+them in the workshop, but the POD picture is the right mental
+starting point.
+
+## 3.6 Physics-informed machine learning: a conceptual preview
 
 ### The core idea
 
