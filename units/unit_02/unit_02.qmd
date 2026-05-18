@@ -244,7 +244,7 @@ represent each:
 
 A two-layer MLP with a non-polynomial activation can approximate any
 continuous function on a compact set to arbitrary accuracy, given
-enough hidden units (Hornik, 1991; Cybenko, 1989). The theorem is
+enough hidden units ([Hornik, 1991](../references/references.qmd#ref-hornik1991){target="_blank"}; [Cybenko, 1989](../references/references.qmd#ref-cybenko1989){target="_blank"}). The theorem is
 **qualitative**: it doesn't tell you how many units, how much data,
 or how to train. Depth, architectural priors, and good optimisation
 make the practical difference.

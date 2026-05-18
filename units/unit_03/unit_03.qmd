@@ -157,7 +157,7 @@ in, the less data we need*.
 
 ### The construction
 
-A **Hamiltonian Neural Network (HNN)** [Greydanus et al., 2019]
+A **Hamiltonian Neural Network (HNN)** ([Greydanus et al., 2019](../references/references.qmd#ref-greydanus2019){target="_blank"})
 parametrises the Hamiltonian $H_\theta(q, p)$ of a mechanical system
 with a neural network, then derives the dynamics via Hamilton's
 equations *with autodiff*:
@@ -174,7 +174,7 @@ $$\mathcal{L}(\theta) \;=\; \sum_i
 \bigl\| (\dot q_i, \dot p_i) -
        (\partial_p H_\theta, -\partial_q H_\theta)(q_i, p_i) \bigr\|^2.$$
 
-**Lagrangian Neural Networks (LNNs)** [Cranmer et al., 2020] do
+**Lagrangian Neural Networks (LNNs)** ([Cranmer et al., 2020](../references/references.qmd#ref-cranmer2020){target="_blank"}) do
 the analogous trick with the Lagrangian $L_\theta(q, \dot q)$ and
 the Euler–Lagrange equations.
 
@@ -194,7 +194,7 @@ extrapolation horizons.
 ### The sparse regression idea
 
 **SINDy** (Sparse Identification of Nonlinear Dynamics)
-[Brunton et al., 2016] assumes the right-hand side of
+([Brunton et al., 2016](../references/references.qmd#ref-brunton2016){target="_blank"}) assumes the right-hand side of
 $\dot{\mathbf{x}} = f(\mathbf{x})$ is a *sparse* combination of
 candidate terms — polynomials, trigonometric functions, products.
 Build a feature library
@@ -231,7 +231,17 @@ $(\sigma, \rho, \beta) \approx (10, 28, 8/3)$ — the canonical
 demonstration that *a sparse prior plus enough data is sometimes
 all you need*.
 
-*Code placeholder — `units/unit_03/scripts/sindy_lorenz.jl` (TODO).*
+A bare-bones STLSQ implementation (no `DataDrivenDiffEq` dependency)
+makes the recipe explicit: build the library, threshold the OLS
+coefficients, re-fit on the surviving terms, repeat.
+
+```{.julia code-fold="true" code-summary="`scripts/sindy_lorenz.jl` — full source"}
+{{< include scripts/sindy_lorenz.jl >}}
+```
+
+Captured output from `./build.sh execute 3`:
+
+{{< include output/sindy_lorenz.md >}}
 
 ### When discovery beats approximation
 

@@ -122,12 +122,176 @@ res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 
 ## 7.2 Why Naïve PINNs Fail
 
+### The de Wolff benchmark suite
+
+Before we reproduce the SWE failure we lay out the three model
+problems
+[de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
+benchmarked. Each lives on a 2-D rectangle
+$\Omega \subseteq \mathbb{R}^2$ with time $t \in \mathbb{R}_0^+$,
+and each becomes a physics residual $f_{\cdot}[\,\ldots\,] = 0$
+that the PINN must drive to zero alongside the data term.
+
+#### (i) Wave equation — §3.1, eq. (1)
+
+The most familiar hyperbolic problem in the paper:
+
+$$
+\frac{\partial^2 \eta}{\partial t^2} \;-\; \nabla\!\cdot\!\bigl(H\,\nabla \eta\bigr)
+\;=\; 0 \qquad (\text{eq. 1 of de Wolff})
+$$
+
+- $\eta(x, y, t)$ — superficial fluctuations of the water surface
+  (a scalar field).
+- $H(x, y) = (1 - x)\bigl(2 - \sin(3\pi y)\bigr)$ — the *prescribed*
+  spatially varying depth, a sloped channel chosen by the paper to
+  give a non-trivial wave-speed map.
+
+Domain $\Omega = \,]0, 1[\,\times\,]0, 1.5[$, horizon $T_f = 1$,
+$n = 100$ time steps. Boundary and initial conditions
+(de Wolff §4.1):
+
+$$
+\eta = 0 \text{ on } \partial\Omega\times\,]0, T_f[, \qquad
+\eta(x, y, 0) = \exp\!\bigl(-10\,((x-0.5)^2 + (y-0.75)^2)\bigr),\quad
+\eta_t(x, y, 0) = 0.
+$$
+
+The physics residual is $f_{\text{waves}}[\eta, H] \equiv \eta_{tt}
+- \nabla\!\cdot\!(H\nabla \eta) = 0$. Of the three problems, this
+is the one PINNs handle best — the dispersion is mild, the depth
+profile is fixed (not coupled), and the initial bump is smooth.
+
+#### (ii) Shallow water equations — §3.2, eqs. (3)–(5)
+
+The standard 2-D shallow-water system *in full*, with horizontal
+scale much larger than vertical, negligible bottom friction (other
+than the explicit $b$ term), constant water pressure, and
+incompressibility:
+
+$$
+\frac{\partial \eta}{\partial t}
++ \frac{\partial}{\partial x}\bigl((H+\eta)\,u\bigr)
++ \frac{\partial}{\partial y}\bigl((H+\eta)\,v\bigr) \;=\; 0 \qquad (3)
+$$
+
+$$
+\frac{\partial u}{\partial t}
++ u\,\frac{\partial u}{\partial x}
++ v\,\frac{\partial u}{\partial y}
+- f\,v
+\;=\; -g\,\frac{\partial \eta}{\partial x} - b\,u
+       - \nu\!\left(\frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2}\right) \qquad (4)
+$$
+
+$$
+\frac{\partial v}{\partial t}
++ u\,\frac{\partial v}{\partial x}
++ v\,\frac{\partial v}{\partial y}
++ f\,u
+\;=\; -g\,\frac{\partial \eta}{\partial y} - b\,v
+       - \nu\!\left(\frac{\partial^2 v}{\partial x^2} + \frac{\partial^2 v}{\partial y^2}\right) \qquad (5)
+$$
+
+- $u(x, y, t),\ v(x, y, t)$ — height-averaged horizontal velocities
+  in the $x$ and $y$ directions.
+- $\eta(x, y, t)$ — surface elevation above the mean depth $H$.
+- $g$ — gravitational acceleration ($9.81\,\text{m/s}^2$).
+- $f$ — Coriolis coefficient (latitude-dependent).
+- $b$ — linear viscous drag coefficient.
+- $\nu$ — kinematic viscosity.
+
+(3) is mass conservation; (4)–(5) are the horizontal momentum
+balance with Coriolis, pressure gradient, drag, and viscous terms.
+The advective $u\,u_x + v\,u_y$ pieces are what make the system
+*nonlinear*.
+
+**Linearised reduction** — drop Coriolis, advective, and friction
+terms (de Wolff eq. 6–7):
+
+$$
+\frac{\partial \eta}{\partial t} + \nabla\!\cdot\!(H\,\mathbf{u}) \;=\; 0,
+\qquad
+\frac{\partial \mathbf{u}}{\partial t} + g\,\nabla \eta \;=\; \boldsymbol{\psi}, \qquad (6\text{–}7)
+$$
+
+with $\mathbf{u} = (u, v)$ and $\boldsymbol{\psi} \in \mathbb{R}^2$
+the atmospheric pressure / wind-stress forcing (de Wolff sets
+$\boldsymbol{\psi} = \mathbf{0}$). This linearisation makes the SWE
+look structurally like the wave equation — and it is the system the
+worked example below actually trains a PINN on.
+
+Parameters and conditions (de Wolff §4.2): $g = 9.81\,\text{m/s}^2$,
+$H = 10\,\text{m}$. Dirichlet BC $\mathbf{u} = \mathbf{0}$ on
+$\partial \Omega \times [0, T]$ and IC
+
+$$
+\eta(x, y, 0) = 10\,\exp\!\bigl(-(x-0.5)^2 - (y-0.75)^2\bigr),
+\quad \eta_t(x, y, 0) = 0, \quad \mathbf{U}(x, y, 0) = \mathbf{0}.
+$$
+
+Horizon $T_f = 1$, $n = 500$. The physics residual is the
+three-component
+$\mathbf{f}_{\text{SW}}[u, v, \eta] = (f_{\text{SW}}^1,
+f_{\text{SW}}^2, f_{\text{SW}}^3)$ collecting the LHS of (6)–(7).
+
+#### (iii) Advection–diffusion — §3.3, eq. (9)
+
+Heat transport with constant diffusivity, no sources or sinks, and
+temperature depending only on $(x, y, t)$:
+
+$$
+\frac{\partial T}{\partial t} \;=\; D\,\nabla^2 T \;-\; \mathbf{u}\cdot\nabla T
+\qquad (9)
+$$
+
+- $T(x, y, t)$ — temperature in K (or °C).
+- $D$ — thermal diffusivity, fixed at $0.1\,\text{m}^2/\text{s}$ in
+  the paper.
+- $\mathbf{u}(x, y, t)$ — the velocity field, *taken from the SWE
+  solve above*. The SWE drives the temperature passively.
+
+Mixed BCs and a hot-bump IC (de Wolff §4.3):
+
+$$
+T = 0 \text{ on } \{0, L_x\}\times[0, L_y], \quad
+\partial_n T = 0 \text{ on } [0, L_x]\times\{0, L_y\},
+$$
+
+$$
+T(x, y, 0) = 15 + 45\,\exp\!\bigl(-(x-0.5)^2 - (y-0.75)^2\bigr).
+$$
+
+A Gaussian thermal anomaly centred at $(0.5, 0.75)$ on top of a
+$15\,°\mathrm{C}$ background, transported and diffused by the SWE
+flow. The physics residual is $f_{\text{AD}}[u, v, T] \equiv
+T_t - D \nabla^2 T + \mathbf{u}\!\cdot\!\nabla T = 0$.
+
+#### Putting it together
+
+The PINN loss is the sum of a data term and one or more physics
+terms,
+
+$$
+\mathcal{L} \;=\; \mathcal{L}_{\text{data}} + w\,\mathcal{L}_{\text{physics}}
+\;=\; \sum_i (y_i - \hat y_i)^2 + w \sum_i f_i^2,
+$$
+
+with the physics weight $w$ tying the two. The paper's negative
+result is that, for these three problems with their published
+solvers, *vanilla* PINNs (one $w$, no Fourier features, no causal
+weights, no hard BC) train worse than a pure-data MLP using the
+same FEM-simulated training set. §§7.3 unpacks why and how the
+modern fixes close the gap. The next subsection reproduces the
+linearised-SWE case as the cleanest of the three failures to
+inspect.
+
 ### Worked Example: Naïve Shallow Water (After de Wolff et al.)
 
-The 1D linearised shallow water system from
-[Unit 6](../unit_06/unit_06.qmd), attempted with two networks (one
-for $\eta$, one for $u$). This is the case where
-[de Wolff et al. (2021)](https://inria.hal.science/hal-03262684/document)
+We focus on the 1-D reduction of the linearised SWE (drop the
+$y$-dependence in (6)–(7)) so the example trains in seconds; the
+2-D failure has the same flavour.
+[de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
 reported a *negative* result: vanilla PINN underperformed a pure
 data-driven NN. We reproduce the failure to motivate the fixes in §7.3.
 
@@ -184,8 +348,7 @@ but ignores the boundary.
 ### Spectral Bias
 
 Standard MLPs with smooth activations are biased toward learning
-**low-frequency** components first (Rahaman et al., 2019; Tancik et
-al., 2020). High-frequency features — sharp initial conditions,
+**low-frequency** components first ([Rahaman et al., 2019](../references/references.qmd#ref-rahaman2019){target="_blank"}; [Tancik et al., 2020](../references/references.qmd#ref-tancik2020){target="_blank"}). High-frequency features — sharp initial conditions,
 oscillatory solutions, fine spatial structure — take many more
 iterations or never converge. For PINNs this means a Gaussian
 initial bump might smooth too fast, or a wavy solution might miss
@@ -205,7 +368,7 @@ but obvious in the prediction.
 
 ### Causal Training
 
-Wang et al. (2022): weight residual losses at later times by how
+[Wang et al. (2022)](../references/references.qmd#ref-wang2022causal){target="_blank"}: weight residual losses at later times by how
 well earlier times have already converged. Concretely,
 
 $$\lambda(t_i) = \exp\!\Bigl(-\epsilon \sum_{t_j < t_i} \mathcal{L}_{\text{PDE}}(t_j)\Bigr),$$
@@ -221,7 +384,7 @@ Wrap each input in a Fourier feature transform
 $$\gamma(\mathbf{x}) = [\sin(B\mathbf{x}),\, \cos(B\mathbf{x})]$$
 
 with frequencies $B$ drawn from a distribution that includes the
-high frequencies you need (Tancik et al., 2020). The network sees
+high frequencies you need ([Tancik et al., 2020](../references/references.qmd#ref-tancik2020){target="_blank"}). The network sees
 high-frequency content in its input directly, breaking spectral
 bias. A simple recipe: $B \sim \mathcal{N}(0, \sigma^2 I)$ with
 $\sigma$ tuned per problem.
@@ -237,16 +400,16 @@ $$u_\theta(x, t) = x(1 - x)\,N_\theta(x, t).$$
 Now $u_\theta = 0$ on the boundary regardless of $N_\theta$. The
 loss has one fewer term to balance, and the optimiser has fewer
 ways to fail. The trick generalises to other BC types via clever
-ansätze (Sukumar & Srivastava, 2022).
+ansätze ([Sukumar & Srivastava, 2022](../references/references.qmd#ref-sukumar2022){target="_blank"}).
 
 ### Adaptive Loss Weighting
 
 Tune $\lambda_r, \lambda_b, \lambda_i$ during training so all terms
 stay roughly balanced. Three families of approaches:
 
-- **Gradient-balancing** (McClenny & Braga-Neto, 2022) — match the
+- **Gradient-balancing** ([McClenny & Braga-Neto, 2022](../references/references.qmd#ref-mcclenny2022){target="_blank"}) — match the
   gradient norms of each term.
-- **NTK-based** (Wang et al., 2021) — use the neural tangent kernel
+- **NTK-based** ([Wang et al., 2021](../references/references.qmd#ref-wang2021ntk){target="_blank"}) — use the neural tangent kernel
   to compute target weights.
 - **Annealing** — start with one term dominant, gradually shift
   weight to others.

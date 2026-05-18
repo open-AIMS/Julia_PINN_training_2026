@@ -1,0 +1,299 @@
+---
+title: "References"
+toc-title: "References"
+date: today
+date-format: "DD/MM/YYYY"
+number-sections: false
+---
+
+This page collects all bibliographic references cited in the course.
+In-text citations such as `[Author et al., year]` link directly here
+and open in a new window; close the popup to return to the unit you
+were reading. Each entry has a short blurb on *why* the work matters
+and *where* it shows up in the workshop.
+
+## Cited works
+
+::: {#ref-brunton2016}
+**Brunton, S. L., Proctor, J. L., & Kutz, J. N.** (2016).
+*Discovering governing equations from data by sparse identification of
+nonlinear dynamical systems.*
+**Proceedings of the National Academy of Sciences** 113(15):
+3932–3937.
+[doi:10.1073/pnas.1517384113](https://doi.org/10.1073/pnas.1517384113)
+
+[The paper that put sparse regression on the map for dynamical
+systems. Introduces the STLSQ algorithm that Unit 3.4 implements on
+the Lorenz attractor — the canonical demonstration that "sparse prior
++ enough data" can recover symbolic equations rather than a black-box
+fit.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-chen2018}
+**Chen, R. T. Q., Rubanova, Y., Bettencourt, J., & Duvenaud, D.**
+(2018). *Neural Ordinary Differential Equations.*
+**Advances in Neural Information Processing Systems (NeurIPS)** 31.
+[arXiv:1806.07366](https://arxiv.org/abs/1806.07366)
+
+[Recasts ResNets as discretised ODEs and lets the depth become
+continuous. The conceptual spine of Unit 4: the ResNet-to-Neural-ODE
+bridge, the adjoint sensitivity trick, and the framing of dynamics
+as something we *learn* rather than integrate by hand.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-cranmer2020}
+**Cranmer, M., Greydanus, S., Hoyer, S., Battaglia, P., Spergel, D.,
+& Ho, S.** (2020). *Lagrangian Neural Networks.* ICLR 2020 Workshop
+on Integration of Deep Neural Models and Differential Equations.
+[arXiv:2003.04630](https://arxiv.org/abs/2003.04630)
+
+[Lagrangian counterpart to HNNs (§3.3). Useful when a Hamiltonian
+formulation isn't natural — e.g. when the canonical momenta aren't
+directly observed — but the Euler–Lagrange equations still apply.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-cuomo2022}
+**Cuomo, S., Di Cola, V. S., Giampaolo, F., Rozza, G., Raissi, M., &
+Piccialli, F.** (2022). *Scientific Machine Learning Through
+Physics-Informed Neural Networks: Where we are and what's next.*
+**Journal of Scientific Computing** 92, 88.
+[doi:10.1007/s10915-022-01939-z](https://doi.org/10.1007/s10915-022-01939-z)
+
+[Mid-decade survey covering everything in Units 5–7: residual losses,
+collocation strategies, failure modes, and software stacks. Good
+single reference when a student wants more context than the course
+gives.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-cybenko1989}
+**Cybenko, G.** (1989). *Approximation by superpositions of a
+sigmoidal function.* **Mathematics of Control, Signals, and Systems**
+2: 303–314.
+[doi:10.1007/BF02551274](https://doi.org/10.1007/BF02551274)
+
+[The foundational universal-approximation theorem invoked in Unit 2:
+a single hidden-layer sigmoidal MLP can approximate any continuous
+function on a compact set. Qualitative — says nothing about
+trainability — but it is *why* we believe a network can in principle
+fit our target.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-dewolff2021}
+**de Wolff, T., Carrillo, H., Martí, L., & Sanchez-Pi, N.** (2021).
+*When Bayesian Optimization meets Physics-Informed Neural Networks:
+An Application to the Saint-Venant equations.*
+Working paper, Inria / HAL.
+[hal-03262684](https://inria.hal.science/hal-03262684/document)
+
+[The negative-result paper Unit 7.2 reproduces: vanilla PINNs
+underperform a pure data-driven baseline on 1D shallow-water
+equations. Forces the workshop to take the "modern fixes" of §7.3
+seriously rather than presenting them as nice-to-haves.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-greydanus2019}
+**Greydanus, S., Dzamba, M., & Yosinski, J.** (2019).
+*Hamiltonian Neural Networks.*
+**Advances in Neural Information Processing Systems (NeurIPS)** 32.
+[arXiv:1906.01563](https://arxiv.org/abs/1906.01563)
+
+[Introduces the inductive bias used in Unit 3.3: parametrise the
+Hamiltonian and let autodiff derive the dynamics. Energy is conserved
+by construction, no soft penalty needed — the cleanest example of
+"baking physics into the architecture instead of the loss".]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-hornik1991}
+**Hornik, K.** (1991). *Approximation capabilities of multilayer
+feedforward networks.* **Neural Networks** 4(2): 251–257.
+[doi:10.1016/0893-6080(91)90009-T](https://doi.org/10.1016/0893-6080(91)90009-T)
+
+[Strengthens [Cybenko 1989](#ref-cybenko1989) to multi-layer networks
+with arbitrary non-polynomial activations. Same role in Unit 2 —
+existence rather than constructibility — but more general.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-karniadakis2021}
+**Karniadakis, G. E., Kevrekidis, I. G., Lu, L., Perdikaris, P.,
+Wang, S., & Yang, L.** (2021). *Physics-informed machine learning.*
+**Nature Reviews Physics** 3: 422–440.
+[doi:10.1038/s42254-021-00314-5](https://doi.org/10.1038/s42254-021-00314-5)
+
+[Best single high-level read on the field. Covers PINNs, operator
+learning, hybrid models, and inverse problems — the conceptual map of
+which the workshop occupies one corner.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-krishnapriyan2021}
+**Krishnapriyan, A., Gholami, A., Zhe, S., Kirby, R., & Mahoney,
+M. W.** (2021). *Characterizing possible failure modes in
+physics-informed neural networks.*
+**Advances in Neural Information Processing Systems (NeurIPS)** 34.
+[arXiv:2109.01050](https://arxiv.org/abs/2109.01050)
+
+[Direct prequel to Unit 7: catalogues the optimisation difficulties
+introduced by soft PDE constraints and proposes curriculum
+regularisation and sequence-to-sequence training. Important reading
+for anyone debugging a PINN that "just won't converge".]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-lagaris1998}
+**Lagaris, I. E., Likas, A., & Fotiadis, D. I.** (1998).
+*Artificial neural networks for solving ordinary and partial
+differential equations.* **IEEE Transactions on Neural Networks**
+9(5): 987–1000.
+[doi:10.1109/72.712178](https://doi.org/10.1109/72.712178)
+
+[The 20-years-earlier precursor to modern PINNs. Uses the same
+collocation-residual recipe as
+[Raissi et al. 2019](#ref-raissi2019); the modern revival is the
+autodiff stack and the compute, not the idea. Useful historical
+context for the "why now?" question.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-liquet2024}
+**Liquet, B., Moka, S., & Nazarathy, Y.** (2024).
+*Mathematical Engineering of Deep Learning.*
+Chapman & Hall / CRC Press (Data Science Series).
+Free HTML edition at
+[deeplearningmath.org](https://deeplearningmath.org/).
+
+[Instructor's textbook. The deep-learning maths background the
+workshop assumes — MLPs, autodiff, optimisers, attention. Several of
+Unit 2's diagrams come from MEDL; treat it as the prerequisite
+reading.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-mcclenny2022}
+**McClenny, L. D. & Braga-Neto, U. M.** (2023).
+*Self-adaptive physics-informed neural networks.*
+**Journal of Computational Physics** 474, 111722.
+[doi:10.1016/j.jcp.2022.111722](https://doi.org/10.1016/j.jcp.2022.111722)
+([arXiv:2009.04544](https://arxiv.org/abs/2009.04544), 2022 preprint).
+
+[Gradient-balancing weight adaptation referenced in Unit 7.3.
+Point-wise per-collocation weights $\lambda_i$ that move automatically
+during training — removes the manual loss-weight tuning step that
+otherwise dominates PINN engineering.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-nazarathy2021}
+**Nazarathy, Y. & Klok, H.** (2021).
+*Statistics with Julia: Fundamentals for Data Science, Machine
+Learning and Artificial Intelligence.* Springer (Springer Series in
+the Data Sciences).
+Companion site:
+[statisticswithjulia.org](https://statisticswithjulia.org/).
+
+[Instructor's Julia-side companion. The probability and statistics
+prerequisites for the workshop, with Julia code throughout. A natural
+landing place for participants who want more Julia fluency than the
+units assume.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-rackauckas2020}
+**Rackauckas, C., Ma, Y., Martensen, J., Warner, C., Zubov, K.,
+Supekar, R., Skinner, D., Ramadhan, A., & Edelman, A.** (2020).
+*Universal Differential Equations for Scientific Machine Learning.*
+[arXiv:2001.04385](https://arxiv.org/abs/2001.04385)
+
+[The paper that names the "known physics + learnable closure"
+construction at the heart of Unit 4. Also the design document for the
+Julia SciML stack (`DiffEqFlux.jl`, `SciMLSensitivity.jl`,
+`NeuralPDE.jl`) the workshop runs on.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-rahaman2019}
+**Rahaman, N., Baratin, A., Arpit, D., Draxler, F., Lin, M.,
+Hamprecht, F. A., Bengio, Y., & Courville, A.** (2019).
+*On the Spectral Bias of Neural Networks.*
+**Proceedings of the 36th International Conference on Machine
+Learning (ICML)**, PMLR 97.
+[arXiv:1806.08734](https://arxiv.org/abs/1806.08734)
+
+[Documents the bias of MLPs with smooth activations toward learning
+low frequencies first — the root cause of the "Gaussian-bump-smooths-
+too-fast" failure flagged in Unit 5.5 and the motivation for Fourier
+features in Unit 7.3.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-raissi2019}
+**Raissi, M., Perdikaris, P., & Karniadakis, G. E.** (2019).
+*Physics-informed neural networks: A deep learning framework for
+solving forward and inverse problems involving nonlinear partial
+differential equations.* **Journal of Computational Physics** 378:
+686–707.
+[doi:10.1016/j.jcp.2018.10.045](https://doi.org/10.1016/j.jcp.2018.10.045)
+
+[The PINN paper. Sets the residual + IC + BC + data loss formulation
+the whole workshop is built around. If you read one reference on this
+page, read this one.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-sukumar2022}
+**Sukumar, N. & Srivastava, A.** (2022).
+*Exact imposition of boundary conditions with distance functions in
+physics-informed deep neural networks.* **Computer Methods in Applied
+Mechanics and Engineering** 389, 114333.
+[doi:10.1016/j.cma.2021.114333](https://doi.org/10.1016/j.cma.2021.114333)
+([arXiv:2104.08426](https://arxiv.org/abs/2104.08426)).
+
+[Generalises the "multiply by $x(1-x)$" hard-BC trick of Unit 7.3 to
+arbitrary geometries via approximate distance functions. The cleanest
+way to eliminate the $\lambda_{\text{BC}}$ tuning headache when the
+geometry is non-trivial.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-tancik2020}
+**Tancik, M., Srinivasan, P. P., Mildenhall, B., Fridovich-Keil, S.,
+Raghavan, N., Singhal, U., Ramamoorthi, R., Barron, J. T., & Ng, R.**
+(2020). *Fourier Features Let Networks Learn High Frequency
+Functions in Low Dimensional Domains.*
+**Advances in Neural Information Processing Systems (NeurIPS)** 33.
+[arXiv:2006.10739](https://arxiv.org/abs/2006.10739)
+
+[The fix for spectral bias used in Unit 7.3: pre-process inputs with
+$[\sin(B\mathbf{x}), \cos(B\mathbf{x})]$ embeddings. Came from
+neural-radiance-field rendering but transfers to PINNs unchanged.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-toscano2025}
+**Toscano, J. D., Oommen, V., Varghese, A. J., Zou, Z., Ahmadi
+Daryakenari, N., Wu, C., & Karniadakis, G. E.** (2025).
+*From PINNs to PIKANs: recent advances in physics-informed machine
+learning.* **Machine Learning for Computational Science and
+Engineering**.
+[doi:10.1007/s44379-025-00015-1](https://doi.org/10.1007/s44379-025-00015-1)
+
+[The most recent survey — three years on from
+[Cuomo et al. 2022](#ref-cuomo2022) — including the KAN-based PINN
+variants the workshop does not cover. Best entry point for "what came
+after the syllabus".]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-wang2021ntk}
+**Wang, S., Yu, X., & Perdikaris, P.** (2022).
+*When and why PINNs fail to train: A neural tangent kernel
+perspective.* **Journal of Computational Physics** 449, 110768.
+[doi:10.1016/j.jcp.2021.110768](https://doi.org/10.1016/j.jcp.2021.110768)
+([arXiv:2007.14527](https://arxiv.org/abs/2007.14527), 2020 preprint
+— also cited in the literature as Wang et al., 2021).
+
+[NTK-based analysis of PINN training pathologies. The theoretical
+underpinning for the adaptive-weight strategy in Unit 7.3 — explains
+*why* one term dominates the gradient and how to compute weights that
+balance it.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::
+
+::: {#ref-wang2022causal}
+**Wang, S., Sankaran, S., & Perdikaris, P.** (2022).
+*Respecting causality is all you need for training physics-informed
+neural networks.*
+[arXiv:2203.07404](https://arxiv.org/abs/2203.07404).
+
+[Causal training: re-weights residual losses in time so a slice
+contributes only after earlier slices have converged. Directly
+addresses the "causal violation" failure mode flagged in Units 5.5
+and 7.2 — and one of the most effective fixes when the PDE has
+genuine time-direction structure.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
+:::

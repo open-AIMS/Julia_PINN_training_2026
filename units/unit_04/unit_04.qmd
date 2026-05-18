@@ -91,7 +91,7 @@ $\dot{h} = f_\theta(h, t)$:
 $$h(t + \Delta t) \approx h(t) + \Delta t\, f_\theta(h(t), t).$$
 
 Identical. Taking $\Delta t \to 0$ and depth $L \to \infty$ gives a
-**Neural ODE** (Chen et al., 2018): the network *is* a vector
+**Neural ODE** ([Chen et al., 2018](../references/references.qmd#ref-chen2018){target="_blank"}): the network *is* a vector
 field, and the "forward pass" is an ODE solve from input
 $h(0) = \mathbf{x}$ to output $h(T) = \text{prediction}$.
 
@@ -126,7 +126,7 @@ training is what the workshop's later units use.
 
 Naively `Zygote.gradient` through an ODE solver stores every
 intermediate state, which is memory-prohibitive for long
-trajectories. The **adjoint method** (Pontryagin; Chen et al.) avoids
+trajectories. The **adjoint method** (Pontryagin; [Chen et al.](../references/references.qmd#ref-chen2018){target="_blank"}) avoids
 that by solving an auxiliary ODE *backward in time* whose state
 contains the gradient. Memory cost becomes constant in trajectory
 length; the price is some numerical-accuracy bookkeeping. In Julia

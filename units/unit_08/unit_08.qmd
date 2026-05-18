@@ -1,66 +1,92 @@
 ---
-title: "Unit 8: The Science of Ocean PDE Modelling"
+title: "Unit 8: PDE Modelling in Key AIMS Domains"
 engine: julia
-toc-title: "Unit 8: Ocean PDE Modelling"
+toc-title: "Unit 8: PDE Modelling — AIMS Domains"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
-A short, intuition-first tour of the ocean physics that powers the
-capstone — written for people fluent in PDEs and ML but not in
-oceanography. The goal is to read the equations in [Unit 9](../unit_09/unit_09.qmd)
-not as a list of symbols but as a familiar set of mechanisms in a
-new domain: temperature transported by flow, smeared by turbulence,
-heated by sunlight, exchanged with the atmosphere at one boundary
-and with the deep ocean at the other.
+A short, intuition-first tour of the reef-scale physics and
+biogeochemistry that powers the capstone — written for people fluent
+in PDEs and ML but new to reef science. The goal is to read the
+equations in [Unit 9](../unit_09/unit_09.qmd) not as a list of
+symbols but as a familiar set of mechanisms in a new domain:
+temperature and nutrients transported by flow, smeared by turbulence,
+exchanged with the atmosphere at the surface and with the deeper
+shelf at the bottom.
 
-## 8.1 Why oceans? Why PDEs?
+## 8.1 Why reef modelling? Why PDEs?
 
-Oceans store and move heat at a rate that dominates the planet's
-climate. A back-of-the-envelope: the top 100 m of the ocean has
-roughly four times the heat capacity of the entire atmosphere above
-it. When the ocean exchanges heat with the air, *the air moves
-fast*. So the slow story of ocean heat transport sets the boundary
-condition for the fast story of weather — and getting it wrong
-matters.
+The [Australian Institute of Marine Science](https://www.aims.gov.au/)
+monitors and models the **Great Barrier Reef** — the largest coral
+ecosystem on Earth, and one of the most thermally and chemically
+sensitive. A typical reef sits in 20–100 m of water on a shallow
+continental shelf, with tidal currents, river plumes, episodic
+storms, and a daily solar cycle all pushing on it at once. The
+practical questions AIMS cares about read like a list of PDE
+problems in disguise:
 
-We model that transport with PDEs because the physical processes
-involved — advection by currents, diffusion by turbulence, surface
-fluxes, radiative absorption — are local and continuous. PDEs are
+- **Thermal stress and coral bleaching.** Corals expel their symbiotic
+  algae when temperatures stay above $\sim 30\,°\mathrm{C}$ for days
+  to weeks. Predicting *which* reefs heat up and *how deep* the warm
+  layer reaches needs a column thermal model.
+- **Nutrient supply and water quality.** Phytoplankton blooms,
+  dissolved oxygen, and coral physiology all depend on
+  vertical and horizontal transport of nitrate, phosphate, and
+  particulate matter — same advection-diffusion machinery, with
+  reaction terms layered on top.
+- **Sediment, light, and turbidity.** Suspended sediment from rivers
+  and resuspension events attenuates the light corals need; the
+  transport equations are identical in form to the heat equation.
+- **Larval dispersal and connectivity.** Where coral larvae *land*
+  after a few-day pelagic phase governs whether a damaged reef can
+  recover. That's a passive-tracer transport problem on the shelf
+  hydrodynamics.
+
+We model these with PDEs because the physical processes — advection
+by currents, diffusion by turbulence, surface fluxes, radiative
+absorption, biological uptake — are local and continuous. PDEs are
 the natural language for *something at each point in space changes
 in response to its neighbours and to external forcings*. The same
-mathematics describes heat in a metal rod, pollutant in a river,
-neutron flux in a reactor; switching to seawater is mostly a matter
-of choosing which terms to keep and which to drop.
+mathematics describes heat in a metal rod, pollutant in a river, and
+nitrate in a lagoon; switching to a reef site is mostly a matter of
+choosing which terms to keep and which to drop.
 
-This unit is about which terms ocean modellers keep, and *why*.
+This unit is about which terms reef-scale modellers keep, and *why*.
+The capstone focuses on the **thermal column** problem (a single
+sensor near a reef, over a few weeks) but the same ideas transfer
+directly to nutrients and tracers — we spell that out in §8.6.
 
 ## 8.2 The column idealisation
 
-Real oceans are three-dimensional, full of eddies, fronts, and
-gyres. Modelling that in full takes a supercomputer. But many
+Reef waters are three-dimensional, with tides, wind-driven currents,
+river plumes, and lagoon flushing all operating at once. Modelling
+that in full takes a regional ocean solver. But many AIMS-style
 questions only require one slice:
 
-> What does temperature look like, as a function of depth, at a
-> *single horizontal location*, over a few weeks?
+> What does temperature (or nitrate, or sediment) look like, as a
+> function of depth, at a *single mooring location*, over a few
+> weeks?
 
-That's the **column idealisation**. We treat the ocean as a stack
-of horizontal sheets at fixed $(x, y)$, with $T = T(z, t)$ and
-nothing depending on $(x, y)$ inside the column. Horizontal currents
-still exist — we don't pretend the ocean is at rest — but their
-*effect on the column* is summarised through one quantity: the
-vertical velocity $w(z, t)$ those horizontal flows induce via
-continuity.
+That's the **column idealisation**. We treat the water column as a
+stack of horizontal sheets at fixed $(x, y)$, with $T = T(z, t)$ (or
+$C = C(z, t)$ for a tracer) and nothing depending on $(x, y)$ inside
+the column. Horizontal currents still exist — we don't pretend the
+water is at rest — but their *effect on the column* is summarised
+through one quantity: the vertical velocity $w(z, t)$ those
+horizontal flows induce via continuity.
 
 ::: {.callout-note}
 ## When the column idealisation breaks
 
-If you care about ocean fronts (sharp horizontal temperature
-gradients), eddies (rotating coherent structures), or coastlines
-(boundary effects), the column idealisation fails because the
-horizontal physics matters. The capstone problem — a mooring far
-from a coastline, far from a front — is exactly the regime where it
-works.
+If you care about reef-front gradients (river plumes meeting clear
+water), lagoon-vs-open-water exchange, or near-coast bathymetric
+steering, the column idealisation fails because the horizontal
+physics matters. The capstone problem — a mooring on the shelf, away
+from the immediate reef break and away from a freshwater plume — is
+exactly the regime where it works. Outside it, you need the 2-D
+shallow-water solver of [Unit 9](../unit_09/unit_09.qmd) coupled to
+the column, or a full 3-D model.
 :::
 
 The win is dimensionality: a 1D PDE in $(z, t)$ instead of a 3D
@@ -113,13 +139,21 @@ The two mechanisms compete. The **Péclet number** $\mathrm{Pe} = wH /
 \kappa$ measures who wins on the column scale: $\mathrm{Pe} \gg 1$ is
 advection-dominated, $\mathrm{Pe} \ll 1$ is diffusion-dominated, and
 $\mathrm{Pe} \sim 1$ is the messy interesting case the AIMS column
-lives in (see §8.6).
+lives in (see §8.7).
+
+The same advection–diffusion equation governs *any* passive scalar:
+replace $T$ with a nutrient concentration $C$, a sediment
+concentration, or a tracer dye, and the equation is unchanged. What
+changes is the source term — biological uptake for nutrients,
+gravitational sinking for sediment, photochemical decay for dyes —
+and the boundary conditions. §8.6 spells out the nutrient case.
 
 ## 8.4 Surface energy budget
 
-Heat enters and leaves the ocean through the air-sea interface.
-Modelling that exchange properly is an entire field. For our
-purposes the budget splits into two parts:
+Heat enters and leaves the column through the air–sea interface, and
+the size of the surface flux determines whether reef corals
+experience thermal stress. For our purposes the budget splits into
+two parts:
 
 **Penetrating shortwave $Q_{\text{SW}}$.** Sunlight passes *through*
 the surface and is absorbed *inside* the water, exponentially with

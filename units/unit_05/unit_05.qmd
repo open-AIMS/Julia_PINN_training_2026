@@ -188,7 +188,7 @@ Even on benign problems three pathologies show up that motivate
 everything in [Unit 7](../unit_07/unit_07.qmd):
 
 - **Spectral bias.** MLPs with smooth activations preferentially fit
-  low frequencies first (Rahaman et al., 2019). The Gaussian initial
+  low frequencies first ([Rahaman et al., 2019](../references/references.qmd#ref-rahaman2019){target="_blank"}). The Gaussian initial
   bump in §5.4 — locally high curvature — is the slowest-converging
   feature of the loss.
 - **Loss imbalance.** With residual, IC, and BC contributing terms

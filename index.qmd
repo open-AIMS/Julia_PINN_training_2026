@@ -113,3 +113,8 @@ plots, a forward PINN trained against that reference, an inverse
 PINN that recovers an unknown wind-stress envelope from sparse
 mooring data, and a Python parallel using `DeepXDE`. Source code
 embedded inline.
+
+## [References](units/references/references.qmd)
+
+The consolidated bibliography. In-text citations across all units
+link directly to the matching entry here and open in a new window.
