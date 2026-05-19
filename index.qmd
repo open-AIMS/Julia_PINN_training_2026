@@ -22,7 +22,10 @@ with the [Australian Institute of Marine Science (AIMS)](https://www.aims.gov.au
 
 ::: {style="margin: 1.5em 0; padding: 1em 1.2em; border-left: 3px solid #2b486b; background: #f4f7fb; font-size: 0.95em;"}
 **Created by** [Yoni Nazarathy](https://yoninazarathy.com/) at
-[Accumulation Point](https://www.accumulationpoint.com/).
+[Accumulation Point](https://www.accumulationpoint.com/), developed
+in collaboration with the
+[AIMS](https://www.aims.gov.au/). AIMS contact:
+[Dr Takuya Iwanaga](https://www.aims.gov.au/about/our-people/dr-takuya-iwanaga){target="_blank"}.
 
 **Prerequisite / Julia refresher** — participants who want a
 gentler ramp into Julia and the SciML ecosystem before this
