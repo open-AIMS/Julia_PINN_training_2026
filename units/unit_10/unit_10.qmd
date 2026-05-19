@@ -8,82 +8,69 @@ date-format: "DD/MM/YYYY"
 
 ```{=html}
 <style>
-  #solution-gate-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(20, 30, 50, 0.96);
-    color: #f5f5f7;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2em;
-    text-align: center;
-    user-select: none;
-    cursor: pointer;
+  .solution-gate {
+    margin: 1.5em 0;
+    border: 2px solid #caa436;
+    border-radius: 6px;
+    background: #fffbe6;
+    overflow: hidden;
   }
-  #solution-gate-overlay h2 {
-    font-size: 1.8em;
-    margin-bottom: 0.4em;
-    color: #ffe066;
-  }
-  #solution-gate-overlay .gate-body {
-    max-width: 560px;
-    line-height: 1.55;
-    font-size: 1.05em;
-  }
-  #solution-gate-overlay .gate-hint {
-    margin-top: 2em;
-    padding: 0.8em 1.4em;
+  .solution-gate-bar {
+    padding: 1em 1.4em;
     background: #ffe066;
     color: #20242c;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     font-weight: bold;
-    border-radius: 6px;
-    font-size: 1.1em;
+    font-size: 1.05em;
   }
-  #solution-gate-overlay .click-tally {
-    margin-top: 0.8em;
+  .solution-gate-bar .tally {
     font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.9em;
+    background: #20242c;
     color: #ffe066;
+    padding: 0.15em 0.6em;
+    border-radius: 3px;
+  }
+  .solution-gate-body {
+    display: none;
+    padding: 1em 1.4em;
+  }
+  .solution-gate.unlocked .solution-gate-bar {
+    background: #d8f0c8;
+    color: #1a4a1a;
+    cursor: default;
+  }
+  .solution-gate.unlocked .solution-gate-bar .tally {
+    background: #1a4a1a;
+    color: #d8f0c8;
+  }
+  .solution-gate.unlocked .solution-gate-body {
+    display: block;
   }
 </style>
 
-<div id="solution-gate-overlay" onclick="solutionGateClick()">
-  <h2>⚠️ This is the project solution</h2>
-  <div class="gate-body">
-    <p>You're about to read the worked solution for the capstone
-    project defined in <em>Unit 9</em>. We strongly recommend you
-    <strong>attempt the project yourself first</strong> — the
-    learning comes from working through the inverse problem, not
-    from reading our answer.</p>
-    <p>If you want to proceed anyway, <strong>triple-click anywhere
-    on this overlay</strong> to dismiss it. The two solution
-    bodies inside (Task A and Task B) are <em>additionally</em>
-    collapsed, so the main spec stays readable without spoilers.</p>
-  </div>
-  <div class="gate-hint">Triple-click to dismiss</div>
-  <div class="click-tally" id="solution-gate-tally">0 / 3 clicks</div>
-</div>
-
 <script>
 (function() {
-  let n = 0;
-  let firstClickAt = 0;
-  window.solutionGateClick = function() {
+  window.solutionGateClick = function(id) {
+    const gate = document.getElementById(id);
+    if (!gate || gate.classList.contains("unlocked")) return;
     const now = Date.now();
-    if (now - firstClickAt > 1200) {
+    let n = parseInt(gate.dataset.clicks || "0", 10);
+    const first = parseInt(gate.dataset.firstClickAt || "0", 10);
+    if (now - first > 1200) {
       n = 0;
-      firstClickAt = now;
+      gate.dataset.firstClickAt = String(now);
     }
     n += 1;
-    document.getElementById("solution-gate-tally").textContent =
-      n + " / 3 clicks";
+    gate.dataset.clicks = String(n);
+    gate.querySelector(".tally").textContent = n + " / 3 clicks";
     if (n >= 3) {
-      const ov = document.getElementById("solution-gate-overlay");
-      ov.style.transition = "opacity 0.3s ease";
-      ov.style.opacity = "0";
-      setTimeout(() => ov.remove(), 320);
+      gate.classList.add("unlocked");
+      gate.querySelector(".tally").textContent = "unlocked";
     }
   };
 })();
@@ -95,17 +82,20 @@ in [Unit 9](../unit_09/unit_09.qmd). The science behind the model
 sits in [Unit 8](../unit_08/unit_08.qmd). Here we cover three
 things in this order:
 
-- **Shared infrastructure** (§10.1 — visible). The finite-difference
-  reference solver, the toy-task ladder ([Unit 9 §9.10](../unit_09/unit_09.qmd#sec-toy-tasks)),
+- **Shared infrastructure** (§10.1 — open). The finite-difference
+  reference solver, the toy-task ladder ([Unit 9 §9.10](../unit_09/unit_09.qmd)),
   and the SWE driver. Both Task A and Task B start from these.
-- **Solution to Task A** (§10.2 — collapsed). Single-site
-  CPU-friendly inverse problem.
-- **Solution to Task B** (§10.3 — collapsed). Three-site joint
-  inverse with the modern PINN toolkit, plus the sub-scale CPU
-  prototype steps.
+- **Solution to Task A** (§10.2 — *locked, triple-click to unlock*).
+  Single-site CPU-friendly inverse problem.
+- **Solution to Task B** (§10.3 — *locked, triple-click to unlock*).
+  Three-site joint inverse with the modern PINN toolkit, plus the
+  sub-scale CPU prototype steps.
 
-The two solution bodies are *deliberately collapsed by default*.
-Open the one you want, when you want it.
+Each solution sits behind its own triple-click gate, so you can
+read the shared infrastructure (and one task's solution, if you
+want) without spoiling the other. We strongly recommend you
+**attempt each task yourself first** — the learning is in working
+through the inverse problem, not in reading our answer.
 
 ## 10.1 Shared infrastructure
 
@@ -165,8 +155,14 @@ of scenario 4 with a physically derived $w(t)$.
 
 ## 10.2 Solution to Task A
 
-::: {.callout-tip collapse="true" appearance="default" icon="false"}
-## 🔓 Solution to Task A — single-site CPU-friendly inverse (click to expand)
+```{=html}
+<div class="solution-gate" id="gate-task-a">
+  <div class="solution-gate-bar" onclick="solutionGateClick('gate-task-a')">
+    <span>🔒 Solution to Task A — triple-click to reveal</span>
+    <span class="tally">0 / 3 clicks</span>
+  </div>
+  <div class="solution-gate-body">
+```
 
 *Spec: [Unit 9 §9.8](../unit_09/unit_09.qmd). Site A (Cleveland
 Bay, $H = 15$ m), one driver to recover, ~30 min on a laptop CPU.*
@@ -249,12 +245,22 @@ These choices are the ones that fail at Task B's scale.
 - [`scripts/task_a_forward_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_forward_pinn.jl){target="_blank"} — forward PINN trainer
 - [`scripts/task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"} — joint inverse trainer
 - [`scripts/task_a_diagnostics.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_diagnostics.jl){target="_blank"} — residual histograms + heat budget
-:::
+
+```{=html}
+  </div>
+</div>
+```
 
 ## 10.3 Solution to Task B
 
-::: {.callout-tip collapse="true" appearance="default" icon="false"}
-## 🔒 Solution to Task B — three-site joint inverse with GPU first steps (click to expand)
+```{=html}
+<div class="solution-gate" id="gate-task-b">
+  <div class="solution-gate-bar" onclick="solutionGateClick('gate-task-b')">
+    <span>🔒 Solution to Task B — triple-click to reveal</span>
+    <span class="tally">0 / 3 clicks</span>
+  </div>
+  <div class="solution-gate-body">
+```
 
 *Spec: [Unit 9 §9.9](../unit_09/unit_09.qmd). Three moorings
 jointly, $H = 100$ m, modern PINN toolkit, GPU at full scale.
@@ -369,7 +375,11 @@ operationally usable for production mooring networks.
 - [`scripts/task_b_joint_inverse.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_joint_inverse.jl){target="_blank"} — three-site joint trainer
 - [`scripts/task_b_subscale_prototype.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_subscale_prototype.jl){target="_blank"} — two-site CPU sub-scale
 - [`scripts/task_b_gpu_launch.md`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_gpu_launch.md){target="_blank"} — GPU-launch checklist
-:::
+
+```{=html}
+  </div>
+</div>
+```
 
 ## 10.4 A Python parallel with DeepXDE
 

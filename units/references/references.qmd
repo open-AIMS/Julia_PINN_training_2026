@@ -6,8 +6,9 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555;"}
-[← Back to Unit 10 — A project the solution](../unit_10/unit_10.qmd)
+::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555; display: flex; justify-content: space-between;"}
+[← Unit 10 — A project the solution](../unit_10/unit_10.qmd)
+[→ Software Resources](../software/software.qmd)
 :::
 
 This page collects all bibliographic references cited in the course.

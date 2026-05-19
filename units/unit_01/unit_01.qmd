@@ -348,22 +348,31 @@ discs are the four tide gauges, and grey is land.
 ```{julia}
 #| echo: false
 #| output: asis
-using JSON3
+using JSON3, Base64
 meta = JSON3.read(read(joinpath("figures", "surge_frames", "frames_meta.json"), String))
 frames = meta["frames"]
 n      = length(frames)
 
-# Inline the per-frame metadata into a JS array so the slider can update
-# the caption without an extra fetch (which would hit CORS under file://).
+# Inline each frame PNG as a base64 data URI so the rendered HTML is
+# genuinely self-contained — Quarto's embed-resources can't statically
+# detect the dynamic frame path the slider builds, so without this
+# the slider breaks for anyone who downloads only the HTML from CI.
+function frame_data_uri(idx)
+    path = joinpath("figures", "surge_frames",
+                    "frame_" * lpad(idx, 3, '0') * ".png")
+    "data:image/png;base64," * base64encode(read(path))
+end
+
 data_js = "[" * join([
     "{t_hr:" * string(round(Float64(f["t_hr"]); digits = 3)) *
-    ",psi:"  * string(round(Float64(f["psi_m"]); digits = 4)) * "}"
-    for f in frames], ",") * "]"
+    ",psi:"  * string(round(Float64(f["psi_m"]); digits = 4)) *
+    ",src:\"" * frame_data_uri(i - 1) * "\"}"
+    for (i, f) in enumerate(frames)], ",") * "]"
 
 println("```{=html}")
 println("""
 <div class="surge-slider-widget" style="text-align:center;margin:1em 0;">
-<img id="surge-slider-img" src="figures/surge_frames/frame_000.png" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:560px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"/>
+<img id="surge-slider-img" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:560px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"/>
 <div style="margin-top:0.6em;">
 <input type="range" min="0" max="$(n - 1)" value="0" step="1" id="surge-slider-range" style="width:80%;" oninput="updateSurgeFrame(this.value)"/>
 <div id="surge-slider-caption" style="font-size:0.9em;color:#555;margin-top:0.3em;font-family:ui-monospace,Menlo,monospace;">frame 0 / $(n - 1)  ·  t = 0.00 h  ·  ψ(t) = +0.000 m</div>
@@ -374,11 +383,11 @@ println("""
 (function() {
   const frames = $data_js;
   const fmt = x => (x >= 0 ? "+" : "") + x.toFixed(3);
+  // Initial frame on page load
+  document.getElementById("surge-slider-img").src = frames[0].src;
   window.updateSurgeFrame = function(idx) {
-    const i = String(idx).padStart(3, "0");
-    document.getElementById("surge-slider-img").src =
-      "figures/surge_frames/frame_" + i + ".png";
     const f = frames[parseInt(idx)];
+    document.getElementById("surge-slider-img").src = f.src;
     document.getElementById("surge-slider-caption").textContent =
       "frame " + idx + " / $(n - 1)  ·  t = " +
       f.t_hr.toFixed(2) + " h  ·  ψ(t) = " + fmt(f.psi) + " m";

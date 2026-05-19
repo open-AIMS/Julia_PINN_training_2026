@@ -6,8 +6,8 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555;"}
-[← Back to References](../references/references.qmd)  ·
+::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555; display: flex; justify-content: space-between;"}
+[← References](../references/references.qmd)
 [→ Mathematical Review](../math_review/math_review.qmd)
 :::
 
@@ -287,8 +287,4 @@ groups). The Python equivalent of the hand-rolled STLSQ in
 — Reference Kolmogorov-Arnold Network implementation
 (Liu et al. 2024). Used in
 [Unit 2 §2.7](../unit_02/unit_02.qmd) for the KAN demo.
-:::
-
-::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; text-align: right;"}
-[**→ Mathematical Review**](../math_review/math_review.qmd){style="font-weight: bold; padding: 0.4em 1em; background: #f4d03f; color: #20242c; border-radius: 4px; text-decoration: none;"}
 :::

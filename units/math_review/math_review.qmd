@@ -6,8 +6,8 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555;"}
-[← Software Resources](../software/software.qmd)  ·
+::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555; display: flex; justify-content: space-between;"}
+[← Software Resources](../software/software.qmd)
 [→ Physical / Oceanography Review](../physical_review/physical_review.qmd)
 :::
 
@@ -150,7 +150,3 @@ For a second-order linear PDE $a\, u_{xx} + 2b\, u_{xy} + c\, u_{yy} + \ldots = 
 | Richardson Ri | $N^2/(\partial_z U)^2$ | buoyancy vs. shear |
 | Courant–Friedrichs–Lewy CFL | $c\,\Delta t/\Delta x$ | numerical wave speed |
 | Strouhal St | $fL/U$ | unsteadiness vs. advection |
-
-::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; text-align: right;"}
-[**→ Physical / Oceanography Review**](../physical_review/physical_review.qmd){style="font-weight: bold; padding: 0.4em 1em; background: #f4d03f; color: #20242c; border-radius: 4px; text-decoration: none;"}
-:::
