@@ -69,6 +69,50 @@ optical probes within hours. We rarely have a reliable
 time-history of *what came out of the river* during an event, only
 of *how the bay responded* over the days that followed.
 
+::: {.callout-note collapse="true"}
+## A note on tides — what "de-tided" means
+
+A real tide gauge in Moreton Bay records the total water level
+
+$$
+\eta_{\text{gauge}}(t) \;=\;
+\underbrace{\eta_{\text{tide}}(t)}_{\sim\, 1.5\,\text{m}}
+\;+\;
+\underbrace{\eta_{\text{surge}}(t)}_{\sim\, 0.45\,\text{m}}
+\;+\; \text{noise.}
+$$
+
+The tidal part is *huge* compared to the surge we care about —
+roughly 1.5 m of astronomical tide vs. the ~45 cm freshwater
+surge — but it's also *predictable*. From a long calibration
+record at each gauge, oceanographers fit a **harmonic tidal
+model** (a sum of $\sim$ 30 sinusoids at known astronomical
+frequencies: $M_2$ at 12.42 h, $S_2$ at 12.00 h, $K_1$ at
+23.93 h, $O_1$ at 25.82 h, and so on); $\eta_{\text{tide}}(t)$
+can then be reconstructed and *subtracted* from the live record.
+What remains is the **de-tided residual**, $\eta_{\text{gauge}}(t)
+- \eta_{\text{tide}}(t) \approx \eta_{\text{surge}}(t) + \text{noise}$
+— which is what we treat as the synthetic mooring data through
+this unit (with $\sigma = 1.5\,\text{cm}$ Gaussian noise to imitate
+the harmonic-fit residual after de-tiding).
+
+Two practical points worth carrying forward:
+
+- **De-tiding is itself an inverse problem of sorts.** Errors in
+  the harmonic constants (especially the shallow-water tidal
+  components $M_4, M_6$ near the river mouth) leak directly into
+  the surge residual. Any source-recovery inversion built on
+  tide-gauge data inherits that calibration uncertainty.
+- **Surge timescale ≪ tidal timescale, but not by much.** A
+  3-hour freshwater surge has substantial energy at periods
+  *near* the diurnal and semi-diurnal tidal bands. Aggressive
+  de-tiding (notch filters around the tidal lines) risks
+  smearing surge content; sloppy de-tiding leaves tide leakage
+  in the residual. The Brisbane River Hydraulic Model the
+  Department of Environment uses for operational forecasts hits
+  this trade-off head-on.
+:::
+
 That sets up the scientific question we will solve in this unit:
 
 ::: {.callout-tip}

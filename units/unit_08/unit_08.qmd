@@ -172,6 +172,29 @@ your sensor; downwelling ($w < 0$) brings warm surface water down.
 Either way, *the parcel doesn't change temperature on the way* —
 advection just relocates it.
 
+**Where $w(z, t)$ actually comes from on the GBR.** Three
+contributions, each with its own timescale:
+
+- **Tides** drive a regular $\sim 12.4$-h vertical sloshing
+  (the dominant semidiurnal $M_2$ tide, locally up to a few
+  metres on the GBR mid-shelf). On a single column this shows
+  up as a sinusoidal $w(z, t)$ component that the *thermistor
+  data sees clearly* but the *recovered storm source must be
+  separated from*.
+- **Wind-driven Ekman pumping** during storms — the
+  intermittent, days-long envelope our capstone treats as the
+  unknown $\tau(t)$ ([Unit 9](../unit_09/unit_09.qmd)).
+- **Mean shelf circulation** — a slow, near-constant background
+  rise/fall.
+
+The capstone deliberately keeps the tidal contribution as part
+of the *known* prescribed $w(z, t)$ (read off from a tide table
+plus the local barotropic mode), so the inversion focuses on the
+storm-driven piece. Real operational systems perform an
+equivalent "de-tiding" of the column data before inversion,
+analogous to the harmonic-fit removal Unit 1 §1.1 describes for
+the surface gauges.
+
 ### Diffusion — turbulent stirring as a Fickian closure
 
 Real ocean turbulence is chaotic on scales below ~1 m. We don't

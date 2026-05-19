@@ -111,6 +111,57 @@ the same boundary of an elliptic equation generally has no solution.
 PINNs inherit this constraint: an ill-posed problem will train to a
 residual minimum that is not the (non-existent) classical solution.
 
+### Strong and weak solutions
+
+A **strong** (or *classical*) solution of a PDE has *as many
+classical derivatives as the equation needs*, and satisfies the
+equation *pointwise* at every point of the domain. The heat
+equation $u_t = \alpha u_{xx}$ needs $u_t$ and $u_{xx}$ to exist
+and be continuous; if you have a $u$ in $C^{2,1}$ that satisfies
+the equation at every $(x, t)$, that's a strong solution.
+
+Most physical PDEs don't admit strong solutions in general. As
+soon as you have shocks (Burgers, the compressible Euler
+equations), corners in the domain (an L-shaped boundary for
+Laplace), or rough initial data (a step function for the heat
+equation), the requisite pointwise derivatives don't exist
+everywhere. The way out is to relax what "solving" means.
+
+A **weak** (or *generalised*) solution satisfies the PDE
+*on average against every test function*. Concretely, multiply
+$u_t = \alpha u_{xx}$ by a smooth compactly-supported test
+function $v(x, t)$, integrate by parts to push the spatial
+derivative onto $v$, and demand the resulting integral identity
+holds for every $v$:
+
+$$
+\int_\Omega \int_0^T u\, v_t \, dt\, dx
+\;=\;
+\alpha \int_\Omega \int_0^T u_x\, v_x \, dt\, dx
+\qquad \forall v.
+$$
+
+A weak solution only needs $u$ to have *one* spatial derivative
+in an $L^2$ sense — much weaker than $C^{2}$. Any strong
+solution is automatically a weak one; the reverse is not true.
+
+Why this matters here:
+
+- The **finite-element method** (§6.6) is built directly on the
+  weak form — it discretises the integral identity, not the
+  pointwise PDE.
+- **PINNs** sit somewhere in between. They enforce the residual
+  *pointwise* at collocation points (strong-form-ish), but the
+  loss aggregates over many points, which behaves like a weak
+  form. This is one reason PINNs handle moderately rough
+  solutions better than naive finite differences but still
+  struggle with genuine shocks.
+
+We won't develop the weak / Sobolev theory rigorously — that's a
+graduate course in itself. But the distinction is worth knowing
+about every time someone tells you "this PDE has a solution":
+*in what sense?*
+
 ## 6.2 Explicit Solution Techniques
 
 Before we approximate a PDE numerically (let alone with a neural
@@ -296,37 +347,208 @@ benchmarked against a high-resolution FD reference; the column
 PINN in [Unit 9](../unit_09/unit_09.qmd) starts its sanity-checks
 on a constant-$\alpha$ problem with a known erfc solution.
 
-## 6.3 Mechanisms: Diffusion, Advection, Reaction
+## 6.3 The Five Canonical PDEs
 
-### The Heat Equation
+Most of classical mathematical physics rests on five equations.
+They reappear (sometimes with changed names, always with the same
+structure) in heat conduction, electromagnetism, quantum
+mechanics, fluid flow, finance, biology, traffic. This section
+takes each in turn and tells you what it *physically describes*,
+not just what it looks like.
 
-$$\frac{\partial u}{\partial t} = \alpha\,\frac{\partial^2 u}{\partial x^2}.$$
+### The Heat (diffusion) equation — smoothing
 
-Models how temperature $u(x, t)$ evolves over time. The diffusion
-coefficient $\alpha > 0$ controls the rate. The second spatial
-derivative measures *curvature*: hills flatten, valleys fill in,
-sharp features smooth out.
+$$
+\frac{\partial u}{\partial t} \;=\; \alpha\,\nabla^2 u.
+$$
 
-### Advection and Characteristics
+*Parabolic. Time-dependent.* The fundamental "things smear out"
+equation. Imagine a rod with a hot spot in the middle; heat
+*diffuses* outward until the temperature equilibrates.
 
-The simplest hyperbolic PDE,
+**Why second-derivative-in-space?** The second derivative is
+*curvature*. At a hill in the profile, $u_{xx} < 0$, so $u_t < 0$
+— the hill drops. At a valley, $u_{xx} > 0$, the valley fills.
+**Curvature drives change**, and the curvature itself relaxes as
+the profile flattens. That single line of reasoning explains why
+the heat equation:
 
-$$\frac{\partial u}{\partial t} + c\,\frac{\partial u}{\partial x} = 0,$$
+- **Smooths fast**. Sharp features have huge curvature → decay
+  fast. Smooth features have low curvature → decay slowly.
+- **Has infinite propagation speed**. A localised hot spot
+  instantly raises the temperature everywhere (by an
+  exponentially small amount). Not physically realistic at
+  relativistic scales, but accurate for everyday heat / mass
+  diffusion.
+- **Loses information**. The smoothing is irreversible —
+  starting from $u(x, T)$ you cannot in general recover
+  $u(x, 0)$. This makes the *backward* heat equation
+  catastrophically ill-posed and a classic test case for
+  regularisation theory.
 
-has solution $u(x, t) = u_0(x - ct)$ — the initial profile sliding
-at speed $c$. Information travels along **characteristics**
-$x - ct = \text{const}$.
+**Where it shows up beyond temperature.** Chemical diffusion
+(Fick's law), Brownian motion (the Fokker–Planck equation in
+its simplest form), option pricing (Black–Scholes is heat-
+equation-shaped), ocean / atmosphere turbulent mixing (Unit 8 §8.3
+with $\alpha = \kappa$). Same equation, different units.
 
-### Reaction-Diffusion
+### The Laplace equation — steady-state equilibrium
 
-Real-world models combine all three mechanisms:
+$$
+\nabla^2 u \;=\; 0.
+$$
+
+*Elliptic. No time variable.* What happens when the heat
+equation has been running forever and everything has equilibrated:
+$u_t = 0$ means $\nabla^2 u = 0$. The Laplace equation describes
+**steady states of diffusive processes**.
+
+The physical content is the **mean-value property**: the
+solution at any interior point equals the average of its
+neighbours on any small sphere around it. No interior maxima or
+minima — the extrema live on the boundary
+(maximum principle). This is why Laplace solutions look
+"stretched-membrane smooth": rubber sheet pinned at the boundary,
+no source forces in the interior.
+
+**Where it shows up.**
+
+- Steady-state heat conduction (no sources, no time).
+- Electrostatic potential in a charge-free region.
+- Incompressible irrotational flow (the velocity *potential*).
+- Conformal mapping in complex analysis (harmonic functions are
+  the real parts of holomorphic functions).
+- Steady-state diffusion of any chemical species.
+
+### The Poisson equation — Laplace with a source
+
+$$
+\nabla^2 u \;=\; -f(\mathbf{x}).
+$$
+
+*Elliptic.* Identical to Laplace except for the right-hand-side
+source $f$. The source physically *deposits* the quantity
+(charge, heat, mass) that the diffusion-and-equilibrium process
+then spreads out. Mean-value-property still holds *up to a
+correction proportional to the source intensity*.
+
+**Where it shows up.**
+
+- Electrostatics with charges: $\nabla^2 \varphi = -\rho / \varepsilon_0$.
+- Gravitational potential with masses: $\nabla^2 \Phi = 4\pi G\, \rho$.
+- Steady-state heat conduction with internal heat sources.
+- Stream function ↔ vorticity in 2-D incompressible flow:
+  $\nabla^2 \psi = -\omega$.
+
+The Laplace / Poisson pair is the workhorse of "what's the
+steady-state response to this source distribution?"
+
+### The Wave equation — propagation
+
+$$
+\frac{\partial^2 u}{\partial t^2} \;=\; c^2\,\nabla^2 u.
+$$
+
+*Hyperbolic. Time-dependent, but unlike heat: time and space
+play similar roles.* This is the equation for *anything that
+oscillates and propagates*: vibrating strings, sound waves,
+electromagnetic waves, water waves (linearised), seismic waves.
+
+**Why second-derivative-in-time?** Newton's $F = ma$ — the
+acceleration $u_{tt}$ of a string element is proportional to the
+net force, which is proportional to the *curvature* $u_{xx}$ of
+the string (the spatial second derivative measures how much the
+neighbours pull this point up or down). The constant $c^2$ — the
+wave speed squared — is the ratio of restoring tension to
+inertia.
+
+Three consequences that distinguish the wave equation from the
+heat equation:
+
+- **Finite propagation speed $c$**. Information travels along
+  characteristics $x \pm c\,t = \text{const}$; the "light cone"
+  in 1+1 dimensions. A disturbance at $(x_0, 0)$ cannot affect
+  $(x_1, t)$ unless $|x_1 - x_0| \leq c\,t$.
+- **No smoothing**. A sharp initial profile stays sharp forever
+  (in fact it splits into a left-moving and a right-moving copy
+  — d'Alembert's formula).
+- **Energy is conserved**. $\frac{d}{dt} \int (u_t^2 + c^2 u_x^2)\, dx = 0$
+  — the wave equation is *Hamiltonian*. Numerical schemes that
+  don't respect this conservation drift over long simulations.
+
+**Where it shows up.**
+
+- Acoustics: $u$ = pressure perturbation, $c$ = sound speed.
+- Optics / electromagnetism: each component of Maxwell's
+  electric and magnetic fields satisfies a wave equation in
+  vacuum.
+- Seismology: P-waves and S-waves are wave-equation solutions
+  in elastic media.
+- **The Unit 1 shallow-water surge** — once we drop the drag
+  term, what's left is exactly a 2-D wave equation
+  $\eta_{tt} = \nabla\!\cdot\!(gH\,\nabla\eta)$ for the surface
+  elevation (see [§6.8](#sec-revisiting-unit-1)).
+
+### The Advection equation — pure transport
+
+$$
+\frac{\partial u}{\partial t} \;+\; c\,\frac{\partial u}{\partial x} \;=\; 0.
+$$
+
+*Hyperbolic, first-order.* The simplest possible PDE: "a thing
+moves at speed $c$ without changing shape". The exact solution is
+$u(x, t) = u_0(x - c t)$ — the initial profile sliding rigidly.
+
+**Information travels along characteristics.** The lines
+$x - c t = \text{const}$ in space-time are the trajectories of
+the solution's "DNA" — the value of $u$ on a characteristic is
+the same as at $t = 0$ at the point that characteristic came
+from. This is the cleanest case of the
+**method of characteristics** for first-order PDEs.
+
+Three useful facts:
+
+- **No smoothing, no diffusion.** A step function stays a step
+  function forever. Real fluid models have a small diffusive
+  term that gradually rounds the corners — Burgers' equation
+  $u_t + u u_x = \nu u_{xx}$ adds nonlinearity *and* diffusion;
+  in the inviscid limit it forms shocks.
+- **CFL constraint in numerics is sharp**:
+  $|c|\,\Delta t / \Delta x \leq 1$ for first-order upwind.
+  Information from any cell must be able to reach the next cell
+  within one time step.
+- **The advective $u\,u_x$ term in Navier–Stokes / shallow water
+  is what makes those equations nonlinear** — and what makes
+  them genuinely hard. Linearised models (including the Unit 1
+  shallow-water solver) drop this term and become tractable as
+  wave equations.
+
+**Where it shows up.** Anywhere stuff is *transported*: tracer
+dye in a river, contaminant plume in groundwater, traffic
+density on a freeway, smoke advected by wind, sea-surface
+temperature carried by ocean currents.
+
+### Combining mechanisms — reaction-diffusion and friends
+
+Real models stack diffusion, advection, and pointwise
+*reaction* (a source term $f(u)$ that depends on $u$ itself —
+not just on $\mathbf{x}$):
 
 | Equation | Mechanisms | Example application |
 |----------|-----------|---------------------|
 | $u_t = \alpha\,u_{xx}$ | Diffusion | Heat conduction |
 | $u_t + c\,u_x = 0$ | Advection | Pollutant in a river |
-| $u_t + c\,u_x = \alpha\,u_{xx}$ | Advection + diffusion | Nutrient dispersal |
-| $u_t = \alpha\,u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement |
+| $u_t + c\,u_x = \alpha\,u_{xx}$ | Advection + diffusion | Nutrient dispersal in a flow |
+| $u_t = \alpha\,u_{xx} + f(u)$ | Reaction-diffusion | Coral larval settlement; FitzHugh-Nagumo neuron; Turing patterns |
+| $u_{tt} = c^2\,\nabla^2 u - \gamma u_t$ | Wave with damping | Vibrating string with friction |
+
+Each row inherits the qualitative behaviour of the parent
+mechanisms — diffusion smooths, advection translates, reaction
+sources/sinks. The mixed cases are where the modelling
+*judgement* lives: which terms keep, which to drop, which
+constants to estimate. That's the choice the capstone column
+PDE [Unit 8 §8.2](../unit_08/unit_08.qmd) makes for the
+oceanographic setting.
 
 ## 6.4 Finite Differences and Stability Analysis
 
@@ -569,7 +791,7 @@ yet competitive with FV for shocks (smooth-MLP ansatz rounds them
 off) or with FE for complex elliptic problems (no provable error
 bounds), so the classical methods aren't going anywhere.
 
-## 6.8 Revisiting Unit 1: the shallow-water solver in detail
+## 6.8 Revisiting Unit 1: the shallow-water solver in detail {#sec-revisiting-unit-1}
 
 [Unit 1](../unit_01/unit_01.qmd) showed a complete linearised
 shallow-water solver as a black box: input ψ(t), output gauge

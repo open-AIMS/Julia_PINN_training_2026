@@ -86,6 +86,8 @@ A clean elliptic example. The PINN handles the circular geometry
 mesh-free — a classical advantage over finite differences. Closed-form
 solution: $u(r, \theta) = r^3 \sin(3\theta)$.
 
+![Left: the closed-form three-lobed harmonic $u(r, \theta) = r^3 \sin(3\theta)$ on the unit disk, with Dirichlet boundary $u(R, \theta) = \sin(3\theta)$ and a small inner cutoff $r_{\min}$. Right: a typical PINN collocation cloud — ~400 random interior residual points (green) and ~36 uniform boundary points (orange). The mesh-free advantage: random sampling on a disk needs no quadrature scheme or curvilinear mesh.](figures/laplace_disk.svg){#fig-laplace-disk width=92%}
+
 ```{julia}
 #| eval: false
 
@@ -219,6 +221,8 @@ A 1-D reduction of the linearised SWE
 0.05]$) trains in seconds and exhibits all three failure modes
 above. The same example in 2-D has the same flavour, just
 slower:
+
+![What naïve PINN training on the 1-D linearised SWE looks like. **Left:** at the half-time snapshot, the FD reference shows two counter-propagating Gaussian bumps; the naïve PINN (red dashed) over-smooths into a single broad lump and drifts at the right boundary (BC misfit). **Right:** the residual-vs-time histogram doesn't decrease — late-time bins are *larger* than early-time ones, the textbook signature of causality violation. **Bottom:** the three failure modes diagnosed by §7.2 and the modern fixes from §7.3 that each one motivates.](figures/naive_swe_failure.svg){#fig-naive-swe width=92%}
 
 ```{julia}
 #| eval: false

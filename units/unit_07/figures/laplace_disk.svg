@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 380" font-family="Helvetica,Arial,sans-serif" font-size="12">
+  <rect width="780" height="380" fill="#ffffff"/>
+
+  <!-- ============ Left panel: closed-form solution on the disk ============ -->
+  <text x="190" y="22" text-anchor="middle" fill="#222" font-size="13" font-weight="bold">Exact solution u(r,θ) = r³ sin(3θ)</text>
+
+  <defs>
+    <!-- Diverging colour scale for three-lobed function -->
+    <radialGradient id="lobeFill" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f4f4f4"/>
+      <stop offset="100%" stop-color="#f4f4f4"/>
+    </radialGradient>
+    <linearGradient id="lobePos" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c0392b"/>
+      <stop offset="100%" stop-color="#f4e0dc"/>
+    </linearGradient>
+    <linearGradient id="lobeNeg" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#2171b5"/>
+      <stop offset="100%" stop-color="#d6e4f1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Disk outline -->
+  <circle cx="190" cy="200" r="140" fill="#f7f7f9" stroke="#222" stroke-width="1.5"/>
+
+  <!-- Six alternating lobes for sin(3θ) — positive (red) at θ=π/6, π/6+2π/3, π/6+4π/3 -->
+  <!-- Each lobe is a circular sector with intensity gradient.  Use 6 wedges, alternating colour. -->
+  <g>
+    <!-- helper: a wedge from angle a1 to a2 with given fill -->
+    <!-- θ = 0 is east. Lobe centres at θ = π/6, π/2, 5π/6, 7π/6, 3π/2, 11π/6 -->
+
+    <!-- Lobe 1 — positive (red), centred at θ=π/6 = 30° (counterclockwise from east, but SVG y is flipped) -->
+    <!-- In SVG coords, angle increases clockwise.  We define each wedge by start/end angle in math (CCW from +x). -->
+    <!-- Sector A: math θ ∈ [0, π/3] = [0°, 60°] -->
+    <path d="M 190 200 L 330 200 A 140 140 0 0 0 260 78.7 Z" fill="#c0392b" opacity="0.78"/>
+    <!-- Sector B: math θ ∈ [π/3, 2π/3] = [60°, 120°]  (negative) -->
+    <path d="M 190 200 L 260 78.7 A 140 140 0 0 0 120 78.7 Z" fill="#2171b5" opacity="0.78"/>
+    <!-- Sector C: math θ ∈ [2π/3, π] = [120°, 180°] (positive) -->
+    <path d="M 190 200 L 120 78.7 A 140 140 0 0 0 50 200 Z" fill="#c0392b" opacity="0.78"/>
+    <!-- Sector D: math θ ∈ [π, 4π/3] = [180°, 240°] (negative) -->
+    <path d="M 190 200 L 50 200 A 140 140 0 0 0 120 321.2 Z" fill="#2171b5" opacity="0.78"/>
+    <!-- Sector E: math θ ∈ [4π/3, 5π/3] = [240°, 300°] (positive) -->
+    <path d="M 190 200 L 120 321.2 A 140 140 0 0 0 260 321.2 Z" fill="#c0392b" opacity="0.78"/>
+    <!-- Sector F: math θ ∈ [5π/3, 2π] = [300°, 360°] (negative) -->
+    <path d="M 190 200 L 260 321.2 A 140 140 0 0 0 330 200 Z" fill="#2171b5" opacity="0.78"/>
+  </g>
+
+  <!-- Centre disk (small radius cutoff used by the PINN) -->
+  <circle cx="190" cy="200" r="14" fill="#f7f7f9" stroke="#222" stroke-dasharray="3 2" stroke-width="1"/>
+  <text x="190" y="204" text-anchor="middle" fill="#222" font-size="9">r = r_min</text>
+
+  <!-- Disk outline (re-draw on top) -->
+  <circle cx="190" cy="200" r="140" fill="none" stroke="#222" stroke-width="1.5"/>
+
+  <!-- Polar axes -->
+  <line x1="50" y1="200" x2="330" y2="200" stroke="#222" stroke-width="0.5" stroke-dasharray="2 2"/>
+  <line x1="190" y1="60" x2="190" y2="340" stroke="#222" stroke-width="0.5" stroke-dasharray="2 2"/>
+  <text x="338" y="204" font-size="10" fill="#222">θ = 0</text>
+  <text x="195" y="56" font-size="10" fill="#222">θ = π/2</text>
+
+  <!-- Boundary annotation -->
+  <text x="190" y="362" text-anchor="middle" fill="#666" font-size="11">Dirichlet BC: u(R, θ) = sin(3θ)</text>
+
+  <!-- ============ Right panel: collocation point cloud + radial structure ============ -->
+  <text x="580" y="22" text-anchor="middle" fill="#222" font-size="13" font-weight="bold">Mesh-free collocation (~400 random points)</text>
+
+  <!-- Reference disk -->
+  <circle cx="580" cy="200" r="140" fill="#f7f7f9" stroke="#222" stroke-width="1.5"/>
+  <line x1="440" y1="200" x2="720" y2="200" stroke="#bbb" stroke-width="0.5" stroke-dasharray="2 2"/>
+  <line x1="580" y1="60" x2="580" y2="340" stroke="#bbb" stroke-width="0.5" stroke-dasharray="2 2"/>
+
+  <!-- Interior collocation points (random-uniform on disk) -->
+  <g fill="#27ae60" opacity="0.85">
+    <circle cx="555" cy="178" r="2"/><circle cx="612" cy="142" r="2"/><circle cx="498" cy="223" r="2"/>
+    <circle cx="619" cy="217" r="2"/><circle cx="540" cy="262" r="2"/><circle cx="572" cy="113" r="2"/>
+    <circle cx="650" cy="190" r="2"/><circle cx="528" cy="190" r="2"/><circle cx="600" cy="255" r="2"/>
+    <circle cx="465" cy="195" r="2"/><circle cx="687" cy="200" r="2"/><circle cx="582" cy="285" r="2"/>
+    <circle cx="635" cy="240" r="2"/><circle cx="514" cy="155" r="2"/><circle cx="595" cy="172" r="2"/>
+    <circle cx="660" cy="125" r="2"/><circle cx="495" cy="282" r="2"/><circle cx="603" cy="225" r="2"/>
+    <circle cx="548" cy="225" r="2"/><circle cx="572" cy="200" r="2"/><circle cx="640" cy="280" r="2"/>
+    <circle cx="478" cy="245" r="2"/><circle cx="700" cy="160" r="2"/><circle cx="478" cy="135" r="2"/>
+    <circle cx="582" cy="138" r="2"/><circle cx="623" cy="90" r="2"/><circle cx="540" cy="305" r="2"/>
+    <circle cx="640" cy="95" r="2"/><circle cx="690" cy="240" r="2"/><circle cx="513" cy="305" r="2"/>
+    <circle cx="510" cy="260" r="2"/><circle cx="608" cy="305" r="2"/><circle cx="668" cy="270" r="2"/>
+    <circle cx="450" cy="220" r="2"/><circle cx="660" cy="155" r="2"/><circle cx="678" cy="178" r="2"/>
+    <circle cx="468" cy="265" r="2"/><circle cx="528" cy="103" r="2"/><circle cx="558" cy="92" r="2"/>
+    <circle cx="603" cy="293" r="2"/><circle cx="538" cy="148" r="2"/><circle cx="588" cy="83" r="2"/>
+    <circle cx="498" cy="170" r="2"/><circle cx="618" cy="123" r="2"/><circle cx="690" cy="218" r="2"/>
+    <circle cx="555" cy="115" r="2"/><circle cx="473" cy="178" r="2"/><circle cx="568" cy="245" r="2"/>
+    <circle cx="585" cy="155" r="2"/><circle cx="540" cy="208" r="2"/><circle cx="615" cy="200" r="2"/>
+    <circle cx="652" cy="220" r="2"/><circle cx="565" cy="298" r="2"/><circle cx="535" cy="65" r="2"/>
+    <circle cx="455" cy="190" r="2"/><circle cx="650" cy="280" r="2"/><circle cx="478" cy="225" r="2"/>
+    <circle cx="610" cy="265" r="2"/><circle cx="500" cy="125" r="2"/><circle cx="490" cy="245" r="2"/>
+  </g>
+
+  <!-- Boundary collocation points (uniformly on the circle, ~36) -->
+  <g fill="#e67e22" opacity="0.95">
+    <circle cx="720" cy="200" r="3"/>
+    <circle cx="715.6" cy="231.4" r="3"/>
+    <circle cx="702.7" cy="261.4" r="3"/>
+    <circle cx="682.0" cy="287.1" r="3"/>
+    <circle cx="654.6" cy="306.9" r="3"/>
+    <circle cx="622.0" cy="319.5" r="3"/>
+    <circle cx="586.4" cy="324.0" r="3"/>
+    <circle cx="551.0" cy="319.5" r="3"/>
+    <circle cx="518.4" cy="306.9" r="3"/>
+    <circle cx="491.0" cy="287.1" r="3"/>
+    <circle cx="470.3" cy="261.4" r="3"/>
+    <circle cx="457.4" cy="231.4" r="3"/>
+    <circle cx="440" cy="200" r="3"/>
+    <circle cx="457.4" cy="168.6" r="3"/>
+    <circle cx="470.3" cy="138.6" r="3"/>
+    <circle cx="491.0" cy="112.9" r="3"/>
+    <circle cx="518.4" cy="93.1" r="3"/>
+    <circle cx="551.0" cy="80.5" r="3"/>
+    <circle cx="586.4" cy="76.0" r="3"/>
+    <circle cx="622.0" cy="80.5" r="3"/>
+    <circle cx="654.6" cy="93.1" r="3"/>
+    <circle cx="682.0" cy="112.9" r="3"/>
+    <circle cx="702.7" cy="138.6" r="3"/>
+    <circle cx="715.6" cy="168.6" r="3"/>
+  </g>
+
+  <!-- Annotations -->
+  <g fill="#27ae60" font-size="11">
+    <rect x="445" y="44" width="155" height="14" fill="#e6f5ec" stroke="#27ae60"/>
+    <text x="450" y="55">● interior residual points</text>
+  </g>
+  <g fill="#b25800" font-size="11">
+    <rect x="445" y="62" width="155" height="14" fill="#fff1e0" stroke="#e67e22"/>
+    <text x="450" y="73">● boundary points (BC loss)</text>
+  </g>
+
+  <text x="580" y="362" text-anchor="middle" fill="#666" font-size="11">No mesh — random samples on a disk are handled natively by the PINN.</text>
+
+  <!-- Bottom caption -->
+  <text x="390" y="378" text-anchor="middle" fill="#444" font-size="11">Three-fold symmetric harmonic on the unit disk. Left: closed-form ground truth. Right: typical PINN collocation cloud.</text>
+</svg>
