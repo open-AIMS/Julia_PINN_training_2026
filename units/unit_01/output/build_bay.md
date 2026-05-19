@@ -7,7 +7,7 @@ Built bay model:
   depth range (water): 4.2 to 47.3 m
 
 Gauges (snapped to nearest water cell):
-  G1 Brisbane Bar        lat,lon = (-27.3670, 153.1660)  cell=( 29,108)  H=6.1 m
+  G1 Mud Island          lat,lon = (-27.2100, 153.2150)  cell=( 39,143)  H=6.0 m
   G2 Wellington Point    lat,lon = (-27.4800, 153.2360)  cell=( 43, 83)  H=6.0 m
   G3 Tangalooma Roads    lat,lon = (-27.2050, 153.3200)  cell=( 60,144)  H=18.2 m
   G4 Russell Channel     lat,lon = (-27.6600, 153.2900)  cell=( 54, 43)  H=6.0 m

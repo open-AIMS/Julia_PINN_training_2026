@@ -328,8 +328,16 @@ end
 # are snapped to the nearest *water* cell.
 
 const GAUGES = [
-    ("G1", "Brisbane Bar",      -27.367, 153.166,
-        "north of river mouth · main channel"),
+    # G1 is placed at Mud Island (real Moreton Bay site, ~18 km
+    # NNE of the Luggage Point river mouth). The obvious choice —
+    # Brisbane Bar / Pile Light — sits only ~1.5 km from the source
+    # cell, which makes the η_G1 → ψ inverse trivially close to a
+    # one-to-one read-off. Mud Island gives a clean mid-bay
+    # near-source observer whose signal has been smoothed enough by
+    # the bay's Green's function that the inversion is genuinely
+    # informative.
+    ("G1", "Mud Island",        -27.210, 153.215,
+        "mid-bay · nearest informative gauge"),
     ("G2", "Wellington Point",  -27.480, 153.236,
         "central bay · across from river"),
     ("G3", "Tangalooma Roads",  -27.205, 153.320,

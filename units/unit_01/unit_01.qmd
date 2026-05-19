@@ -61,8 +61,11 @@ floods.
 ### What we actually measure, and what we don't
 
 Here is the operational catch: the bay has **plenty of tide gauges**
-(Brisbane Bar / Pile Light, Wellington Point, Tangalooma anchorage,
-Russell / Macleay channel), but **the river outflow itself is hard
+(Mud Island, Wellington Point, Tangalooma anchorage, Russell /
+Macleay channel — Brisbane Bar / Pile Light too, but it sits so
+close to the river mouth that it doesn't constrain the source
+much more than a direct measurement would), but **the river
+outflow itself is hard
 to instrument in flood conditions** — current meters get washed
 out, banks become inaccessible, suspended-sediment loads kill
 optical probes within hours. We rarely have a reliable
@@ -161,8 +164,9 @@ the open ocean to the east of Moreton. The four tide-gauge sites
 (gold) sit at plausible real locations across the bay. The red
 triangle near the western coast is the **Brisbane River mouth**,
 where the unknown surge ψ(t) is imposed. (b) Inset zoom on the river
-entrance / Pile Light area where G1 (Brisbane Bar) sits, just
-downstream of where ψ(t) drives the bay.](figures/site_map.png)
+entrance / Pile Light area; the nearest informative gauge (G1, Mud
+Island) sits ~18 km north of the mouth in mid-bay, deliberately
+*not* on top of the source — see the warning callout in §1.2.5.](figures/site_map.png)
 
 We choose a domain that is small enough to evaluate in seconds on a
 laptop CPU but big enough to capture the geography that matters:
@@ -452,14 +456,13 @@ A few things to notice as you scrub:
    cluster and reflects off Moreton Island; the southern bay is
    slow to fill because of the Russell / Macleay / Karragarra
    constriction.
-3. **Different gauges see different signals.** G1 (Brisbane Bar)
-   responds first and strongest — too strong, really, since it
-   sits ~1.5 km from the source; see the warning callout below
-   the gauge table. G2 (Wellington Point, ~12 km away) sees a
-   clean propagated wavefront. G3 (Tangalooma, ~35 km NE) and G4
-   (Russell Channel, ~50 km south) see attenuated, delayed,
-   reflection-laden signals. It's the *contrast* between gauges,
-   not any one of them, that constrains ψ(t).
+3. **Different gauges see different signals.** G1 (Mud Island,
+   ~18 km NNE of the mouth) responds first and strongest. G2
+   (Wellington Point, ~26 km ESE) sees a clean propagated
+   wavefront across the central bay. G3 (Tangalooma, ~35 km NE)
+   and G4 (Russell Channel, ~50 km south) see attenuated,
+   delayed, reflection-laden signals. It's the *contrast* between
+   gauges, not any one of them, that constrains ψ(t).
 
 ### The measurements we get
 
@@ -471,58 +474,37 @@ actually use.
 
 | Gauge | Location | Lat, Lon | Cell | Depth |
 |---|---|---|---|---|
-| **G1** | Brisbane Bar | $-27.367°S$, $153.166°E$ | (29, 108) | 6.0 m |
+| **G1** | Mud Island | $-27.210°S$, $153.215°E$ | (39, 143) | 6.0 m |
 | **G2** | Wellington Point | $-27.480°S$, $153.236°E$ | (43, 83) | 6.0 m |
-| **G3** | Tangalooma Roads | $-27.205°S$, $153.320°E$ | (60, 144) | 6.6 m |
+| **G3** | Tangalooma Roads | $-27.205°S$, $153.320°E$ | (60, 144) | 18.2 m |
 | **G4** | Russell Channel | $-27.660°S$, $153.290°E$ | (54, 43) | 6.0 m |
 
 These four timeseries, the bathymetry, and the physics are
 **all the information the inverse solver gets**. The river-mouth
 source $\psi(t)$ is hidden.
 
-::: {.callout-warning}
-## Honest acknowledgement: G1 is unusually close to the source
+::: {.callout-note}
+## Why not put G1 at Brisbane Bar?
 
-The four-gauge layout above includes one gauge (G1, Brisbane Bar)
-that sits only ~1.5 km from the river-mouth source cell — the same
-$iy$ as the source, 3 grid cells east. At the local wave speed
-$c = \sqrt{gH} \approx 7.7\,\text{m/s}$, the surge reaches G1 in
-~3 minutes and has barely been smoothed by the bay's Green's
-function. **In real surge inversion you wouldn't choose to deploy
-a "tide gauge" that close to the discharge point** — it would
-look more like a calibration sensor than a deep-water observer,
-and the inversion-from-G1-alone would be almost a one-to-one
-amplitude read-off.
+The obvious choice for the closest gauge would be the **Brisbane
+Bar / Pile Light** tide gauge — it's a real BoM station, right at
+the river entrance. We deliberately *don't* use it: at ~1.5 km
+from the model's river-mouth cell, Brisbane Bar essentially
+measures ψ(t) directly (travel time ~3 min, no smoothing), so the
+inversion from that gauge alone reduces to a one-to-one read-off
+and the broader four-gauge machinery looks like overkill.
 
-We keep it anyway for two pedagogical reasons:
+**Mud Island** (~18 km NNE of the mouth, real mid-bay tide-gauge
+site) is the closest gauge where the Green's-function smoothing,
+geometric spreading, and reflection paths actually *do something*
+to the signal. With G1 at Mud Island, all four gauges are
+meaningful observers and the inverse-problem story is honest.
 
-1. The site is a real AIMS-monitored location (Pile Light /
-   Brisbane Bar); the actual river mouth at Luggage Point happens
-   to sit just south of it. Moving the synthetic source far
-   upstream into the river channel would put the source marker
-   over an OSM-rendered airport runway — visually misleading.
-2. The point of the unit is the **multi-sensor inverse machinery**
-   that scales to the three-mooring capstone in
-   [Units 9–10](../unit_09/unit_09.qmd), not the geometric
-   difficulty of recovering ψ from a single near-source gauge.
-   The G2/G3/G4 contributions are the ones that genuinely make
-   the recovery non-trivial; G1 is doing easy work.
-
-**If you want the "honest" version of the inverse**, drop column
-G1 from `gauges_observed.csv` and re-run
-[`render_recovery_plot.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/render_recovery_plot.jl){target="_blank"}.
-You'll see the recovered ψ peak amplitude error roughly double
-(from ~9% to ~20%) and the storm-day timing error grow from
-~minutes to ~hours — both methods. That's the real ill-posed
-inverse problem at work.
-
-The capstone in [Unit 9](../unit_09/unit_09.qmd) is set up
-without this asymmetry: the unknown wind-stress driver is
-spatially uniform, the moorings are 30–100 km from each other and
-from the storm centre, and *no* single sensor is "close" to the
-source. The recovery is genuinely hard; the same SWE-physics +
-joint-inversion + smoothness-prior machinery is what makes it
-possible.
+If you want to try the Brisbane-Bar version anyway, change the
+G1 row in
+[`scripts/build_bay.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/build_bay.jl){target="_blank"}
+back to `(-27.367, 153.166)` and `./build.sh execute 1` to
+regenerate.
 :::
 
 ### The inverse problem, two ways {#sec-inverse}
@@ -610,7 +592,7 @@ b   = vcat(g_obs, zeros(size(L2, 1)), 0.0)
 ![Top panel: the true ψ(t) (red) vs the adjoint inverse (blue, using the
 SWE solver as forward map) vs the naive PINN (orange dashed, smooth-MLP
 η-network with ψ read at the source cell). Bottom 2×2: predicted gauge
-timeseries at all four bay gauges — G1 (Brisbane Bar) and G2 (Wellington
+timeseries at all four bay gauges — G1 (Mud Island) and G2 (Wellington
 Point) along the top, G3 (Tangalooma) and G4 (Russell Channel) along
 the bottom — overlaid on the noisy observations both methods see. Both
 methods fit the gauges, only the adjoint inverse recovers the

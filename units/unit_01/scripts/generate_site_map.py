@@ -218,7 +218,8 @@ def main():
     # Regional view — tight crop on the SWE domain (50 × 95 km) with a
     # small buffer to the east so Moreton Is.'s ocean-facing side is visible.
     REG = dict(north=-26.97, south=-27.90, west=153.00, east=153.60)
-    # Inset — Brisbane River entrance / Pile Light / G1 Brisbane Bar
+    # Inset — Brisbane River entrance / Luggage Point, zoomed in on
+    # where ψ(t) is imposed (G1 is at Mud Island, well outside this box).
     INSET = dict(north=-27.28, south=-27.50, west=153.05, east=153.24)
 
     print("Fetching regional tiles (zoom 10)…")
@@ -230,9 +231,10 @@ def main():
     print("Fetching river-mouth tiles (zoom 12)…")
     ins_im, ins_ext = build_map(z=12, **INSET)
     ins_im, ins_ext = crop_to_bbox(ins_im, ins_ext, **INSET)
-    overlay_gauges_and_source(ins_im, ins_ext,
-                              [g for g in gauges if g["gauge_id"] == "G1"],
-                              river, label_side="left")
+    # No gauges plotted in the inset — G1 (Mud Island) is now ~18 km
+    # north of the inset bounding box.  The inset shows the river
+    # mouth only.
+    overlay_gauges_and_source(ins_im, ins_ext, [], river, label_side="left")
 
     target_h = 760
     reg_im   = scale_to_h(reg_im, target_h)
@@ -259,7 +261,7 @@ def main():
         fill=(20, 20, 20), font=f_top)
 
     cap1 = "(a) regional view · SWE domain (blue) · 4 tide gauges · river-mouth source"
-    cap2 = "(b) Brisbane River mouth inset · Pile Light / Bar gauge"
+    cap2 = "(b) Brisbane River mouth inset · Luggage Point · source cell"
     b1 = draw.textbbox((0, 0), cap1, font=f_cap)
     b2 = draw.textbbox((0, 0), cap2, font=f_cap)
     draw.text((reg_im.size[0] // 2 - (b1[2] - b1[0]) // 2,
