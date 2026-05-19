@@ -325,81 +325,189 @@ problems §7.4 catalogues.
 ## 7.4 A taxonomy of PINN workflows
 
 "A PINN" isn't a single recipe — it's a family of training
-configurations differentiated by *which loss terms are present*
-and *what the network represents*. Four workflows account for
-almost everything in the published literature:
+configurations differentiated by *which loss terms are present*,
+*what the network represents*, and *what's known vs unknown going
+in*. The four workflows below account for almost everything in
+the published literature. Pick the one whose "Unknown" column
+matches what you don't know.
 
-### Workflow 1 — Forward solve (replace the numerical solver)
+### Quick-reference: pick a workflow
 
+| | **W1 · Forward solve** | **W2 · Parameter ID** | **W3 · Source / driver recovery** | **W4 · Hybrid simulator** |
+|---|---|---|---|---|
+| **Unknown** | the field $u(\mathbf{x}, t)$ itself | scalar $\boldsymbol{\xi}$ in the PDE | a function $f(t)$ or $g(\mathbf{x})$ | a closure / sub-grid term |
+| **Loss terms** | residual + IC + BC | + data | + data | + data |
+| **Network represents** | $u_\theta$ | $u_\theta$ + scalar $\xi$ | $u_\theta$ + $f_\phi$ | $u_\theta$ + closure $N_\phi$ |
+| **Canonical example** | Burgers' eq forward solve | recover diffusivity from sparse $u$ | **Unit 1**: ψ(t) from gauges | sub-grid turbulence closure |
+| **In the workshop** | [Unit 5 §5.4](../unit_05/unit_05.qmd) | (course tangent) | [Unit 1 §1.2](../unit_01/unit_01.qmd), [Unit 9–10](../unit_09/unit_09.qmd) | [Unit 4 §4.3](../unit_04/unit_04.qmd) (UDEs, ODE form) |
+
+Each workflow is laid out below as a self-contained card.
+
+```{=html}
+<style>
+  .workflow-card {
+    margin: 1.2em 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #ccc;
+  }
+  .workflow-card .workflow-head {
+    padding: 0.6em 1em;
+    font-weight: bold;
+    font-size: 1.05em;
+    color: #fff;
+  }
+  .workflow-card .workflow-body {
+    padding: 0.8em 1em;
+    background: #fcfcfd;
+  }
+  .workflow-card .workflow-body > p { margin: 0.4em 0; }
+  .workflow-card .workflow-body strong.tag {
+    display: inline-block;
+    min-width: 8.5em;
+    color: #333;
+  }
+  .workflow-w1 .workflow-head { background: #3a87a8; }
+  .workflow-w2 .workflow-head { background: #5b9b53; }
+  .workflow-w3 .workflow-head { background: #b25a3f; }
+  .workflow-w4 .workflow-head { background: #7e57c2; }
+</style>
+```
+
+::: {.workflow-card .workflow-w1}
+::: {.workflow-head}
+W1 · Forward solve — replace the numerical solver
+:::
+::: {.workflow-body}
 **Setup.** Given a PDE + IC + BC, train $u_\theta(\mathbf{x}, t)$
-to satisfy them. Loss = $\mathcal{L}_{\text{PDE}}
-+ \mathcal{L}_{\text{IC}} + \mathcal{L}_{\text{BC}}$. No data
-term.
+to satisfy them. Loss
+$= \mathcal{L}_{\text{PDE}} + \mathcal{L}_{\text{IC}} + \mathcal{L}_{\text{BC}}$.
+No data term. The trained network *is* the solution.
 
-**When to reach for it.** Smooth PDEs in low dimension where you
-want a mesh-free solution, a continuous-resolution surrogate
-(query at any $(\mathbf{x}, t)$ without re-meshing), or
-differentiability of the solution with respect to inputs (for
-downstream optimisation).
+**Canonical example.** Solve $u_t = \alpha u_{xx}$ on a circular
+domain — the Laplace-on-a-disk example in
+[§7.1](#sec-de-wolff) above is exactly this shape.
 
-**When *not* to.** Most production solves where you already have
-a working FD/FV/FEM code. A PINN forward solve is rarely faster
-or more accurate than a well-tuned classical solver on its own
-mesh.
+**Reach for it when…** Mesh-free needed (irregular geometry,
+no quadrature scheme); continuous-resolution surrogate wanted
+(query $u_\theta(\mathbf{x}, t)$ at any coordinate, no
+re-meshing); downstream optimisation needs $\partial u / \partial \mathbf{x}$
+cheaply via autodiff.
 
-### Workflow 2 — Parameter identification (inverse problem, scalar parameters)
+**Don't reach for it when…** A tuned FD / FV / FEM solver on
+its own mesh already exists. PINN forward solves are rarely
+faster or more accurate; the benefit is the *meshless* +
+*differentiable* properties, not raw speed.
+:::
+:::
 
-**Setup.** Same loss as Workflow 1 plus
-$\mathcal{L}_{\text{data}}$ matching observed
-$u(\mathbf{x}_i, t_i)$ samples, and *the equation contains
-unknown scalar parameters* $\boldsymbol{\xi}$ to be optimised
-jointly with $\theta$.
+::: {.workflow-card .workflow-w2}
+::: {.workflow-head}
+W2 · Parameter identification — recover scalar unknowns
+:::
+::: {.workflow-body}
+**Setup.** As W1 plus a **data loss**
+$\mathcal{L}_{\text{data}} = \frac{1}{N}\sum_i (u_\theta(\mathbf{x}_i, t_i) - u_{\text{obs}, i})^2$,
+*and* the PDE contains unknown scalar parameters
+$\boldsymbol{\xi} = (\xi_1, \xi_2, \ldots)$ that are optimised
+jointly with the network weights $\theta$.
 
 **Canonical example.** Recover a diffusion coefficient $\alpha$
-in $u_t = \alpha\, u_{xx}$ from sparse measurements.
+in $u_t = \alpha u_{xx}$ from sparse, noisy measurements of
+$u$. Or: recover $(\sigma, \rho, \beta)$ in Lorenz from a
+trajectory.
 
-**When to reach for it.** Parameter calibration when the
-parametric form is known and you have at least order-of-magnitude
-informative data. Beats classical inverse approaches when the
-forward map is hard to make adjoint-differentiable.
+**Reach for it when…** The parametric form is known and you have
+at least order-of-magnitude informative data. PINNs beat
+classical inverse methods when the forward map is hard to make
+adjoint-differentiable (e.g., the simulator is a black box, or
+the adjoint code doesn't exist).
 
-### Workflow 3 — Source / driver recovery (functional inverse)
+**Don't reach for it when…** The parameter set is high-dimensional
+($\boldsymbol{\xi} \in \mathbb{R}^{100+}$); classical Bayesian
+inference with MCMC is the right tool, not gradient descent on a
+PINN loss.
+:::
+:::
 
-**Setup.** As above, but the unknown is a *function* — a
-boundary-condition timeseries ψ(t), a spatially varying source
-$f(\mathbf{x})$, a closure law $g(\mathbf{u})$. Parameterise the
-unknown with a small auxiliary network or directly read it off
-the main network's value at a designated coordinate.
+::: {.workflow-card .workflow-w3}
+::: {.workflow-head}
+W3 · Source / driver recovery — recover an unknown function (functional inverse)
+:::
+::: {.workflow-body}
+**Setup.** As W2 but the unknown is a *function*, not a scalar:
+a boundary-condition timeseries $\psi(t)$, a spatially varying
+source $f(\mathbf{x})$, a closure law $g(\mathbf{u})$.
+Parameterise the unknown with a small auxiliary network
+$\psi_\phi$ trained jointly with $u_\theta$, or directly read it
+off $u_\theta$ at a designated coordinate.
 
-**Canonical example.** The Unit 1 source-recovery problem:
-recover the unknown river-mouth ψ(t) given bay gauge
-observations. The capstone in
-[Unit 9](../unit_09/unit_09.qmd) is the same shape on a different
-geometry.
+**Canonical example.** **[Unit 1 §1.2](../unit_01/unit_01.qmd)** —
+recover the unknown river-mouth ψ(t) from four bay tide-gauge
+timeseries. The **[Unit 9 / Unit 10 capstone](../unit_09/unit_09.qmd)**
+is the same shape on the column-temperature geometry.
 
-**When to reach for it.** Almost any field-science inverse where
-the missing piece isn't a number but a shape. Classical adjoint
-methods can do this too (and often more reliably — see Unit 1's
-worked example), but PINNs are simpler to set up and don't need
-an existing adjoint code.
+**Reach for it when…** The missing piece isn't a number but a
+shape, and you suspect it's reasonably smooth (so a small
+auxiliary network + smoothness prior is well-posed). Most
+field-science source-recovery problems live here.
 
-### Workflow 4 — Data assimilation / hybrid simulator
+**Don't reach for it when…** A well-tested adjoint inversion
+exists for your forward map — the Unit 1 worked example shows
+the adjoint inverse often beats the naïve PINN by a wide margin
+on linear forward maps. PINNs come into their own when the
+forward map is nonlinear and the adjoint is hard to write.
+:::
+:::
 
-**Setup.** Combine a known PDE residual, sparse observations, and
-a learned closure / forcing term in one loss. This is the
+::: {.workflow-card .workflow-w4}
+::: {.workflow-head}
+W4 · Hybrid simulator (data assimilation + UDE) — learn a closure
+:::
+::: {.workflow-body}
+**Setup.** Combine a known PDE residual, sparse observations,
+*and* a learned closure / forcing term in one loss. This is the
 **Universal Differential Equation** picture of
-[Unit 4 §4.3](../unit_04/unit_04.qmd) lifted to PDEs. The network
-represents the unknown closure, not the full solution.
+[Unit 4 §4.3](../unit_04/unit_04.qmd) lifted to PDEs. The
+network $N_\phi$ represents the *unknown closure*
+(e.g. $\dot{\mathbf{x}} = f_{\text{known}} + N_\phi$), not the
+full solution.
 
 **Canonical example.** Sub-grid turbulence closures in climate
 models; reaction-rate corrections in chemistry; bottom-friction
-laws in shallow-water models calibrated to gauge data.
+laws in shallow-water models calibrated against gauge data.
+The Crown-of-Thorns starfish UDE in
+[Unit 4 §4.3](../unit_04/unit_04.qmd) is a one-dimensional
+analogue: known logistic growth + Holling-II grazing + learned
+mortality closure.
 
-**When to reach for it.** Whenever you have trustworthy physics
-*and* observations *and* a known gap between them. This is the
-biggest growth area in scientific ML and the most defensible
-choice for production work because the learned piece is small,
-local, and interpretable.
+**Reach for it when…** You have trustworthy physics, observations,
+*and* a known gap between them. The biggest current growth area
+in scientific ML and the most defensible choice for production
+work — the learned piece is small, local, and individually
+interpretable.
+
+**Don't reach for it when…** You don't actually have a known
+physics skeleton — at that point you're doing pure data-driven
+ML, not physics-informed ML, and you should reach for a
+different toolset.
+:::
+:::
+
+### How to pick: a decision tree
+
+Walk the questions top-to-bottom and stop at the first "yes":
+
+1. *Do you have field data?* — No → **W1** (forward solve).
+2. *Is the missing piece a small number of scalars?* — Yes → **W2** (parameter ID).
+3. *Is the missing piece a function (timeseries, spatial field, closure law)?*
+    - …and you trust the whole governing equation as written → **W3** (source recovery).
+    - …and there's a *known gap* between the governing equation and reality → **W4** (hybrid simulator).
+
+Almost every PINN paper in the 2019–2026 corpus lands in one of
+these four. The Unit 1 worked example, the capstone, and the
+modern fixes from §7.3 are all aimed at making **W3** practical
+on real problems; that's the through-line of the workshop.
 
 ## 7.5 The inverse problem in practice
 
