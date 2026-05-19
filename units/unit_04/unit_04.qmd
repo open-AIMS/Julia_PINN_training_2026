@@ -316,6 +316,123 @@ end
 A clean sandbox for inverse problems before we hit the capstone column
 in [Unit 9](../unit_09/unit_09.qmd).
 
+### A domain example: Crown-of-Thorns starfish on the Great Barrier Reef
+
+The Great Barrier Reef has lost roughly half its hard-coral cover
+since 1985. The peer-reviewed AIMS attribution of that loss
+([De'ath, Fabricius, Sweatman & Puotinen 2012, *PNAS*](https://www.pnas.org/doi/10.1073/pnas.1208909109){target="_blank"})
+puts the breakdown at **48% from cyclones, 42% from
+Crown-of-Thorns starfish (COTS) predation, and 10% from coral
+bleaching** — and notes that *without* COTS, coral cover would
+have *increased* by ~0.9% per year despite the cyclones and
+bleaching. COTS is, by some distance, the biggest controllable
+biological driver of reef decline AIMS studies.
+
+A reef carries ~1–10 adult COTS per hectare in its "background"
+state; **active outbreaks** are declared at >30 adults/ha
+([GBRMPA dashboard](https://www2.gbrmpa.gov.au/our-work/programs-and-projects/crown-thorns-starfish-management/crown-thorns-starfish-project-dashboard){target="_blank"}).
+A single female releases $10^6$–$10^8$ eggs per spawning event, so
+outbreaks can flip on quickly when conditions favour larval
+survival. The operational response — vessel-based diver injection
+with bile-salt or vinegar — culled **73 881 COTS over 11 710 ha
+across 234 target reefs in 2024–25**, delivering up to a 6× COTS
+reduction and +44% coral cover where the control was timely. AIMS
+provides the population-state input that prioritises which reefs
+to target.
+
+The modelling question we'll borrow: **given monitored
+time-series of coral cover $C(t)$ and COTS density $S(t)$ on a
+reef, can a UDE separate the (mostly) known population dynamics
+from the genuinely uncertain density-dependent COTS mortality?**
+
+#### Known physics: logistic coral + Holling-II grazing
+
+A standard predator–prey model for COTS / coral
+([Morello et al. 2014, *Marine Ecology Progress Series*](https://www.int-res.com/abstracts/meps/v512/p167-183/){target="_blank"};
+historically [Antonelli et al. 1990, *Ecological Modelling*](https://www.sciencedirect.com/science/article/abs/pii/030438009090026D){target="_blank"})
+takes the form
+
+$$
+\begin{aligned}
+\dot C \;&=\; r_C\, C\,\Bigl(1 - \frac{C}{K}\Bigr)
+                \;-\; \frac{a\, S\, C}{1 + a\,h\,C} \\
+\dot S \;&=\; e\,\frac{a\, S\, C}{1 + a\,h\,C}
+                \;-\; m(S, \ldots)\, S
+\end{aligned}
+$$
+
+with $r_C$ the coral intrinsic growth rate, $K$ the carrying
+capacity (% cover), $a$ the COTS attack rate, $h$ the handling
+time, $e$ the conversion efficiency, and $m(\cdot)$ the COTS
+mortality rate. The two structural terms — logistic coral growth
+and Holling type-II grazing — are well established. **The
+mortality $m(S, \ldots)$ is exactly where the modelling
+literature is honest about not knowing the right functional form**
+([Babcock et al. 2016, *PLOS ONE*](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0169048){target="_blank"}
+flags it as the dominant source of structural uncertainty), and
+it's the natural place to put a learnable closure.
+
+#### Learned closure: COTS mortality as a small MLP
+
+Replace the unknown mortality with a small network of the state
+and one or two environmental drivers — a sea-surface-temperature
+anomaly $T_a(t)$ from satellite data is a reasonable starting
+choice (warmer water suppresses larval metamorphic success;
+[Lang et al. 2022](https://link.springer.com/article/10.1007/s00338-022-02314-y){target="_blank"}):
+
+$$
+\dot S \;=\; e\,\frac{a\, S\, C}{1 + a\,h\,C}
+            \;-\; \underbrace{N_\theta\!\bigl(S, C, T_a(t)\bigr)}_{\text{learned mortality}} \cdot S.
+$$
+
+Train against synthetic COTS / coral trajectories (or, eventually,
+the AIMS Long-Term Monitoring Program's manta-tow records). The
+learned $N_\theta$ has biological meaning — plot it against $S$
+at fixed $C$ to see whether it recovers a density-dependent
+Allee-like effect; plot against $T_a$ at fixed $(S, C)$ to see
+whether warming suppresses mortality (or doesn't).
+
+```{.julia code-fold="true" code-summary="COTS-coral UDE sketch (illustrative)"}
+# Hybrid COTS-coral model:
+#   - logistic coral growth and Holling-II grazing as known physics,
+#   - density- and temperature-dependent COTS mortality as a learned NN.
+using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity, Random
+
+mortality_net = Lux.Chain(
+    Lux.Dense(3 => 16, tanh),
+    Lux.Dense(16 => 16, tanh),
+    Lux.Dense(16 => 1),
+)
+ps, st = Lux.setup(Random.MersenneTwister(0), mortality_net)
+
+# Known parameters (Morello et al. 2014, rough orders of magnitude)
+const r_C, K = 0.30, 80.0       # coral growth rate (1/yr), carrying capacity (% cover)
+const a, h   = 0.005, 0.10       # attack rate, handling time
+const e      = 0.40              # conversion efficiency
+
+# Temperature anomaly driver (read from observations or model out)
+T_anom(t) = 0.3 * sin(2π * t / 1.0)   # placeholder annual cycle
+
+function cots_coral!(du, u, p, t)
+    C, S = u                                 # coral cover (%), COTS density (per ha)
+    graze = a * S * C / (1 + a * h * C)
+    m_S, _ = mortality_net([S, C, T_anom(t)], p, st)
+    du[1] = r_C * C * (1 - C / K) - graze
+    du[2] = e * graze - m_S[1] * S
+end
+
+# … usual training loop: solve, trajectory-misfit against AIMS LTMP data,
+#   adjoint sensitivities, Adam → L-BFGS.
+```
+
+The pedagogical pay-off: the UDE separates *what we trust* (the
+logistic-grazing skeleton, with parameters fit to decades of
+monitoring) from *what we don't* (the closure that says *why*
+COTS adults die at the rates they do). A successful fit gives an
+ecologist a plottable, biologically-interpretable mortality
+surface — exactly the kind of artefact that motivates UDEs over
+black-box neural ODEs in real applications.
+
 ### Lotka–Volterra inverse variant
 
 Same setup, dynamics from §4.1. Two flavours:

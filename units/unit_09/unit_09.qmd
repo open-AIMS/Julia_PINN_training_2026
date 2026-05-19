@@ -292,59 +292,102 @@ The toy-task ladder of §9.10 builds up to the forward problem in
 five stages. Both Task A and Task B inverse problems start from
 this same forward solver.
 
-## 9.8 Task A — single-site inverse on a laptop (CPU-friendly)
+## 9.8 Which task is for which audience? {#sec-which-task}
+
+The capstone comes in two parallel versions. Pick by your
+hardware, your time budget, and what you want out of the exercise.
+
+| | **Task A** ([§9.9](#sec-task-a)) | **Task B** ([§9.10](#sec-task-b)) |
+|---|---|---|
+| **Audience** | self-paced learner, one-day workshop, no GPU | research project, semester-long student, industrial prototyping |
+| **Hardware** | laptop CPU (any modern M-series or recent x86) | NVIDIA GPU for the full run; CPU for sub-scale prototypes |
+| **Time budget** | ~30 min once data is generated | ~30 min on GPU per run; ~30 h on CPU |
+| **Geometry** | one site (Cleveland Bay, $H = 15$ m) | three sites jointly (Cleveland Bay + Davies Reef + Myrmidon Reef, $H$ up to 100 m) |
+| **PINN toolkit** | small MLP, soft BCs, hand-tuned weights | Fourier features + hard BC + adaptive weights + causal training |
+| **Parameter count** | ~5 000 | ~200 000 |
+| **What it demonstrates** | the full forward-PINN + inverse-PINN pipeline | operational engineering — joint inversion, modern fixes, GPU scaling |
+
+Both tasks share §9.7 (forward solve) and [§9.11 toy
+ladder](#sec-toy-tasks). The remainder of this unit is each
+task's full spec.
+
+## 9.9 Task A — single-site inverse on a laptop (CPU) {#sec-task-a}
 
 > **The introductory capstone.** Recover the storm wind-stress
-> envelope $\tau(t)$ from a *single* mooring's data using a
-> small PINN that trains in 10–30 minutes on a laptop CPU.
+> envelope $\tau(t)$ from a *single* mooring's data using a small
+> PINN that trains in 10–30 minutes on a laptop CPU.
 
 The goal is to see the full forward-PINN + inverse-PINN pipeline
 end-to-end without waiting for a GPU. We deliberately keep
 everything small enough that an L-BFGS run finishes in coffee-break
 time on commodity hardware.
 
-### Scope
+### 9.9.1 Spec
 
-- **One site.** Pick Site A (Cleveland Bay, $H = 15$ m,
-  $\mathrm{Pe} \ll 1$ — diffusion-dominated, simplest dynamics).
-  A 15 m column with 5 sensors is the easiest of the three
-  regimes.
-- **Decoupled.** No cross-site coupling. The mooring sees one
-  scalar driver $\tau(t)$, the PINN recovers it.
-- **One unknown.** $\tau(t)$ as a free function of time;
-  everything else ($\kappa$, $Q_{\text{np}}$, $Q_{\text{SW}}$,
-  the IC, $T_{\text{deep}}$) is given.
-- **Small network.** A 32-neuron 4-layer MLP for $T_\theta(z, t)$
-  plus a tiny 16-neuron 2-layer MLP for $\tau_\phi(t)$. ~5 000
+- **Site.** Cleveland Bay only ($H = 15$ m, $\mathrm{Pe} \ll 1$ —
+  diffusion-dominated, the simplest of the three regimes). 5
+  sensors at $z = -1, -4, -8, -12, -14$ m.
+- **Data.** `data/mooring_A.csv` (synthetic, $\sigma = 0.05\,°\text{C}$
+  Gaussian noise on hourly samples for 30 days = 3 600 data points).
+- **Unknown.** A single scalar function $\tau(t)$ — the local
+  wind-stress envelope — over the 30-day window.
+- **Given.** $\kappa(z)$ (profile closure), $Q_{\text{np}}(t)$,
+  $Q_{\text{SW}}(t)$, $T_0(z)$, $T_{\text{deep}}$, all of the
+  reference parameter values from §9.6.
+- **Networks.** $T_\theta(z, t)$ as a 4-layer 32-neuron MLP
+  ($\tanh$); $\tau_\phi(t)$ as a 2-layer 16-neuron MLP. ~5 000
   parameters total.
-- **Modest collocation budget.** $N_r = 2000$ residual points,
-  $N_b = 200$ boundary points, $N_d = 5 \text{ sensors} \times 480 \text{ samples} = 2400$
-  data points.
+- **Collocation.** $N_r = 2000$ residual points, $N_b = 200$ BC
+  points, $N_d = 2400$ data points.
 
-### Expected runtime
+### 9.9.2 Workflow
+
+1. **Generate the synthetic data** (if not already present) with
+   `scripts/generate_mooring_csvs.jl --site A` —
+   produces `data/mooring_A.csv`.
+2. **Solve the forward problem** with a small PINN against the
+   `MethodOfLines.jl` reference (§9.7). Hard BC at $z = -H$ via
+   $T_\theta(z, t) = T_{\text{deep}} + (z + H)\,N_\theta(z, t)$.
+   Train Adam(1e-3) for 2 000 iterations then L-BFGS for 500.
+3. **Set up the joint inverse loss**
+   $\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_d \mathcal{L}_{\text{data}} + \lambda_{\text{reg}} \int |\tau_\phi'|^2\,dt + \mathcal{L}_{\text{BC}} + \mathcal{L}_{\text{IC}}$
+   with $\lambda_r = 1$, $\lambda_d = 100$, $\lambda_{\text{reg}} = 10^{-2}$.
+4. **Train the inverse PINN.** Adam(1e-3) for 5 000 iterations
+   then L-BFGS for 1 000.
+5. **Diagnose** — residual histogram vs $t$
+   ([Unit 7 §7.5](../unit_07/unit_07.qmd)) and heat-budget closure
+   at each depth.
+
+### 9.9.3 Success criteria
+
+| Metric | Target |
+|---|---|
+| Forward PINN $L^2$ vs FD reference | < $0.05\,°\text{C}$ |
+| Recovered $\hat\tau$ peak-amplitude error | < 15% |
+| Storm-day timing error | < 2 h |
+| Residual histogram monotonically decreasing in $t$ | yes |
+
+### 9.9.4 Expected runtime
 
 | Stage | Wall-clock (M2 MacBook) |
 |---|---|
 | MethodOfLines FD reference (1 site, 30 days) | ~5 s |
-| Forward PINN training (Adam 2000 + L-BFGS 500) | ~3 min |
-| Inverse PINN training (Adam 5000 + L-BFGS 1000) | ~15 min |
+| Forward PINN training (Adam 2 000 + L-BFGS 500) | ~3 min |
+| Inverse PINN training (Adam 5 000 + L-BFGS 1 000) | ~15 min |
 
-Total Task A: well under 30 minutes from a cold cache. Re-running
-to retune $\lambda_r / \lambda_d$ adds maybe 10 minutes per pass.
+Total: under 30 minutes from a cold cache. Re-running to retune
+$\lambda_r / \lambda_d$ adds ~10 minutes per pass.
 
-### What you deliver
+### 9.9.5 Deliverables
 
-1. A plot of the recovered $\hat\tau(t)$ overlaid on the synthetic
-   truth — should track the gust envelope to within ~15% peak
-   amplitude error.
-2. A residual-histogram-vs-time diagnostic (see
-   [Unit 7 §7.5](../unit_07/unit_07.qmd)) showing no causality
-   violation.
-3. A one-paragraph honest assessment of where the recovery fails
-   — typically the rising edge of the storm (smoothed) and the
-   tail (over-relaxed).
+1. Plot of $\hat\tau(t)$ overlaid on the synthetic truth.
+2. Residual-histogram-vs-time diagnostic.
+3. Heat-budget closure plot for each sensor depth.
+4. A one-paragraph honest assessment of where the recovery fails
+   (typically the rising edge — smoothed by the $H^1$ penalty — and
+   the tail — over-relaxed).
 
-### What you *don't* do in Task A
+### 9.9.6 What you don't do here
 
 - No cross-site coupling.
 - No Fourier-feature embedding.
@@ -353,116 +396,119 @@ to retune $\lambda_r / \lambda_d$ adds maybe 10 minutes per pass.
 
 Those land in Task B.
 
-## 9.9 Task B — three-site joint inverse with PINN scaling (GPU-class)
+## 9.10 Task B — three-site joint inverse (GPU first steps) {#sec-task-b}
 
 > **The advanced capstone.** Recover a *single* shared wind-stress
 > envelope $\tau(t)$ from all three moorings *jointly*, with the
 > full modern-PINN toolkit, on the full $H = 100$ m / 30-day
-> domain. CPU runtime is hours; GPU runtime is minutes.
+> domain. CPU runtime is hours; GPU runtime is minutes. We
+> develop the CPU sub-scale prototypes here and write the
+> GPU-launch checklist.
 
-Task B is the version of the capstone that actually exploits the
-three different mooring regimes — Cleveland Bay's diffusion-dominated
-column constrains $\kappa$, Davies Reef's mid-Pe column constrains
-the timing, and Myrmidon's advection-dominated column constrains
-$\tau$'s amplitude. A single coherent storm signal explains all
-three. This is the **joint** version of the inversion the §9.1
-callout described as a stretch goal.
+Task B exploits the three mooring regimes — Cleveland Bay's
+diffusion-dominated column constrains $\kappa$, Davies Reef's
+mid-Pe column constrains the timing, and Myrmidon's
+advection-dominated column constrains $\tau$'s amplitude. A
+single coherent storm signal explains all three.
 
-### Scope
+### 9.10.1 Spec
 
-- **Three sites jointly.** Three column PINNs $T^{(i)}_\theta(z, t)$
-  for $i \in \{A, B, C\}$ sharing parameters where physics says they
-  should (the surface-flux network, the wind-stress envelope) and
-  separate where it doesn't (initial conditions, site-specific
-  $\kappa$).
-- **Larger column on Site C** ($H = 100$ m → 4× the depth domain
-  of Task A's Site A, with the full 5-sensor stack).
-- **Full modern PINN toolkit.** Fourier-feature embedding for the
-  high-frequency diurnal signal; hard BC enforcement at the deep
-  reservoir; adaptive loss weighting (gradient-balancing); causal
-  time training. All of [Unit 7 §7.3](../unit_07/unit_07.qmd).
-- **Wider networks.** 128-neuron 6-layer MLP for $T^{(i)}_\theta$,
-  64-neuron 4-layer MLP for $\tau_\phi$. ~200 000 parameters total.
-- **Generous collocation.** $N_r = 50\,000$ per site, $N_d = 7200$
-  per site (3 sites × 5 sensors × 480 samples).
+- **Sites.** A + B + C jointly. Three column PINNs
+  $T^{(i)}_\theta(z, t)$, $i \in \{A, B, C\}$. Shared parameters
+  for the wind-stress envelope $\tau_\phi(t)$; separate
+  parameters for each site's temperature network.
+- **Data.** `data/mooring_{A,B,C}.csv`, totalling 3 × 3 600 =
+  10 800 data points.
+- **Unknown.** $\tau(t)$ — one shared scalar function, three
+  moorings' worth of data constraining it.
+- **Networks.** $T^{(i)}_\theta(z, t)$ as a 6-layer 128-neuron
+  MLP per site; $\tau_\phi(t)$ as a 4-layer 64-neuron MLP. ~200 000
+  parameters total.
+- **Modern PINN toolkit ([Unit 7 §7.3](../unit_07/unit_07.qmd)).**
+  Fourier-feature embedding $\gamma(z, t) = [\sin(B(z,t)), \cos(B(z,t))]$
+  for the diurnal cycle; hard BC at $z = -H$ and at the IC;
+  adaptive loss weighting (gradient-balancing) for the
+  per-site residual and BC losses; causal time training.
+- **Collocation.** $N_r = 50\,000$ per site, $N_d = 7\,200$ per
+  site (3 × 5 sensors × 480 samples).
 
-### Where the GPU is non-negotiable
+### 9.10.2 Workflow
 
-The cost driver is the *forward-over-forward* second derivative
-$\partial_{zz} T_\theta$ at $N_r$ collocation points, three sites,
-per epoch. Forward-mode AD vectorises perfectly on a GPU; on a
-single CPU core the same computation is bottlenecked on the L-BFGS
-line search and stalls badly above ~10 000 collocation points.
-Concretely:
+1. **Generate the three sites' synthetic data** with
+   `scripts/generate_mooring_csvs.jl` (all three).
+2. **Sub-scale prototype on Task A's column.** Run Task B's
+   architecture (Fourier features, hard BC, adaptive weights) on
+   the single 15 m column with $N_r = 5\,000$. ~30 min on CPU.
+   Sanity check: should match Task A's accuracy at ~1.5× the
+   training cost (the modern fixes shouldn't *hurt* on easy
+   problems).
+3. **Two-site joint inverse on A + B at $H = 60$ m.** Medium
+   architecture (4-layer × 64-neuron), $N_r = 10\,000$ per site.
+   ~2 h on CPU. Lets you see the joint-vs-decoupled improvement
+   and tune cross-site loss weights.
+4. **GPU-launch checklist.** Document the changes needed for the
+   full 3-site run:
+   - wrap `ps`, inputs, and data in `Lux.gpu_device()`,
+   - `Reactant.@compile` the training step,
+   - keep the same Adam → L-BFGS schedule,
+   - JAX equivalents (`jinns` / `Equinox`) if your team prefers
+     the JAX stack ([Unit 7 §7.6](../unit_07/unit_07.qmd)).
+5. **Queue the full run on a GPU** when available — the code
+   doesn't change, only the `device` and the collocation count.
+
+### 9.10.3 Success criteria
+
+| Metric | Sub-scale on CPU | Full scale on GPU (predicted) |
+|---|---|---|
+| Sub-scale prototype matches Task A | yes, < 1.2× error | — |
+| Two-site joint $\hat\tau$ peak error | < 7% | — |
+| Full 3-site joint $\hat\tau$ peak error | — | 3–5% |
+| Residual histogram monotone in $t$, all three sites | — | yes |
+
+### 9.10.4 Expected runtime
 
 | Stage | CPU (M2 MacBook) | GPU (A100 / H100) |
 |---|---|---|
-| Forward PINN, joint 3-site, Adam 5000 + L-BFGS 1000 | ~6 h | ~8 min |
-| Inverse PINN, joint 3-site, Adam 20000 + L-BFGS 2000 | ~24 h | ~25 min |
+| Sub-scale prototype (Task A column, Task B architecture) | ~30 min | ~2 min |
+| Two-site joint inverse (A + B, $H = 60$ m) | ~2 h | ~5 min |
+| Forward PINN, joint 3-site, full scale | ~6 h | ~8 min |
+| Inverse PINN, joint 3-site, full scale | ~24 h | ~25 min |
 
-The CPU column is not a typo — Task B without a GPU is
-*technically possible* but the iteration loop kills the
-development cycle. The right move is to **prototype on CPU at
-reduced scale, then deploy on GPU at full scale**.
+The CPU full-scale column is not a typo: technically possible but
+the iteration loop kills the development cycle. **Prototype on
+CPU at reduced scale, then deploy on GPU at full scale.**
 
-### What we *do* develop without a GPU
+### 9.10.5 Deliverables
 
-Even without an accelerator the workshop walks through the first
-steps of Task B:
+1. Sub-scale prototype results on Task A's column with Task B's
+   architecture.
+2. Two-site joint-inverse $\hat\tau(t)$ overlaid on the synthetic
+   truth, with the per-site decoupled inverses on the same axes
+   for comparison.
+3. The GPU-launch checklist as a `.md` document.
+4. A written assessment of what changes at the full 3-site,
+   $H = 100$ m scale: predicted accuracy, predicted training cost
+   on GPU, what could still go wrong (causality violation at
+   Myrmidon, BC imbalance from the four-orders-of-magnitude scale
+   gap between $\kappa$ at surface and depth).
 
-1. **Sub-scale prototype.** Run Task B's architecture on Task A's
-   single 15 m column with $N_r = 5000$. This trains in ~30 min
-   on CPU and exercises the same code paths (Fourier features,
-   hard BC, adaptive weights, joint $T_\theta + \tau_\phi$
-   network).
-2. **Two-site joint inverse, $H = 60$ m.** Sites A + B with the
-   medium architecture (64-neuron 4-layer) and $N_r = 10\,000$
-   each. ~2 h on CPU; lets you see the joint-vs-decoupled
-   improvement and tune the cross-site loss weights.
-3. **GPU-launch checklist.** A one-page summary of (i) the
-   `Lux.gpu_device()` call sites, (ii) any `@jit` / `Reactant.@compile`
-   boundaries needed for the Julia stack, (iii) the
-   `OptimizationOptimisers.Adam` learning-rate schedule that
-   carries over without retuning, and (iv) the JAX equivalents
-   if the team prefers `jinns` / `Equinox` (per
-   [Unit 7 §7.6](../unit_07/unit_07.qmd)).
+### 9.10.6 Open questions for the full GPU run
 
-These first three steps are runnable on the workshop hardware.
-The full 3-site, $H = 100$ m, $N_r = 50\,000$ launch is what you
-queue when you get to a GPU — the code doesn't change, only the
-`device` and the collocation count.
+These are honest "we don't know yet" items the participant should
+report on if they get GPU time:
 
-### What you deliver
+- Will causality violation re-appear at Myrmidon Reef
+  (advection-dominated, $\mathrm{Pe} \gg 1$)? Possibly need a
+  per-site causal scheduler.
+- Will gradient-balancing converge on a stable weight ratio?
+  Empirically yes on the sub-scale; theoretically not guaranteed.
+- How well does the recovered $\tau(t)$ correlate with the
+  independent SWE-driver $w(t)$ inferred from local wind
+  observations? This is the validation step that turns the
+  recovered synthetic answer into something an oceanographer
+  trusts.
 
-1. The sub-scale prototype results on Task A's column with Task
-   B's architecture — should match Task A's accuracy at ~1.5× the
-   training cost (a useful sanity check that the modern fixes
-   don't *hurt* on easy problems).
-2. The two-site joint inverse on Sites A + B — recovered
-   $\hat\tau(t)$ should be ~30–50% closer to truth than either
-   site's decoupled inverse.
-3. A written assessment of what changes at the full 3-site, $H = 100$ m
-   scale: predicted accuracy, predicted training cost on GPU,
-   what could still go wrong (causality violation at Myrmidon, BC
-   imbalance from the four-orders-of-magnitude scale gap between
-   $\kappa$ at surface and depth).
-
-### Which task is for which audience?
-
-- **Task A** is the right scope for a self-paced learner, a
-  one-day workshop, or anyone without a GPU at hand. The full
-  PINN inverse-problem pipeline, end-to-end, on commodity
-  hardware.
-- **Task B** is the right scope for a research project, a
-  semester-long student, or an industrial team prototyping the
-  approach for a real mooring network. It demonstrates the
-  *operational* engineering — modern fixes, joint inversion,
-  GPU scaling.
-
-Both share the same forward solve and the same toy-task ladder
-below.
-
-## 9.10 Toy tasks (shared ladder)
+## 9.11 Toy-task ladder (shared) {#sec-toy-tasks}
 
 Build up to the forward problem in stages. Each step isolates one
 mechanism, so when the full storm scenario lands you can read

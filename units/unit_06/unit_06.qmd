@@ -419,7 +419,157 @@ $\sim 10^{-3}$ over $t \in [0, 5]$ — better than the rounded
 plot you'd see by eye. The script in §6.3 above is one line away
 from this benchmark (swap the IC).
 
-## 6.5 Revisiting Unit 1: the shallow-water solver in detail
+## 6.5 Finite Volumes
+
+Finite differences (§6.4) discretise the *equation* — replace
+derivatives with neighbour differences. **Finite volumes (FV)
+discretise the conservation statement** — for a chosen control
+volume $V$, the rate of change of $\int_V u\,dV$ equals the net
+flux through $\partial V$. Two consequences:
+
+- **Local conservation is exact.** A flux that leaves cell $i$
+  *must* enter cell $i \pm 1$ because they share the face. Mass /
+  momentum / energy can't drift, by construction. FD doesn't have
+  this property — small errors can accumulate over long runs.
+- **The mesh can be unstructured.** Control volumes are just
+  polygons or polyhedra; you don't need a Cartesian grid. This
+  makes FV the obvious choice for irregular domains (river
+  networks, coastal coastlines, blood vessels).
+
+### The 1-D conservation-law example
+
+For a generic 1-D conservation law $u_t + f(u)_x = 0$, divide the
+$x$-axis into cells of width $\Delta x$ centred at $x_i$ and
+define $\bar u_i^n \approx \frac{1}{\Delta x}\int_{x_{i-1/2}}^{x_{i+1/2}} u(x, t_n)\,dx$
+— the **cell average**. Integrating the PDE over the cell:
+
+$$
+\frac{\bar u_i^{n+1} - \bar u_i^n}{\Delta t}
+\;=\; -\,\frac{F_{i+1/2}^n - F_{i-1/2}^n}{\Delta x},
+$$
+
+where $F_{i\pm 1/2}$ are the **numerical fluxes** at the cell
+faces — typically computed from a Riemann solver in compressible
+flow, or a simple upwind / Lax–Friedrichs formula for scalar
+advection. **Choice of numerical flux is what distinguishes the
+zoo of FV schemes** (Godunov, Roe, HLL, HLLC, AUSM, etc.).
+
+The 2-D shallow-water solver Unit 1 uses is technically a
+*finite-difference* scheme on a staggered grid, but it can be
+re-derived as a finite-volume scheme on the same staggered cells
+— the bookkeeping is more natural in FV terms (the mass-continuity
+equation literally is "flux in minus flux out").
+
+### When you reach for finite volumes
+
+- Conservation laws (Euler, shallow water, Maxwell in conservation
+  form, magnetohydrodynamics).
+- Shocks and discontinuities — FV with a TVD limiter handles them
+  without spurious oscillations; FD struggles.
+- Unstructured grids around complex geometry.
+
+**Production tools that use FV**: OpenFOAM, ANSYS Fluent,
+Star-CCM+, ClimateMachine.jl, the
+[Trixi.jl](https://github.com/trixi-framework/Trixi.jl){target="_blank"}
+Julia stack.
+
+## 6.6 Finite Elements
+
+**Finite elements (FE)** approach a PDE the way physics undergrads
+think about it: not as "set derivatives equal to algebraic
+expressions on a grid" but as "find a function in a chosen
+function space that satisfies the equation *in a weak sense*". The
+three ideas:
+
+1. **Weak (variational) formulation.** Multiply the PDE by a
+   smooth test function $v(\mathbf{x})$ and integrate by parts.
+   Where FD/FV ask the PDE to hold *pointwise* (at grid centres
+   or cell averages), FE asks it to hold *on average against
+   every test function in some space*. For the Poisson problem
+   $-\nabla^2 u = f$ on $\Omega$ with $u = 0$ on $\partial\Omega$,
+   integrating by parts gives the weak form
+   $$
+   \int_\Omega \nabla u \cdot \nabla v\,d\mathbf{x}
+   \;=\; \int_\Omega f\, v\, d\mathbf{x}
+   \qquad \forall v \in H^1_0(\Omega).
+   $$
+2. **Galerkin discretisation.** Pick a finite-dimensional
+   subspace $V_h \subset H^1_0(\Omega)$ with basis
+   $\{\phi_1, \ldots, \phi_N\}$ — typically piecewise polynomials
+   on a triangulation of $\Omega$. Look for $u_h = \sum_j u_j \phi_j$
+   that satisfies the weak form for every $v = \phi_i$. This
+   collapses to a *linear system*:
+   $$
+   \underbrace{\Bigl[\int_\Omega \nabla\phi_i \cdot \nabla \phi_j\,d\mathbf{x}\Bigr]}_{K_{ij}\text{ — stiffness matrix}}
+   \cdot \mathbf{u}
+   \;=\;
+   \underbrace{\Bigl[\int_\Omega f\,\phi_i\,d\mathbf{x}\Bigr]}_{b_i\text{ — load vector}}.
+   $$
+3. **Assembly.** Compute $K$ and $b$ by looping over elements
+   (the triangles), evaluating local contributions, and adding
+   them in. Solve $K\mathbf{u} = b$ with a direct or iterative
+   solver. Done.
+
+### Why anyone bothers
+
+- **Arbitrary geometry.** Triangulate any shape — coastlines,
+  airframes, organs — to as much detail as you want; FE handles
+  it natively. FD's regular grid can't.
+- **Higher-order accuracy on smooth solutions.** Cubic or higher
+  basis polynomials give $O(\Delta x^p)$ accuracy with $p$ the
+  polynomial degree — FD/FV typically cap at second order in
+  practice.
+- **Rigorous error theory.** The standard FE convergence proofs
+  (Céa's lemma, Galerkin orthogonality, Bramble–Hilbert) give you
+  a-priori and a-posteriori error bounds that justify adaptive
+  mesh refinement.
+
+### When you reach for finite elements
+
+- Elliptic problems on irregular domains (structural mechanics,
+  electrostatics, steady heat conduction).
+- Coupled multiphysics where you need the same mesh to carry
+  multiple fields with different orders (Stokes flow with
+  Taylor-Hood, electromagnetics with Nédélec elements).
+- Problems where guaranteed conservation across a complex
+  interface matters and FV's cell-by-cell bookkeeping is too
+  rigid — e.g. mixed/hybrid FE for porous-media flow.
+
+**Production tools that use FE**: COMSOL, ANSYS Mechanical /
+Mapdl, Abaqus, FEniCS, deal.II,
+[Gridap.jl](https://github.com/gridap/Gridap.jl){target="_blank"},
+[Ferrite.jl](https://github.com/Ferrite-FEM/Ferrite.jl){target="_blank"}.
+
+## 6.7 FD vs FV vs FE — when to reach for which
+
+A quick comparison table. **None of these is "best"** — they pay
+for their strengths with different weaknesses, and the right
+choice is dictated by the problem.
+
+| | **Finite Differences** | **Finite Volumes** | **Finite Elements** |
+|---|---|---|---|
+| **Discretises** | the PDE (pointwise) | the conservation statement (cell averages) | the weak form (against test functions) |
+| **Mesh** | structured Cartesian | structured or unstructured | unstructured, complex geometry |
+| **Conservation** | not automatic | exact, by construction | weak (needs special elements) |
+| **Best for** | smooth solutions on simple geometry, PINN-style residuals | conservation laws, shocks, fluid dynamics | elliptic problems, complex geometry, multiphysics |
+| **Worst for** | irregular geometry, shocks | mathematical analysis, very high order | hyperbolic problems with shocks |
+| **Typical tools** | hand-rolled, Trixi.jl | OpenFOAM, Fluent, Trixi.jl | COMSOL, FEniCS, Gridap.jl, Ferrite.jl |
+
+### Where PINNs sit
+
+A PINN is *meshless*: it parameterises the solution as a network
+$u_\theta(\mathbf{x}, t)$ and asks for the PDE residual to be
+small at scattered collocation points. The most natural
+comparison is to **FD** — both discretise the PDE pointwise — but
+PINNs trade structured-grid efficiency for autodiff-exact
+derivatives at arbitrary coordinates, no mesh, and a
+differentiable forward map (the key enabler for
+[Unit 7](../unit_07/unit_07.qmd) inverse problems). PINNs are not
+yet competitive with FV for shocks (smooth-MLP ansatz rounds them
+off) or with FE for complex elliptic problems (no provable error
+bounds), so the classical methods aren't going anywhere.
+
+## 6.8 Revisiting Unit 1: the shallow-water solver in detail
 
 [Unit 1](../unit_01/unit_01.qmd) showed a complete linearised
 shallow-water solver as a black box: input ψ(t), output gauge
