@@ -287,31 +287,46 @@ model = Lux.Chain(
 )
 ps, st = Lux.setup(rng, model)
 
+# Float32 throughout — Lux initialises Float32 weights; Float64 input
+# triggers a "mixed-precision matmul fallback" warning from LuxLib and
+# kicks Octavian.jl out of the matmul path. Keep ps, st, t all Float32.
+const F = Float32
+
 # scalar t → scalar x_θ(t)
-function x_θ(t, ps, st)
+function x_θ(t::F, ps, st)
     y, _ = model([t], ps, st)
     y[1]
 end
 
-# autodiff time derivative through the network (forward mode)
-dxdt(t, ps, st) = ForwardDiff.derivative(τ -> x_θ(τ, ps, st), t)
+# Autodiff time derivative through the network (forward mode).
+# Construct the Dual number explicitly rather than via a closure
+# ForwardDiff.derivative(τ -> x_θ(τ, ps, st), t) — the closure capture
+# of `ps` makes Zygote unable to track gradients through the inner
+# call and emits a "f appears to be a closure" warning. Building the
+# Dual manually keeps ps as a flat argument to `model`, so the outer
+# Zygote.gradient(loss, ps) composes cleanly with the inner derivative.
+function dxdt(t::F, ps, st)
+    dual_t = ForwardDiff.Dual{Nothing, F, 1}(t, ForwardDiff.Partials((one(F),)))
+    y, _ = model([dual_t], ps, st)
+    ForwardDiff.partials(y[1], 1)
+end
 
-ts = collect(range(0.0, 4.0; length = 64))   # collocation points
+ts = collect(range(F(0), F(4); length = 64))   # collocation points
 
 function loss(ps)
     L_res = sum(t -> (dxdt(t, ps, st) + x_θ(t, ps, st))^2, ts) / length(ts)
-    L_ic  = (x_θ(0.0, ps, st) - 1.0)^2
-    L_res + 100.0 * L_ic
+    L_ic  = (x_θ(F(0), ps, st) - one(F))^2
+    L_res + F(100) * L_ic
 end
 
-opt_state = Optimisers.setup(Optimisers.Adam(2e-2), ps)
+opt_state = Optimisers.setup(Optimisers.Adam(F(2e-2)), ps)
 for epoch in 1:1500
     g = first(Zygote.gradient(loss, ps))
     opt_state, ps = Optimisers.update(opt_state, ps, g)
 end
 
 # compare to the exact solution
-tgrid  = range(0.0, 4.0; length = 200)
+tgrid  = range(F(0), F(4); length = 200)
 exact  = exp.(-collect(tgrid))
 learnt = [x_θ(t, ps, st) for t in tgrid]
 

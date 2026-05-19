@@ -114,44 +114,13 @@ Courville](../references/references.qmd#ref-goodfellow2016){target="_blank"} (Ch
 5–6) for exactly the kind of side-by-side comparison we're about
 to do.
 
-### MNIST random forest in Python (`scikit-learn`)
+### MNIST random forest in Julia (`DecisionTree.jl`)
 
 A 100-tree forest on flattened MNIST takes a couple of minutes to
 fit and lands around **97% test accuracy** — a strong baseline that
-took deep learning a decade to convincingly beat.
-
-```{.python filename="units/unit_02/scripts/mnist_rf_sklearn.py"}
-from sklearn.datasets import fetch_openml
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-
-# fetch_openml caches to ~/scikit_learn_data/ after the first download
-X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
-X = X.astype("float32") / 255.0
-y = y.astype("int64")
-
-X_train, X_test = X[:60_000], X[60_000:]
-y_train, y_test = y[:60_000], y[60_000:]
-
-clf = RandomForestClassifier(
-    n_estimators=100, n_jobs=-1, random_state=0,
-)
-clf.fit(X_train, y_train)
-acc = accuracy_score(y_test, clf.predict(X_test))
-print(f"MNIST test accuracy (sklearn RF, 100 trees): {acc:.4f}")
-```
-
-Run it yourself with
-[`scripts/mnist_rf_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_rf_sklearn.py){target="_blank"}
-(or `./build.sh execute 2` once you've installed `scikit-learn`).
-Typical first-run cost: ~30 s download (cached after) + ~2 min fit
-on a modern laptop CPU.
-
-### MNIST random forest in Julia (`DecisionTree.jl`)
-
-The Julia parallel uses `DecisionTree.jl` (already in the workshop
-`Project.toml`) and `MLDatasets.jl` for the MNIST loader. Same
-structure, very similar numbers:
+took deep learning a decade to convincingly beat. The workshop's
+`DecisionTree.jl` (already in the workshop `Project.toml`) plus
+`MLDatasets.jl` for the MNIST loader:
 
 ```{.julia filename="units/unit_02/scripts/mnist_rf_julia.jl"}
 using MLDatasets, DecisionTree, Statistics
@@ -179,8 +148,40 @@ forest = build_forest(
 ```
 
 *Setup note.* `MLDatasets.jl` isn't in the workshop `Project.toml`
-by default (we keep PINN-focused deps minimal). To run this script,
-add it once with `Pkg.add("MLDatasets")` from the repo root.
+by default (we keep PINN-focused deps minimal). To run this
+script, add it once with `Pkg.add("MLDatasets")` from the repo
+root.
+
+### MNIST random forest in Python (`scikit-learn`)
+
+Same problem, same numbers, in the Python ecosystem:
+
+```{.python filename="units/unit_02/scripts/mnist_rf_sklearn.py"}
+from sklearn.datasets import fetch_openml
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+
+# fetch_openml caches to ~/scikit_learn_data/ after the first download
+X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
+X = X.astype("float32") / 255.0
+y = y.astype("int64")
+
+X_train, X_test = X[:60_000], X[60_000:]
+y_train, y_test = y[:60_000], y[60_000:]
+
+clf = RandomForestClassifier(
+    n_estimators=100, n_jobs=-1, random_state=0,
+)
+clf.fit(X_train, y_train)
+acc = accuracy_score(y_test, clf.predict(X_test))
+print(f"MNIST test accuracy (sklearn RF, 100 trees): {acc:.4f}")
+```
+
+Run it yourself with
+[`scripts/mnist_rf_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_rf_sklearn.py){target="_blank"}
+(or `./build.sh execute 2` once you've installed `scikit-learn`).
+Typical first-run cost: ~30 s download (cached after) + ~2 min
+fit on a modern laptop CPU.
 
 The point isn't the accuracy number — it's that the same problem
 in two ecosystems has the **same shape**: load data, choose a model,
@@ -238,7 +239,7 @@ fit by **categorical cross-entropy**.
 
 ![A logistic / softmax classifier as a one-layer neural network. The affine map $Wx + b$ feeds a softmax that outputs class probabilities. (Figure from *MEDL*, §3.3.)](figures/figure3-3-logistic_architecture.svg)
 
-### MNIST softmax regression in Python (`scikit-learn`)
+### MNIST softmax regression in `Lux.jl`
 
 The "deep learning baseline" — a single linear layer + softmax,
 trained by maximum likelihood — on the same MNIST data the forest
@@ -246,40 +247,6 @@ just saw. With no nonlinearity and no hidden units, this is
 literally the model in [Goodfellow, Bengio & Courville 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} Chapter 5 used to motivate
 why we need deeper networks. Expect **~92% test accuracy** — a
 striking gap below the random forest's ~97%, which is the point.
-
-```{.python filename="units/unit_02/scripts/mnist_linear_sklearn.py"}
-from sklearn.datasets import fetch_openml
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-
-X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
-X = X.astype("float32") / 255.0
-y = y.astype("int64")
-
-X_train, X_test = X[:60_000], X[60_000:]
-y_train, y_test = y[:60_000], y[60_000:]
-
-# Multinomial logistic = softmax regression
-clf = LogisticRegression(
-    solver="lbfgs", max_iter=200, n_jobs=-1, random_state=0,
-)
-clf.fit(X_train, y_train)
-acc = accuracy_score(y_test, clf.predict(X_test))
-print(f"MNIST test accuracy (softmax regression): {acc:.4f}")
-```
-
-Available as
-[`scripts/mnist_linear_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_linear_sklearn.py){target="_blank"}.
-Runtime: ~30 s on a laptop CPU. Notice that `scikit-learn` itself
-uses **L-BFGS** under the hood for this convex problem — the same
-optimiser we'll use for the fine-tuning stage of every PINN in
-[Units 5–7](../unit_05/unit_05.qmd). Convex losses are why L-BFGS
-converges so cleanly here; in deeper networks the loss surface
-isn't convex and we'll need Adam.
-
-### MNIST softmax regression in `Lux.jl`
-
-The same model, written in `Lux.jl`'s explicit-parameter style:
 
 ```{.julia filename="units/unit_02/scripts/mnist_linear_lux.jl"}
 using MLDatasets, Lux, Random, Zygote, Optimisers, Statistics
@@ -337,6 +304,40 @@ matters because `NeuralPDE.jl` ([Unit 5](../unit_05/unit_05.qmd))
 needs to *compose* layers with PDE-residual losses that contain
 derivatives of the network output. Frameworks like `scikit-learn`
 that hide their parameters can't do that composition.
+
+### MNIST softmax regression in Python (`scikit-learn`)
+
+Same model, fewer lines, very similar numbers:
+
+```{.python filename="units/unit_02/scripts/mnist_linear_sklearn.py"}
+from sklearn.datasets import fetch_openml
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+X, y = fetch_openml("mnist_784", version=1, as_frame=False, return_X_y=True)
+X = X.astype("float32") / 255.0
+y = y.astype("int64")
+
+X_train, X_test = X[:60_000], X[60_000:]
+y_train, y_test = y[:60_000], y[60_000:]
+
+# Multinomial logistic = softmax regression
+clf = LogisticRegression(
+    solver="lbfgs", max_iter=200, n_jobs=-1, random_state=0,
+)
+clf.fit(X_train, y_train)
+acc = accuracy_score(y_test, clf.predict(X_test))
+print(f"MNIST test accuracy (softmax regression): {acc:.4f}")
+```
+
+Available as
+[`scripts/mnist_linear_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_linear_sklearn.py){target="_blank"}.
+Runtime: ~30 s on a laptop CPU. Notice that `scikit-learn` itself
+uses **L-BFGS** under the hood for this convex problem — the same
+optimiser we'll use for the fine-tuning stage of every PINN in
+[Units 5–7](../unit_05/unit_05.qmd). Convex losses are why L-BFGS
+converges so cleanly here; in deeper networks the loss surface
+isn't convex and we'll need Adam.
 
 ## 2.4 Feedforward networks
 
@@ -767,38 +768,11 @@ the PDE solution. Some preliminary results
 suggest KANs can outperform MLPs on stiff or oscillatory PDEs —
 this is an active research front.
 
-### KAN in Python (`pykan`)
-
-The reference implementation. A 2-layer KAN approximating
-$f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$ — a Liu et al. demo:
-
-```{.python filename="units/unit_02/scripts/kan_pykan.py"}
-# pip install pykan
-import torch
-from kan import KAN, create_dataset
-
-# build dataset for f(x1, x2) = exp(sin(pi x1) + x2^2)
-f = lambda x: torch.exp(torch.sin(torch.pi * x[:, [0]]) + x[:, [1]]**2)
-dataset = create_dataset(f, n_var=2, train_num=1000, test_num=1000)
-
-# KAN with grid=5 B-spline knots, k=3 cubic splines, shape 2→5→1
-model = KAN(width=[2, 5, 1], grid=5, k=3, seed=0)
-model.fit(dataset, opt="LBFGS", steps=50, lamb=0.0)
-
-print(f"test loss = {torch.mean((model(dataset['test_input']) - dataset['test_label'])**2).item():.3e}")
-```
-
-Available as
-[`scripts/kan_pykan.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/kan_pykan.py){target="_blank"}.
-Requires `pip install pykan` (which pulls in torch). Notice the
-default training optimiser is **L-BFGS** — exactly the small-batch
-regime we just discussed.
-
 ### KAN in Julia (`KolmogorovArnold.jl`)
 
-The Julia ecosystem has a compatible-spirit implementation in
-[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}.
-The same toy problem:
+A 2-layer KAN approximating $f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$
+— a Liu et al. demo — in the Julia ecosystem using
+[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}:
 
 ```{.julia filename="units/unit_02/scripts/kan_julia.jl"}
 # Pkg.add("KolmogorovArnold")
@@ -832,6 +806,32 @@ end
 The package uses **radial basis functions** as the per-edge basis
 instead of B-splines — a near-equivalent parameterisation with
 better Julia ergonomics.
+
+### KAN in Python (`pykan`)
+
+The reference Liu-et-al. implementation, in Python:
+
+```{.python filename="units/unit_02/scripts/kan_pykan.py"}
+# pip install pykan
+import torch
+from kan import KAN, create_dataset
+
+# build dataset for f(x1, x2) = exp(sin(pi x1) + x2^2)
+f = lambda x: torch.exp(torch.sin(torch.pi * x[:, [0]]) + x[:, [1]]**2)
+dataset = create_dataset(f, n_var=2, train_num=1000, test_num=1000)
+
+# KAN with grid=5 B-spline knots, k=3 cubic splines, shape 2→5→1
+model = KAN(width=[2, 5, 1], grid=5, k=3, seed=0)
+model.fit(dataset, opt="LBFGS", steps=50, lamb=0.0)
+
+print(f"test loss = {torch.mean((model(dataset['test_input']) - dataset['test_label'])**2).item():.3e}")
+```
+
+Available as
+[`scripts/kan_pykan.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/kan_pykan.py){target="_blank"}.
+Requires `pip install pykan` (which pulls in torch). Notice the
+default training optimiser is **L-BFGS** — exactly the small-batch
+regime we just discussed.
 
 ### When to reach for a KAN
 
