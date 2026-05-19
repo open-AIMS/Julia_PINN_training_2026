@@ -20,6 +20,19 @@ mooring data.
 Course material is **75% Julia, 25% Python**, developed in collaboration
 with the [Australian Institute of Marine Science (AIMS)](https://www.aims.gov.au/).
 
+::: {style="margin: 1.5em 0; padding: 1em 1.2em; border-left: 3px solid #2b486b; background: #f4f7fb; font-size: 0.95em;"}
+**Created by** [Yoni Nazarathy](https://www.accumulationpoint.com/) at
+[Accumulation Point](https://www.accumulationpoint.com/).
+
+**Prerequisite / Julia refresher** — participants who want a
+gentler ramp into Julia and the SciML ecosystem before this
+workshop should work through the earlier AIMS workshop:
+[**Julia ML training**](https://open-aims.github.io/Julia_ML_training/){target="_blank"}.
+That course covers Julia basics, classical ML, and the
+SciML stack at a slower pace; this PINNs workshop assumes
+that level of comfort with Julia.
+:::
+
 ## [Unit 1: Introduction](units/unit_01/unit_01.qmd)
 
 Sets the destination. Introduces the AIMS-motivated problem the course
