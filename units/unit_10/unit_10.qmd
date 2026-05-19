@@ -97,11 +97,6 @@ want) without spoiling the other. We strongly recommend you
 **attempt each task yourself first** — the learning is in working
 through the inverse problem, not in reading our answer.
 
-::: {style="float: right; padding: 0.4em 0.8em; margin: 0 0 1em 1em; background: #f4f7fb; border-left: 3px solid #2b486b; font-size: 0.95em;"}
-End of the curriculum →
-[**References**](../references/references.qmd)
-:::
-
 ## 10.1 Shared infrastructure
 
 The finite-difference reference solver, the four toy scenarios from
