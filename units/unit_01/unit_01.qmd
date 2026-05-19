@@ -453,9 +453,13 @@ A few things to notice as you scrub:
    slow to fill because of the Russell / Macleay / Karragarra
    constriction.
 3. **Different gauges see different signals.** G1 (Brisbane Bar)
-   responds first and strongest. G4 (Russell Channel) is the
-   slowest and most attenuated. This *information geometry* is
-   what will make the inverse problem solvable at all.
+   responds first and strongest — too strong, really, since it
+   sits ~1.5 km from the source; see the warning callout below
+   the gauge table. G2 (Wellington Point, ~12 km away) sees a
+   clean propagated wavefront. G3 (Tangalooma, ~35 km NE) and G4
+   (Russell Channel, ~50 km south) see attenuated, delayed,
+   reflection-laden signals. It's the *contrast* between gauges,
+   not any one of them, that constrains ψ(t).
 
 ### The measurements we get
 
@@ -476,39 +480,49 @@ These four timeseries, the bathymetry, and the physics are
 **all the information the inverse solver gets**. The river-mouth
 source $\psi(t)$ is hidden.
 
-::: {.callout-note collapse="true"}
-## "But G1 is right next to the river mouth — why is recovering ψ even hard?"
+::: {.callout-warning}
+## Honest acknowledgement: G1 is unusually close to the source
 
-A reasonable challenge after looking at the site map. Three
-reasons the answer isn't just "$\hat\psi(t) \approx \eta_{G1}(t)$":
+The four-gauge layout above includes one gauge (G1, Brisbane Bar)
+that sits only ~1.5 km from the river-mouth source cell — the same
+$iy$ as the source, 3 grid cells east. At the local wave speed
+$c = \sqrt{gH} \approx 7.7\,\text{m/s}$, the surge reaches G1 in
+~3 minutes and has barely been smoothed by the bay's Green's
+function. **In real surge inversion you wouldn't choose to deploy
+a "tide gauge" that close to the discharge point** — it would
+look more like a calibration sensor than a deep-water observer,
+and the inversion-from-G1-alone would be almost a one-to-one
+amplitude read-off.
 
-1. **G1 isn't on top of the mouth.** It sits at Brisbane Bar /
-   Pile Light, ~1.5 km north of the Luggage Point mouth cell
-   (cells (29, 105) → (29, 108), same iy, 3 cells east).
-   At the inner-bay wave speed
-   $c = \sqrt{g\,H} \approx 7.7\,\mathrm{m/s}$ that's a ~3-minute
-   travel time — short but not zero.
-2. **Even at G1, $\eta$ is a *convolution* of $\psi$ with the bay's
-   Green's function**, not $\psi$ itself. Geometric spreading
-   attenuates the signal; reflections off Moreton Island and the
-   southern bay add ringing; the eastern sponge layer takes some
-   energy out. Reading $\hat\psi$ off G1 alone is a 1-D
-   deconvolution — and deconvolution is the textbook ill-posed
-   inverse problem, because the inverse filter amplifies the
-   $1.5\,\text{cm}$ observation noise into a $\sim 5$–$10\,\text{cm}$
-   error envelope on $\psi$.
-3. **Robust recovery uses *all four* gauges + the SWE physics.**
-   G2, G3, G4 contribute complementary information (different
-   distances, different depths, different reflection paths). The
-   §1.2.6 adjoint inversion and the naive PINN both consume all
-   four; the §1.2.7 figure shows how Tikhonov regularisation
-   stabilises what would otherwise be a noise-dominated inversion.
+We keep it anyway for two pedagogical reasons:
 
-The capstone in [Unit 9](../unit_09/unit_09.qmd) flips this story
-on its side: there is *no* sensor anywhere near the unknown
-wind-stress driver, and the mooring data is sparse in space (one
-column) and dense in time. The recovery is harder, and the same
-machinery is what makes it possible.
+1. The site is a real AIMS-monitored location (Pile Light /
+   Brisbane Bar); the actual river mouth at Luggage Point happens
+   to sit just south of it. Moving the synthetic source far
+   upstream into the river channel would put the source marker
+   over an OSM-rendered airport runway — visually misleading.
+2. The point of the unit is the **multi-sensor inverse machinery**
+   that scales to the three-mooring capstone in
+   [Units 9–10](../unit_09/unit_09.qmd), not the geometric
+   difficulty of recovering ψ from a single near-source gauge.
+   The G2/G3/G4 contributions are the ones that genuinely make
+   the recovery non-trivial; G1 is doing easy work.
+
+**If you want the "honest" version of the inverse**, drop column
+G1 from `gauges_observed.csv` and re-run
+[`render_recovery_plot.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/render_recovery_plot.jl){target="_blank"}.
+You'll see the recovered ψ peak amplitude error roughly double
+(from ~9% to ~20%) and the storm-day timing error grow from
+~minutes to ~hours — both methods. That's the real ill-posed
+inverse problem at work.
+
+The capstone in [Unit 9](../unit_09/unit_09.qmd) is set up
+without this asymmetry: the unknown wind-stress driver is
+spatially uniform, the moorings are 30–100 km from each other and
+from the storm centre, and *no* single sensor is "close" to the
+source. The recovery is genuinely hard; the same SWE-physics +
+joint-inversion + smoothness-prior machinery is what makes it
+possible.
 :::
 
 ### The inverse problem, two ways {#sec-inverse}

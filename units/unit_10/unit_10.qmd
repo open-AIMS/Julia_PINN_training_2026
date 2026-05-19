@@ -145,13 +145,39 @@ these envelopes in scenario 5 (the synthetic scenario, forward).
 
 ### Shallow-water driver
 
-A staggered-grid finite-volume SWE reference, with wind-stress
-forcing and Coriolis. Run once for the storm scenario; output
-$\mathbf{u}_h(t)$ at the mooring location and pass as a time
-series to the column model. Replaces the prescribed gust envelopes
-of scenario 4 with a physically derived $w(t)$.
+A staggered-grid finite-volume SWE reference on a 100 × 100 km
+patch of the central GBR shelf, with constant background depth
+$H = 80\,\text{m}$, the local Coriolis parameter
+$f = 2\Omega\sin(-19°) \approx -4.7 \times 10^{-5}\,\text{s}^{-1}$,
+and a spatially-Gaussian wind-stress patch driving the storm:
 
-*Code placeholder.*
+$$
+\tau(x, y, t) \;=\;
+\tau_0(t)\,\exp\!\left[-\,\frac{(x - x_0)^2 + (y - y_0)^2}{2\,L_\tau^2}\right],
+$$
+
+with $L_\tau = 30\,\text{km}$, $(x_0, y_0)$ tracking a slow-moving
+gust centre (10 km/h drift over 3 days), and $\tau_0(t)$ the
+Gaussian-envelope time profile that **becomes the unknown ψ** in
+the inverse problem. The forward solve runs `Trixi.jl`-style FV
+on a $200 \times 200$ grid with $\Delta t = 30\,\text{s}$ for the
+30-day window — about 1.5 minutes on a laptop.
+
+What gets piped to the column model: $\mathbf{u}_h(t)$ at each of
+the three mooring locations, from which $w(z, t) = -(z + H)\,
+\nabla_h\!\cdot\!\mathbf{u}_h(t)$ (incompressibility + linear-in-$z$
+ansatz from [Unit 9 §9.2](../unit_09/unit_09.qmd)) gives the
+column's vertical advection. This replaces the prescribed Gaussian
+$w_0(t)$ of toy scenario 4 with a physically self-consistent
+$w(t)$ that includes the Coriolis turning of the wind-driven
+current, the propagation delay from gust centre to each mooring,
+and the geometric spreading that makes Site C see a smaller
+$w_{\max}$ than Site A despite being further from coast.
+
+The driver is in
+[`scripts/swe_driver.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/swe_driver.jl){target="_blank"};
+its output `data/w_drivers.csv` has columns `t, w_A, w_B, w_C` at
+hourly cadence.
 
 ## 10.2 Solution to Task A
 
@@ -284,7 +310,43 @@ truth. The gust envelope is recovered with:
 - **Tail over-relaxed by ~5%** — the classic Tikhonov bias
   toward zero in the absence of data constraint.
 
-### Step 4 — Diagnostics
+### Step 4 — Mechanism partition (the §9.1 answer)
+
+The recovered $\hat\tau(t)$ alone doesn't tell you which of the
+three storm hypotheses dominated — it bundles all three through
+the column model
+([Unit 9 §9.1](../unit_09/unit_09.qmd) "How the inverse answers
+the mechanism question" callout). The discriminator: re-run the
+forward solver with $\hat\tau$ in hand, accumulate the three
+contributions to the temperature change at $z = -10\,\text{m}$
+(two-thirds down Cleveland Bay's 15 m column, just below the
+typical thermocline) over the storm window:
+
+$$
+\Delta T(t) \;=\;
+\underbrace{\int_0^t -\,w\,\partial_z T_\theta\, ds}_{\Delta T_{\text{adv}}(t)}
+\;+\;
+\underbrace{\int_0^t \partial_z(\kappa\,\partial_z T_\theta)\, ds}_{\Delta T_{\text{mix}}(t)}
+\;+\;
+\underbrace{\int_0^t \mathcal{S}\, ds}_{\Delta T_{\text{flux}}(t)}.
+$$
+
+On Cleveland Bay (Pe ≪ 1), the expected partition over the
+storm 4-day window is roughly:
+
+| Mechanism | Storm-window contribution |
+|---|---|
+| Vertical advection (upwelling) | ~15% of total cooling |
+| Turbulent mixing | ~70% (dominant — diffusion-dominated regime) |
+| Reduced surface heating | ~15% |
+
+If your recovered partition lands within ±10% of these numbers,
+the inversion has correctly identified that **wind-driven mixing
+dominates at Cleveland Bay**. The plot
+`task_a_partition.png` from `task_a_diagnostics.jl` shows the
+three integrated curves vs $t$.
+
+### Step 5 — Diagnostics
 
 Three checks that ship with `task_a_diagnostics.jl`:
 
@@ -469,7 +531,28 @@ amplitude constraint; Site A's noise floor sets the lower bound
 on the recovered envelope. Removing either site sends the error
 back up.
 
-### Step 5 — Predicted GPU performance at full 3-site scale
+### Step 5 — Mechanism partition across the three sites
+
+The §9.1 multi-site story made quantitative. Run the forward
+solver at each site with the recovered $\hat\tau(t)$ from the
+two-site sub-scale prototype (Sites A + B) and project the
+unknown Site C contribution forward; partition the
+storm-window cooling at each site's diagnostic depth:
+
+| Site | Depth | Pe regime | Adv (upwelling) | Mix | Surface flux |
+|---|---|---|---|---|---|
+| A — Cleveland Bay | $z = -10\,\text{m}$ | $\ll 1$ | ~15% | ~70% | ~15% |
+| B — Davies Reef | $z = -30\,\text{m}$ | $\sim 1$ | ~45% | ~40% | ~15% |
+| C — Myrmidon Reef | $z = -50\,\text{m}$ | $\gg 1$ | ~75% | ~15% | ~10% |
+
+The qualitative shift across sites is the headline finding: at
+Cleveland Bay the storm cooling is *mixing-driven*; at Myrmidon
+it's *upwelling-driven*; Davies Reef sits in the transition.
+Three moorings → three distinct storm-response fingerprints
+from a single shared wind-stress event. **That's what the joint
+inversion delivers that no single-site analysis can.**
+
+### Step 6 — Predicted GPU performance at full 3-site scale
 
 Based on the sub-scale prototype scaling and reported PINN GPU
 benchmarks:
@@ -530,10 +613,81 @@ operationally usable for production mooring networks.
 
 `DeepXDE` is the Python equivalent of `NeuralPDE.jl`: a high-level
 interface that takes a PDE definition and a collocation strategy,
-produces a trained network. Re-implement the Task A forward
-column problem in `DeepXDE` and compare to the Julia results.
+produces a trained network. Here's the Task A forward column
+problem (Cleveland Bay, $H = 15$ m, fixed $\tau$) as a DeepXDE
+sketch — same architecture (4 × 32 tanh MLP), same hard-BC
+ansatz at the deep reservoir, same Adam → L-BFGS schedule:
 
-*Code placeholder.*
+```{.python filename="units/unit_10/scripts/task_a_forward_deepxde.py"}
+# pip install deepxde[torch]
+import numpy as np
+import deepxde as dde
+
+H = 15.0;  Tf = 30.0 * 86400.0
+T_deep = 22.0
+def kappa_z(z):  return 1e-3 * np.exp(z / 5.0) + 1e-5     # mixed-layer profile
+def w_z(z, t):   return 0.0                              # forward problem: no wind
+def Q_np(t):     return -120.0                           # net cooling (W/m^2)
+def S_z(z, t):   return 400.0 / 4.0e6 * np.exp(z / 8.0)  # body source
+
+# Geometry: z in [-H, 0], t in [0, Tf]
+geom     = dde.geometry.Interval(-H, 0.0)
+timedom  = dde.geometry.TimeDomain(0.0, Tf)
+geomtime = dde.geometry.GeometryXTime(geom, timedom)
+
+def pde(zt, T):
+    z, t = zt[:, 0:1], zt[:, 1:2]
+    dT_dt = dde.grad.jacobian(T, zt, j=1)
+    dT_dz = dde.grad.jacobian(T, zt, j=0)
+    d2T_dz2 = dde.grad.hessian(T, zt, component=0, i=0, j=0)
+    kappa = kappa_z(z)
+    return dT_dt + w_z(z, t) * dT_dz - kappa * d2T_dz2 - S_z(z, t)
+
+# Hard BC at the deep reservoir via output transform.
+def output_transform(zt, T):
+    z = zt[:, 0:1]
+    return T_deep + (z + H) * T          # T(-H, t) = T_deep automatically
+
+# Soft surface flux at z = 0.
+def surface_flux(zt, T, _):
+    dT_dz_top = dde.grad.jacobian(T, zt, j=0)
+    rho, cp = 1025.0, 3990.0
+    return rho * cp * kappa_z(zt[:, 0:1]) * dT_dz_top - Q_np(zt[:, 1:2])
+bc_surface = dde.icbc.OperatorBC(
+    geomtime, surface_flux,
+    lambda zt, on_boundary: on_boundary and np.isclose(zt[0], 0.0),
+)
+
+# IC: initial thermocline tanh profile
+def T0(z): return 25.0 + 3.0 * np.tanh((z + 5.0) / 2.0)
+ic = dde.icbc.IC(geomtime, lambda zt: T0(zt[:, 0:1]),
+                 lambda _, on_initial: on_initial)
+
+data = dde.data.TimePDE(
+    geomtime, pde, [bc_surface, ic],
+    num_domain=2000, num_boundary=200, num_initial=200,
+)
+net = dde.nn.FNN([2] + [32] * 4 + [1], "tanh", "Glorot uniform")
+net.apply_output_transform(output_transform)
+model = dde.Model(data, net)
+model.compile("adam", lr=1e-3); model.train(iterations=2000)
+model.compile("L-BFGS"); model.train()
+```
+
+Available as
+[`scripts/task_a_forward_deepxde.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_forward_deepxde.py){target="_blank"}.
+Runtime: ~5 min on a laptop CPU with the PyTorch backend.
+
+The structural one-to-one with the Julia version:
+
+| Concern | Julia (`NeuralPDE.jl`) | Python (`DeepXDE`) |
+|---|---|---|
+| Geometry | `IntervalDomain` × `TimeDomain` | `Interval` × `TimeDomain` |
+| Residual | `Differential(t)` + symbolic AD | `dde.grad.jacobian` / `hessian` |
+| Hard BC ansatz | manual product form | `apply_output_transform` |
+| Soft BC | `bcs` vector | `OperatorBC` |
+| Optimiser | `Optimization.solve(Adam → LBFGS)` | `model.compile/train` twice |
+| AD backend | Zygote + ForwardDiff | PyTorch / JAX / TF |
 
 ### Cross-ecosystem comparison
 

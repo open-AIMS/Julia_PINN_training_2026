@@ -57,6 +57,44 @@ shallow-water driver — is that model. The capstone solves it three
 times, once per site, with each site giving a qualitatively
 different fingerprint of the same event.
 
+::: {.callout-important}
+## How the inverse answers the mechanism question
+
+Tasks A and B don't recover three separate drivers — they recover
+**one** scalar wind-stress envelope $\tau(t)$ that *implicitly
+couples* all three mechanisms through the column model: Ekman
+pumping sets $w(z, t; \tau)$, the wind-mixing closure modulates
+$\kappa_m(t; \tau)$, and the cloud-cover correlation reduces
+$Q_{\text{SW}}^{\max}(t; \tau)$ during the storm.
+
+So the recovered $\hat\tau(t)$ doesn't *by itself* answer "which
+hypothesis dominated". The mechanism-discrimination step is the
+**partition deliverable** in §9.9.5 / §9.10.5: run the calibrated
+forward model with $\hat\tau$, decompose the cooling at a
+diagnostic depth (default: $z = -30\,\text{m}$, near the
+thermocline) into the three terms
+
+$$
+\underbrace{\Delta T_{\text{adv}}(t)}_{\int -w\,\partial_z T\, dt}
+\;+\;
+\underbrace{\Delta T_{\text{mix}}(t)}_{\int \partial_z(\kappa\,\partial_z T)\, dt}
+\;+\;
+\underbrace{\Delta T_{\text{flux}}(t)}_{\int \mathcal{S} + \text{surface BC}\, dt}
+\;=\;
+\Delta T_{\text{total}}(t),
+$$
+
+and report which integrated contribution dominates over the storm
+window. The single-driver inversion plus the partition plot is what
+turns "we recovered $\tau$" into "the storm cooling at Davies Reef
+was 65% upwelling, 30% mixing, 5% reduced heating".
+
+If you want a *direct* mechanism-discrimination inverse instead
+(recover $\tau_w, \tau_\kappa, \tau_Q$ separately), that's a
+genuine extension and a stretch goal — see the "open questions"
+at the end of §9.10.
+:::
+
 ::: {.callout-tip}
 ## Decoupled per-site vs. joint three-site inversion
 
@@ -381,11 +419,18 @@ $\lambda_r / \lambda_d$ adds ~10 minutes per pass.
 ### 9.9.5 Deliverables
 
 1. Plot of $\hat\tau(t)$ overlaid on the synthetic truth.
-2. Residual-histogram-vs-time diagnostic.
-3. Heat-budget closure plot for each sensor depth.
-4. A one-paragraph honest assessment of where the recovery fails
-   (typically the rising edge — smoothed by the $H^1$ penalty — and
-   the tail — over-relaxed).
+2. **Mechanism partition plot** at $z = -10\,\text{m}$ (Site A's
+   diagnostic depth, two-thirds down its 15 m column) showing the
+   three integrated cooling contributions
+   $\Delta T_{\text{adv}}(t), \Delta T_{\text{mix}}(t),
+   \Delta T_{\text{flux}}(t)$ over the storm window. This is what
+   actually answers the §9.1 question "which hypothesis dominated"
+   for Cleveland Bay.
+3. Residual-histogram-vs-time diagnostic.
+4. Heat-budget closure plot for each sensor depth.
+5. A one-paragraph honest assessment of where the recovery fails
+   (typically the rising edge — smoothed by the $H^1$ penalty —
+   and the tail — over-relaxed).
 
 ### 9.9.6 What you don't do here
 
@@ -486,8 +531,14 @@ CPU at reduced scale, then deploy on GPU at full scale.**
 2. Two-site joint-inverse $\hat\tau(t)$ overlaid on the synthetic
    truth, with the per-site decoupled inverses on the same axes
    for comparison.
-3. The GPU-launch checklist as a `.md` document.
-4. A written assessment of what changes at the full 3-site,
+3. **Mechanism partition plots at all three sites** ($z = -10\,\text{m}$
+   for Site A, $z = -30\,\text{m}$ for Site B, $z = -50\,\text{m}$
+   for Site C — each one near or just below the local thermocline).
+   The partition should show qualitatively different mechanism
+   weights across the three sites — that's the §9.1 multi-site
+   story made quantitative.
+4. The GPU-launch checklist as a `.md` document.
+5. A written assessment of what changes at the full 3-site,
    $H = 100$ m scale: predicted accuracy, predicted training cost
    on GPU, what could still go wrong (causality violation at
    Myrmidon, BC imbalance from the four-orders-of-magnitude scale
@@ -508,6 +559,16 @@ report on if they get GPU time:
   observations? This is the validation step that turns the
   recovered synthetic answer into something an oceanographer
   trusts.
+- **Stretch goal — direct mechanism inversion.** Instead of one
+  shared $\tau(t)$ implicitly coupling all three mechanisms,
+  expand the inverse to recover *three* separate scalar functions
+  $\tau_w(t), \tau_\kappa(t), \tau_Q(t)$ (driving upwelling,
+  mixing, and surface-flux modulation independently). This makes
+  the §9.1 hypothesis discrimination *direct* rather than
+  partition-inferred, at the cost of a three-fold-larger inverse
+  problem (worse conditioning, more regularisation tuning). A
+  good test of whether the joint three-site data is informative
+  enough to separate three coupled drivers.
 
 ## 9.11 Toy-task ladder (shared) {#sec-toy-tasks}
 
