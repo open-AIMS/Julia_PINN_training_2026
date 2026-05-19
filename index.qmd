@@ -38,30 +38,57 @@ that level of comfort with Julia.
 
 ## [Unit 1: Introduction](units/unit_01/unit_01.qmd)
 
-Sets the destination. Introduces the AIMS-motivated problem the course
-builds toward — physics-informed inference of unknown drivers in a 1D
-vertical ocean column with shallow-water coupling — and runs a live
-demo of the inverse PINN we'll re-derive together by Unit 9. Treat it
-as a preview: the foundations come next, and we return to this material
-at the end.
+A worked end-to-end PINN inverse problem on day one — recover the
+unknown Brisbane River freshwater surge from sparse Moreton Bay tide
+gauges. A `MethodOfLines` shallow-water reference solve produces a
+slider-driven animation, then *two* recovery methods (adjoint Tikhonov
+inverse vs naive PINN) are trained against the same noisy gauge data
+to make the ill-posedness visible. Closes with a "How to get these
+files" callout and a §1.3 preview of the AIMS thermistor-column
+capstone that Units 9–10 build properly. Treat the whole unit as
+motivation: nothing here is re-derived until Units 5–7.
 
 ## [Unit 2: ML Foundations: From Classical to Deep](units/unit_02/unit_02.qmd)
 
-The long route into machine learning — from supervised learning and
-random forests through to deep networks, optimisers, and the autodiff
-engine that drives PINNs. Random forests appear briefly as the
-non-deep-learning baseline (`MLJ.jl` in Julia, `scikit-learn` in
-Python); the second half covers MLPs, ResNets, optimisers, and a
-`PyTorch` parallel that seeds the cross-ecosystem story.
+The supervised-learning foundations PINNs rest on, walked at depth
+on the MNIST 60k/10k benchmark throughout. Random forest baseline
+in `DecisionTree.jl` then `scikit-learn`; softmax regression in
+`Lux.jl` then `scikit-learn`; full MLP training with hand-written
+mini-batch SGD in Lux, plus PyTorch and sklearn MLP parallels. The
+§2.5 optimisation deep-dive derives gradient descent, mini-batch
+SGD, momentum, Adam (with explicit bias correction), and L-BFGS at
+Goodfellow Ch. 8 depth. Closes with a §2.7 introduction to
+Kolmogorov-Arnold Networks (KANs) with `KolmogorovArnold.jl` and
+`pykan` examples.
 
 ## [Unit 3: Scientific Machine Learning and Physics-Informed Machine Learning](units/unit_03/unit_03.qmd)
 
-A conceptual tour of the broader physics-aware ML landscape and a
-first encounter with physics-informed machine learning (PIML). Hybrid
-physics+ML models, surrogate solvers, conservation-aware architectures,
-Hamiltonian and Lagrangian neural networks (briefly), and equation
-discovery via SINDy. The unit closes with the conceptual PINN setup
-that Units 5–9 then implement.
+A guided tour of the physics-aware ML landscape. The §3.1 ODE
+refresher walks three problems in increasing complexity (1-D
+exponential decay, undamped harmonic oscillator, damped harmonic
+oscillator with under/critical/over regimes) with Julia
+`OrdinaryDiffEq.jl` and Python `scipy.integrate.solve_ivp` side by
+side. §§3.2–3.3 cover hybrid physics+ML, surrogates, conservation
+inductive biases, Hamiltonian / Lagrangian networks. §3.4 expands
+SINDy with a hand-rolled STLSQ Lorenz recovery in Julia and the
+PySINDy parallel. New §3.5 adds Proper Orthogonal Decomposition
+on a 50-mass damped chain (Julia + Python). §3.6 closes with the
+conceptual PINN setup that Units 5–9 implement.
+
+## [Unit 4: Learning Dynamics with Neural Differential Equations](units/unit_04/unit_04.qmd)
+
+ODEs as models of dynamics, framed through universal approximation
+rather than classical numerics. The ResNet-to-Neural-ODE bridge
+from Unit 2, the discretise-then-differentiate / differentiate-then-
+discretise / checkpointing trichotomy for backprop through ODE
+solvers, and Universal Differential Equations (UDEs) as the
+default "known physics + learned closure" pattern for scientific
+ML. Three worked examples: a Lotka-Volterra phase portrait (Julia
++ Python), a damped-pendulum UDE with unknown friction, and — the
+real-world AIMS domain case — a Crown-of-Thorns starfish UDE for
+the Great Barrier Reef (after [Morello et al. 2014, *MEPS*](https://www.int-res.com/abstracts/meps/v512/p167-183/){target="_blank"}),
+where COTS mortality is the learned closure on top of known
+logistic coral growth and Holling-II grazing.
 
 ## [Unit 4: Learning Dynamics with Neural Differential Equations](units/unit_04/unit_04.qmd)
 
@@ -79,67 +106,109 @@ grazing.
 
 ## [Unit 5: PINNs on Basic Models](units/unit_05/unit_05.qmd)
 
-Our first hands-on PINN, in the simplest possible settings: a small
-collection of ODEs (harmonic oscillator, damped pendulum, Lotka–Volterra
-forward and inverse) and the simplest PDE (1D diffusion). The aim is
-to make the ingredients concrete — residual loss, initial conditions
-in the loss, collocation points, autodiff — and to spot a few failure
-modes (spectral bias, loss imbalance, causal violation) before
-tackling formal PDE theory in Unit 6 and harder PDE PINNs in Unit 7.
+The first hands-on PINN. §5.1 frames the residual loss and
+collocation-point picture; §5.2 is a dedicated **autodiff deep-dive**
+that walks the forward / reverse / forward-over-forward composition
+PINNs depend on, with side-by-side Julia (`Lux`+`ForwardDiff`+`Zygote`)
+and JAX (`jacfwd` / `grad`) implementations and the "inner forward,
+outer reverse" rule of thumb. §5.3 trains $\dot x = -x$ from scratch
+in pure Lux + Zygote (one page of code); §5.4 re-derives the same
+problem in `NeuralPDE.jl`; §5.5 lifts to 1-D diffusion as the first
+true PDE-PINN. §5.6 catalogues three failure modes (spectral bias,
+loss imbalance, causal violation) that Unit 7 §7.3 then fixes.
 
 ## [Unit 6: PDE Bootcamp](units/unit_06/unit_06.qmd)
 
-A fast, intensive tour of the PDE essentials we'll need: classification
-(elliptic, parabolic, hyperbolic), boundary and initial conditions,
-well-posedness, the three canonical mechanisms (diffusion, advection,
-reaction), and finite-difference / finite-volume / finite-element
-numerics with a comparison table. Closes by revisiting the Unit 1
-linearised shallow-water solver in classical PDE terms — hyperbolic
-classification, CFL, staggered grids, radiation boundaries.
+The PDE-theory bedrock the ML-only reader needs. §6.1 covers
+classification (elliptic / parabolic / hyperbolic), boundary
+conditions (Dirichlet / Neumann / Robin / periodic), Hadamard
+well-posedness, and a brief weak-vs-strong solutions subsection
+that lands the FEM weak form in §6.6. §6.2 derives three explicit
+solution techniques at depth — separation of variables on the heat
+rod (worked end-to-end), Fourier series as the eigenmode toolbox,
+and Laplace transforms with the half-line `erfc` heat solution.
+§6.3 is a tour of the five canonical PDEs (heat, Laplace, Poisson,
+wave, advection) with physical pedagogy beyond the formula.
+§§6.4–6.7 cover FD, FV, FE with a comparison table; §6.8 revisits
+the Unit 1 shallow-water solver in classical PDE terms — hyperbolic
+classification, CFL, the Arakawa-C grid, the radiation-BC sponge.
 
 ## [Unit 7: When PINNs Meet PDEs](units/unit_07/unit_07.qmd)
 
-Vanilla PINNs work on some PDEs and fail surprisingly often on
-others. We diagnose the three failure modes (loss imbalance,
-spectral bias, causal violation), walk through the modern fixes
-that close the gap (causal training, Fourier features, hard BC,
-adaptive weights), and lay out a taxonomy of four PINN workflows
-practitioners actually use. Closes with a software-ecosystem map
-(Julia, Python, commercial), a literature-grounded survey of
-where PINNs have shown success across seven application areas,
-and an honest catalogue of industrial deployments.
+The applied core of the course. §7.1 builds a vanilla PINN on the
+heat equation and a Laplace solve on a disk (with a proper polar
+heatmap of the closed-form $r^3 \sin(3\theta)$ + collocation cloud).
+§7.2 diagnoses the three failure modes against the
+Krishnapriyan / Wang failure-mode literature — not the de Wolff
+benchmark — with a worked 1-D linearised SWE example and an
+illustrated three-panel failure-signature figure. §7.3 walks the
+modern fixes (causal training, Fourier features, hard BC, adaptive
+loss weighting). §7.4 sets out a **taxonomy of four PINN workflows**
+practitioners actually use (forward solve, parameter identification,
+source recovery, hybrid data assimilation). §7.5 closes with an
+honest "when inverse PINNs work and when they don't" discussion.
+§§7.6–7.8 catalogue the software ecosystem (Julia `NeuralPDE.jl` +
+SciML stack, Python `DeepXDE` / `PhysicsNeMo` / `jinns`, commercial
+offerings), seven literature application areas where PINNs have
+delivered, and named industrial deployments (NVIDIA PhysicsNeMo at
+Siemens Energy, Shell, SimScale, Ansys SeaScape; Altair PhysicsAI;
+Pasteur Labs).
 
 ## [Unit 8: PDE Modelling in Key AIMS Domains](units/unit_08/unit_08.qmd)
 
-A short, intuition-first tour of the ocean physics that powers the
-capstone — for people fluent in PDEs and ML but not in
-oceanography. The column idealisation derived from 3-D
-advection-diffusion, a labelled SVG schematic of the thermistor
-column, three eddy-diffusivity closure schemes (KPP,
-Mellor-Yamada, Pacanowski-Philander), the Beer-Lambert two-band
-shortwave model, COARE 3.0 bulk surface fluxes, and pointers to
-where this kind of column work appears in the literature.
+The ocean physics the capstone column rests on, for readers fluent
+in PDEs but new to oceanography. §8.2 derives the 1-D column
+equation from 3-D advection-diffusion by horizontal homogeneity,
+with a labelled SVG schematic of the thermistor column. §8.3
+covers vertical advection and three eddy-diffusivity closure
+schemes (KPP, Mellor-Yamada, Pacanowski-Philander), plus a
+paragraph on where $w(z, t)$ actually comes from on the GBR
+(tides, Ekman pumping, mean circulation). §8.4 spells out the
+Beer-Lambert two-band penetrating-shortwave model and the COARE
+3.0 bulk formulas for sensible / latent / longwave surface
+fluxes. §§8.5–8.7 cover stratification, dimensionless regimes,
+and pointers to the GBR / KPP / DHW literature this kind of
+column modelling builds on.
 
 ## [Unit 9: Project Specification](units/unit_09/unit_09.qmd)
 
-The capstone written down concretely, in **two parallel
-versions**:
+The capstone, in two parallel versions chosen by hardware and
+ambition.
 
-- **Task A** — a single-site CPU-friendly inverse problem that
-  trains in ~30 minutes on a laptop. The introductory capstone.
-- **Task B** — the three-site joint inverse with the full modern
-  PINN toolkit, GPU at full scale. The advanced capstone.
+- §9.8 hardware/audience comparison table — pick A or B before
+  reading either spec.
+- **§9.9 Task A — single-site CPU-friendly inverse.** Cleveland
+  Bay column ($H = 15$ m), small MLP, ~30 min on a laptop CPU.
+  Full Spec / Workflow / Success criteria / Runtime / Deliverables
+  / "what you don't do here" sub-sections.
+- **§9.10 Task B — three-site joint GPU inverse.** All three
+  moorings ($H$ up to 100 m), modern PINN toolkit, GPU-class.
+  Same sub-numbering as Task A, plus a CPU sub-scale prototype
+  ladder and an "open questions for the full GPU run" closer.
 
-Plus the shared forward problem, the toy-task ladder both versions
-build on, and an honest CPU-vs-GPU runtime breakdown.
+§§9.1–9.7 give the shared scenario, coupled column + SWE model,
+boundary / initial conditions, forcing functions, and reference
+parameter values both tasks build on. §9.11 is the shared
+toy-task ladder.
 
 ## [Unit 10: Project Solution](units/unit_10/unit_10.qmd)
 
-The worked **solution** to the capstone — read at your own risk.
-The page opens behind a triple-click confirmation overlay (we
-recommend attempting the project before viewing); inside, the
-solutions to Task A and Task B sit as collapsible sections so the
-shared infrastructure stays readable without spoilers.
+The worked solutions to both capstone variants — **read at your
+own risk**. §10.1 (shared infrastructure) is open: the
+`MethodOfLines` reference solver, the four toy scenarios, the
+SWE driver. The two task solutions each sit behind their **own
+triple-click reveal gate**, so you can read the shared
+infrastructure (or one task, if you want) without spoiling the
+other. The Task A walk-through covers the forward sanity check,
+the joint inverse loss with an ablation table on the regularisation
+weights, the recovered $\hat\tau(t)$, and three diagnostic plots.
+The Task B walk-through maps each modern-toolkit ingredient
+(Fourier features, hard BC, adaptive weights, causal training)
+to the §10.2 failure it addresses, then writes out the joint
+loss with shared $\tau_\phi$ across sites, the CPU sub-scale
+prototype ladder, and a predicted-full-scale-GPU performance
+table. §10.4 sketches the `DeepXDE` Python parallel for the
+cross-ecosystem story.
 
 ## Appendices
 
