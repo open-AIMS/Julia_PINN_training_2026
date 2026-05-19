@@ -37,8 +37,16 @@ website:
           - units/unit_08/unit_08.qmd
           - units/unit_09/unit_09.qmd
           - units/unit_10/unit_10.qmd
-      - text: References
-        href: units/references/references.qmd
+      - section: Appendices
+        contents:
+          - text: References
+            href: units/references/references.qmd
+          - text: Software Resources
+            href: units/software/software.qmd
+          - text: Mathematical Review
+            href: units/math_review/math_review.qmd
+          - text: Physical / Oceanography Review
+            href: units/physical_review/physical_review.qmd
 
 format:
   html:

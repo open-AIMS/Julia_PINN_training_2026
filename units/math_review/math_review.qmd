@@ -1,0 +1,156 @@
+---
+title: "Mathematical Review"
+toc-title: "Mathematical Review"
+date: today
+date-format: "DD/MM/YYYY"
+number-sections: false
+---
+
+::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555;"}
+[← Software Resources](../software/software.qmd)  ·
+[→ Physical / Oceanography Review](../physical_review/physical_review.qmd)
+:::
+
+A glossary of the mathematical notation used throughout the
+course, in roughly the order it first appears. Use this as a
+lookup for any symbol whose meaning isn't obvious from context.
+
+## Variables and indexing conventions
+
+| Symbol | Meaning |
+|---|---|
+| $t$ | time (independent variable) |
+| $x, y, z$ | spatial coordinates |
+| $\mathbf{x} = (x, y, z)$ | spatial position vector |
+| $z = 0$ | sea surface (in the column model, [Unit 8](../unit_08/unit_08.qmd)) |
+| $z = -H$ | column bottom (depth $H$ below the surface) |
+| $\eta(x, y, t)$ | sea-surface elevation anomaly (Unit 1, [Unit 6](../unit_06/unit_06.qmd)) |
+| $T(z, t)$ | temperature, column model ([Unit 9](../unit_09/unit_09.qmd)) |
+| $u, v$ | horizontal velocity components |
+| $w$ | vertical velocity component |
+| $\mathbf{u} = (u, v, w)$ | full velocity vector |
+| $\mathbf{u}_h = (u, v)$ | horizontal velocity vector |
+| $\psi(t)$ | unknown boundary forcing (Unit 1's river source) |
+| $\theta$, $\phi$ | network parameter vectors (PINN unknowns) |
+
+Indices: $i$ for collocation / sample points, $j$ for components,
+$k$ for time steps. Discrete grid indices use $i, j$ over
+$(x, y)$ and $n$ over $t$ (e.g. $u_i^n$ for the value at grid
+cell $i$, time step $n$).
+
+## Derivatives
+
+| Notation | Meaning |
+|---|---|
+| $\dot{x}$, $\ddot{x}$ | first and second time derivatives, $\frac{dx}{dt}$ and $\frac{d^2 x}{dt^2}$ |
+| $\dfrac{\partial f}{\partial x}$ | partial derivative of $f$ with respect to $x$ |
+| $\partial_x f$, $f_x$ | shorthand for $\partial f / \partial x$ |
+| $\partial_t f$, $\partial_z f$ | likewise for $t$ and $z$ |
+| $\partial^2_x f$, $f_{xx}$ | second partial derivative $\partial^2 f / \partial x^2$ |
+| $\nabla f$ | gradient: $(\partial_x f, \partial_y f, \partial_z f)$ |
+| $\nabla\!\cdot\!\mathbf{u}$ | divergence: $\partial_x u + \partial_y v + \partial_z w$ |
+| $\nabla \times \mathbf{u}$ | curl |
+| $\nabla^2 f$ | Laplacian: $\partial^2_x f + \partial^2_y f + \partial^2_z f$ |
+| $\nabla_h = (\partial_x, \partial_y)$ | horizontal gradient |
+| $\nabla_h\!\cdot\!\mathbf{u}_h$ | horizontal divergence |
+
+## Vector and tensor operations
+
+| Notation | Meaning |
+|---|---|
+| $\mathbf{a}\!\cdot\!\mathbf{b}$ | dot product (scalar): $\sum_i a_i b_i$ |
+| $\mathbf{a} \otimes \mathbf{b}$ | outer / tensor product |
+| $\|\mathbf{a}\|$, $\|\mathbf{a}\|_2$ | Euclidean norm: $\sqrt{\mathbf{a}\!\cdot\!\mathbf{a}}$ |
+| $\|f\|_{L^2}$ | $L^2$ norm of a function: $\sqrt{\int f^2}$ |
+| $\hat{\mathbf{n}}$ | outward unit normal to a boundary |
+| $\mathbf{u}\!\cdot\!\hat{\mathbf{n}} = 0$ | no-flux (impermeable) boundary condition |
+| $A^\top$ | matrix transpose |
+| $A^{-1}$ | matrix inverse |
+| $\det(A)$, $\mathrm{tr}(A)$ | determinant, trace |
+
+## Probability, statistics, loss functions
+
+| Notation | Meaning |
+|---|---|
+| $\mathbb{E}[X]$ | expectation of random variable $X$ |
+| $\mathrm{Var}(X)$, $\sigma^2$ | variance |
+| $\mathcal{N}(\mu, \Sigma)$ | Gaussian with mean $\mu$, covariance $\Sigma$ |
+| $\sim$ | "distributed as" (e.g. $X \sim \mathcal{N}(0, 1)$) |
+| $\mathcal{L}(\theta)$ | loss function evaluated at parameters $\theta$ |
+| $\hat R(f)$, $R(f)$ | empirical risk, true risk ([Unit 2 §2.1](../unit_02/unit_02.qmd)) |
+| $\ell(\hat y, y)$ | per-sample loss |
+| $\arg\min_\theta f(\theta)$ | the $\theta$ that minimises $f$ |
+
+## Network architectures and PINN-specific symbols
+
+| Notation | Meaning |
+|---|---|
+| $u_\theta$, $T_\theta$, $\eta_\theta$ | neural-network parameterisations of a field |
+| $\theta$ | parameter vector of an MLP / KAN |
+| $\sigma$ | activation function (sigmoid, $\tanh$, ReLU, Swish, …) |
+| $W_\ell$, $b_\ell$ | weights and biases of layer $\ell$ |
+| $\mathcal{L}_{\text{PDE}}$ | PDE-residual loss term |
+| $\mathcal{L}_{\text{BC}}$ | boundary-condition loss term |
+| $\mathcal{L}_{\text{IC}}$ | initial-condition loss term |
+| $\mathcal{L}_{\text{data}}$ | data-misfit loss term |
+| $\lambda_r, \lambda_b, \lambda_i, \lambda_d$ | weights on the above |
+| $\{t_i\}_{i=1}^{N_r}$, $\{(\mathbf{x}_i, t_i)\}$ | collocation points |
+| $r_\theta(\mathbf{x}, t)$ | residual of the PDE evaluated at $(\mathbf{x}, t)$ |
+| $\gamma(\mathbf{x}) = [\sin(B\mathbf{x}), \cos(B\mathbf{x})]$ | Fourier-feature embedding ([Unit 7 §7.3](../unit_07/unit_07.qmd)) |
+
+## Optimisation
+
+| Notation | Meaning |
+|---|---|
+| $\eta$ (learning rate) | step size in gradient descent (not the surface elevation!) |
+| $\nabla_\theta \mathcal{L}$, $g_t$ | gradient of the loss with respect to parameters |
+| $m_t, v_t$ | first- and second-moment estimates in Adam |
+| $\beta_1, \beta_2$ | exponential-decay rates in Adam |
+| $H_t$, $B_t$ | true Hessian / quasi-Newton approximation in L-BFGS |
+| $\mu$ | momentum coefficient |
+| Adam, L-BFGS, SGD | named optimisers ([Unit 2 §2.5](../unit_02/unit_02.qmd)) |
+
+::: {.callout-warning}
+## Symbol re-use across units
+
+A handful of letters carry different meanings in different
+contexts; check the local section:
+
+- **$\eta$** is the *learning rate* in optimisation and the
+  *surface-elevation anomaly* in shallow-water physics.
+- **$\kappa$** is *eddy diffusivity* in oceanography and a
+  *matrix condition number* in numerical analysis.
+- **$\sigma$** is the *sigmoid activation*, the *standard
+  deviation* of noise, *and* a Rayleigh-damping rate
+  depending on context.
+- **$H$** is *column depth* (m) in the column model and the
+  *Hessian matrix* in optimisation.
+- **$N$** is *number of training samples*, the *grid size*,
+  and the *buoyancy frequency* depending on context.
+:::
+
+## PDE classification quick-reference
+
+For a second-order linear PDE $a\, u_{xx} + 2b\, u_{xy} + c\, u_{yy} + \ldots = 0$:
+
+| Type | Condition $b^2 - ac$ | Canonical example |
+|---|---|---|
+| Elliptic | $< 0$ | Laplace: $u_{xx} + u_{yy} = 0$ |
+| Parabolic | $= 0$ | Heat: $u_t = \alpha\, u_{xx}$ |
+| Hyperbolic | $> 0$ | Wave: $u_{tt} = c^2\, u_{xx}$ |
+
+(Full discussion in [Unit 6 §6.1](../unit_06/unit_06.qmd).)
+
+## Common dimensionless groups
+
+| Group | Definition | Interpretation |
+|---|---|---|
+| Reynolds Re | $UL/\nu$ | inertia vs. viscosity |
+| Péclet Pe | $UL/\kappa$ | advection vs. diffusion |
+| Richardson Ri | $N^2/(\partial_z U)^2$ | buoyancy vs. shear |
+| Courant–Friedrichs–Lewy CFL | $c\,\Delta t/\Delta x$ | numerical wave speed |
+| Strouhal St | $fL/U$ | unsteadiness vs. advection |
+
+::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; text-align: right;"}
+[**→ Physical / Oceanography Review**](../physical_review/physical_review.qmd){style="font-weight: bold; padding: 0.4em 1em; background: #f4d03f; color: #20242c; border-radius: 4px; text-decoration: none;"}
+:::

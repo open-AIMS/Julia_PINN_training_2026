@@ -1,0 +1,279 @@
+---
+title: "Physical and Oceanography Review"
+toc-title: "Physical / Oceanography Review"
+date: today
+date-format: "DD/MM/YYYY"
+number-sections: false
+---
+
+::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555;"}
+[← Mathematical Review](../math_review/math_review.qmd)  ·
+[← Software Resources](../software/software.qmd)  ·
+[← References](../references/references.qmd)
+:::
+
+A glossary of the physical and oceanographic concepts used in the
+course, especially those that appear in [Unit 1](../unit_01/unit_01.qmd)
+(Moreton Bay shallow-water surge) and
+[Units 8–10](../unit_08/unit_08.qmd) (Great Barrier Reef
+thermistor-column capstone). Entries are alphabetical within
+each grouping.
+
+## Ocean structure and properties
+
+::: {#term-bathymetry}
+**Bathymetry.** The shape of the ocean floor — the underwater
+analogue of topography. Encoded as a depth field $H(x, y)$ in the
+shallow-water solver of [Unit 1](../unit_01/unit_01.qmd) and as
+the column depth $H$ in the [Unit 8](../unit_08/unit_08.qmd)
+column model.
+:::
+
+::: {#term-deep-reservoir}
+**Deep reservoir.** Idealisation of the ocean below the modelled
+column: a much larger volume of cold water whose temperature
+responds on timescales far longer than the modelled run. Used as
+a Dirichlet boundary $T(-H, t) = T_{\text{deep}}$ in
+[Unit 9](../unit_09/unit_09.qmd).
+:::
+
+::: {#term-mixed-layer}
+**Mixed layer.** The near-surface region of the ocean kept
+nearly uniform in temperature, salinity, and density by
+wind-driven turbulent mixing and convective overturning. Depth
+ranges from a few metres (calm tropics) to hundreds of metres
+(stormy mid-latitudes). Modelled in
+[Unit 8](../unit_08/unit_08.qmd) §8.5 via large $\kappa$ in the
+upper column.
+:::
+
+::: {#term-pycnocline}
+**Pycnocline.** The depth at which density changes most rapidly.
+In tropical waters the density gradient is dominated by
+temperature, so the pycnocline coincides with the
+*thermocline*.
+:::
+
+::: {#term-stratification}
+**Stratification.** Variation of seawater density with depth.
+*Stable* stratification (light water on top, dense water below)
+resists vertical mixing because buoyancy restores displaced
+parcels. In the GBR, surface heating produces strong stable
+stratification that suppresses upwelling outside of storm events.
+:::
+
+::: {#term-thermocline}
+**Thermocline.** The depth band over which temperature falls
+most steeply — typically 10–50 m in the GBR. Above: warm
+sun-heated water. Below: cold deep water. The transition is
+sharp because mixing across the thermocline is suppressed by
+stable stratification.
+:::
+
+## Heat and energy fluxes
+
+::: {#term-bulk-formula}
+**Bulk formulas.** Empirical relations that estimate air–sea
+heat / momentum / freshwater fluxes from easily measured
+quantities (wind speed, air temperature, humidity). The
+COARE 3.0 algorithm
+([Fairall et al. 2003](https://journals.ametsoc.org/view/journals/clim/16/4/1520-0442_2003_016_0571_bpoasf_2.0.co_2.xml){target="_blank"})
+is the standard implementation. Used to set
+$Q_{\text{np}}(t)$ in [Unit 8 §8.4](../unit_08/unit_08.qmd).
+:::
+
+::: {#term-degree-heating-weeks}
+**Degree-Heating-Weeks (DHW).** NOAA Coral Reef Watch's
+operational thermal-stress index: cumulative weekly
+sea-surface-temperature anomaly above the
+maximum-monthly-mean baseline. DHW > 4 °C·week signals
+significant bleaching risk; > 8 indicates mortality.
+[Liu et al. 2014](https://link.springer.com/article/10.1007/s00338-013-1097-y){target="_blank"}
+is the canonical reference. A column model improves on DHW by
+resolving the *vertical* distribution of warm water.
+:::
+
+::: {#term-latent-heat}
+**Latent heat flux $Q_{\text{lat}}$.** Heat carried away from
+the ocean by evaporation. Dominates the surface cooling budget
+in the tropics; proportional to wind speed and the
+saturation-vapour-pressure deficit.
+:::
+
+::: {#term-longwave-radiation}
+**Longwave radiation $Q_{\text{LW}}$.** Infrared emission from
+the sea surface ($\propto T^4$ by Stefan–Boltzmann) minus
+downwelling longwave from the atmosphere. Net loss on most
+days; a strong night-time cooling term.
+:::
+
+::: {#term-sensible-heat}
+**Sensible heat flux $Q_{\text{sens}}$.** Heat conducted from
+the ocean to the (usually cooler) air. Small compared to latent
+heat in the tropics but signs and magnitudes flip during cold
+fronts.
+:::
+
+::: {#term-shortwave-penetrating}
+**Shortwave penetrating insolation $Q_{\text{SW}}$.** Solar
+radiation that crosses the air–sea interface and is absorbed
+*inside* the water column, exponentially with depth. Modelled
+as a Beer–Lambert *body source* $\mathcal{S}(z, t)$ in
+[Unit 9 §9.5](../unit_09/unit_09.qmd) rather than a boundary
+flux — the standard two-band Paulson–Simpson
+parameterisation.
+:::
+
+## Dynamics and transport
+
+::: {#term-advection}
+**Advection.** Transport of a quantity (heat, salt, tracer) by
+the bulk fluid motion: $\mathbf{u}\!\cdot\!\nabla T$. In the
+column model this reduces to $w\, \partial_z T$
+([Unit 8 §8.3](../unit_08/unit_08.qmd)).
+:::
+
+::: {#term-coriolis}
+**Coriolis effect.** Apparent deflection of fluid motion in a
+rotating reference frame, important at scales of
+$\gtrsim 100$ km and times of $\gtrsim$ a few hours. Quantified
+by the Coriolis parameter $f = 2\Omega \sin\phi$, with $\phi$
+latitude. Deflects rightward in the Northern hemisphere,
+leftward in the Southern. Negligible on the Unit 1 surge scale
+($\sim$ 50 km, $\sim$ 6 hours) but dominant in the full SWE
+system of [Unit 7 §7.2](../unit_07/unit_07.qmd).
+:::
+
+::: {#term-diffusion}
+**Diffusion / eddy diffusivity.** Net transport of a quantity
+down its gradient by unresolved turbulent fluctuations. Modelled
+as a Fickian closure $\partial_z(\kappa \,\partial_z T)$ with an
+effective eddy diffusivity $\kappa \gg \kappa_{\text{molecular}}$.
+Three standard closure choices (KPP, Mellor-Yamada,
+Pacanowski-Philander) are listed in
+[Unit 8 §8.3](../unit_08/unit_08.qmd).
+:::
+
+::: {#term-ekman-pumping}
+**Ekman pumping.** Vertical velocity induced by the curl of the
+surface wind stress in the rotating ocean: positive (upwelling)
+under cyclonic stress, negative (downwelling) under
+anticyclonic. The mechanism by which the Unit 9 wind-stress
+envelope $\tau(t)$ drives the column's $w(z, t)$.
+:::
+
+::: {#term-eddy}
+**Eddy.** A coherent circular flow structure with horizontal
+scales from $\sim 1$ km (submesoscale) to $\sim 100$ km
+(mesoscale). Carries heat, salt, and biology far from its
+generation point. Eddies are unresolved by the workshop
+shallow-water solver, which is one reason its eddy diffusivity
+$\kappa$ has to absorb their mixing.
+:::
+
+::: {#term-internal-waves}
+**Internal waves.** Waves propagating along density interfaces
+(typically the thermocline). Driven by tides, winds, and
+topographic interactions. They contribute to vertical mixing
+when they break, providing one of the background-$\kappa$
+contributions in KPP-style closures.
+:::
+
+::: {#term-upwelling-downwelling}
+**Upwelling / downwelling.** Vertical movement of water columns:
+upwelling brings cold, nutrient-rich deep water up
+($w > 0$); downwelling pushes warm surface water down
+($w < 0$). The first cooling hypothesis in the capstone
+scenario.
+:::
+
+## Coastal and reef-specific terms
+
+::: {#term-aims}
+**AIMS.** The
+[Australian Institute of Marine Science](https://www.aims.gov.au/){target="_blank"}
+— the federal research agency that monitors the Great Barrier
+Reef. Supplies the operational moorings the capstone is loosely
+modelled on (Davies Reef tower at $18°49'31''S$, $147°38'50''E$).
+:::
+
+::: {#term-gbr}
+**Great Barrier Reef (GBR).** The world's largest coral reef
+ecosystem, $\sim 2300$ km along the Queensland coast. The
+capstone is set on the central GBR off Townsville.
+:::
+
+::: {#term-moreton-bay}
+**Moreton Bay.** A shallow, semi-enclosed bay east of Brisbane
+in south-east Queensland, bounded by the mainland, Moreton
+Island, and North Stradbroke Island. Setting for the Unit 1
+surge example.
+:::
+
+::: {#term-pile-light}
+**Pile Light.** The historic light station at the entrance of
+the Brisbane River into Moreton Bay; in Unit 1 it locates the
+G1 Brisbane Bar tide gauge near the modelled river-mouth
+boundary condition.
+:::
+
+::: {#term-shallow-water-equations}
+**Shallow-water equations (SWE).** A depth-integrated reduction
+of the 3-D Navier–Stokes equations valid when horizontal
+length-scales greatly exceed water depth. The 2-D unknowns are
+surface elevation $\eta$ and depth-averaged horizontal velocity
+$\mathbf{u}_h$. Cover the Unit 1 surge problem in linearised
+form; the full nonlinear system is in
+[Unit 7 §7.2](../unit_07/unit_07.qmd).
+:::
+
+::: {#term-storm-surge}
+**Storm surge.** An anomalously high water level driven by
+strong onshore winds, low atmospheric pressure, or river
+discharge. The Unit 1 example is a freshwater-driven
+analogue — same shallow-water physics, different forcing.
+:::
+
+::: {#term-sst}
+**Sea-Surface Temperature (SST).** Temperature in the top
+$\sim 1$ m of the ocean, measured by satellite or in-situ. The
+quantity most operational coral-bleaching products
+([NOAA Coral Reef Watch](https://coralreefwatch.noaa.gov/){target="_blank"})
+use because it's available globally. SST misses subsurface
+structure — exactly what the column model resolves.
+:::
+
+::: {#term-tide-gauge}
+**Tide gauge.** A fixed instrument measuring sea-surface
+elevation at a single point, typically once per minute. The
+four Moreton Bay gauges (G1–G4) in Unit 1 are tide gauges in
+the modelled sense, providing the boundary-data record from
+which the source ψ(t) is recovered.
+:::
+
+::: {#term-tikhonov}
+**Tikhonov regularisation.** A general inverse-problem
+technique: add a penalty $\lambda\,\|L\theta\|^2$ (typically on
+the smoothness or magnitude of the unknown) to the data-fitting
+loss to stabilise an otherwise ill-posed inversion. Used in
+both Unit 1 (adjoint inverse) and Unit 9 (PINN inverse). Detail
+in [Unit 1 §1.2](../unit_01/unit_01.qmd) and
+[Unit 7 §7.5](../unit_07/unit_07.qmd).
+:::
+
+## Physical constants and standard values
+
+| Symbol | Value | Meaning |
+|---|---|---|
+| $g$ | $9.81\,\text{m/s}^2$ | gravitational acceleration |
+| $\rho_0$ | $1025\,\text{kg/m}^3$ | reference seawater density |
+| $c_p$ | $3990\,\text{J\,kg^{-1}\,K^{-1}}$ | specific heat of seawater |
+| $\sigma_{\text{SB}}$ | $5.67\times 10^{-8}\,\text{W m}^{-2}\,\text{K}^{-4}$ | Stefan–Boltzmann constant |
+| $L_v$ | $2.45\times 10^{6}\,\text{J/kg}$ | latent heat of vapourisation |
+| $\alpha_T$ | $\sim 2\times 10^{-4}\,\text{K}^{-1}$ | thermal expansion coefficient |
+| $\kappa_{\text{molecular}}$ | $1.4\times 10^{-7}\,\text{m}^2/\text{s}$ | molecular thermal diffusivity (water) |
+| $\kappa_{\text{turbulent}}$ | $10^{-5}$–$10^{-3}\,\text{m}^2/\text{s}$ | typical *effective* eddy diffusivity |
+
+::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; text-align: right;"}
+[**← Back to course index**](../../index.qmd){style="font-weight: bold; padding: 0.4em 1em; background: #f4d03f; color: #20242c; border-radius: 4px; text-decoration: none;"}
+:::

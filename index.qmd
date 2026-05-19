@@ -79,42 +79,137 @@ the capstone.
 ## [Unit 7: When PINNs Meet PDEs](units/unit_07/unit_07.qmd)
 
 Vanilla PINNs work on some PDEs and fail surprisingly often on
-others. We diagnose the failure modes (loss imbalance, spectral bias,
-causal violation) on a column heat equation and on shallow water, then
-walk through the modern fixes that mostly close the gap: causal
-training, Fourier feature embeddings, hard boundary-condition
-enforcement, adaptive loss weighting. By the end the toolkit needed
-for the capstone is in place.
+others. We diagnose the three failure modes (loss imbalance,
+spectral bias, causal violation), walk through the modern fixes
+that close the gap (causal training, Fourier features, hard BC,
+adaptive weights), and lay out a taxonomy of four PINN workflows
+practitioners actually use. Closes with a software-ecosystem map
+(Julia, Python, commercial), a literature-grounded survey of
+where PINNs have shown success across seven application areas,
+and an honest catalogue of industrial deployments.
 
 ## [Unit 8: The Science of Ocean PDE Modelling](units/unit_08/unit_08.qmd)
 
 A short, intuition-first tour of the ocean physics that powers the
 capstone — for people fluent in PDEs and ML but not in
-oceanography. Why oceans matter, the column idealisation,
-advection vs diffusion in fluids, the surface energy budget,
-stratification and mixing, and the dimensionless regimes that say
-which terms win on which scales. By the end the equations in
-Unit 9 read as a familiar set of mechanisms in a new domain.
+oceanography. The column idealisation derived from 3-D
+advection-diffusion, a labelled SVG schematic of the thermistor
+column, three eddy-diffusivity closure schemes (KPP,
+Mellor-Yamada, Pacanowski-Philander), the Beer-Lambert two-band
+shortwave model, COARE 3.0 bulk surface fluxes, and pointers to
+where this kind of column work appears in the literature.
 
 ## [Unit 9: Project Specification](units/unit_09/unit_09.qmd)
 
-The capstone written down concretely: the synthetic scenario, the coupled
-1D-column + 2D-shallow-water model, the column equation, boundary
-and initial conditions, forcing functions, reference parameters,
-and the six toy tasks that build up from pure diffusion to the
-forward storm scenario and the inverse problem. Implementation
-lives in Unit 10.
+The capstone written down concretely, in **two parallel
+versions**:
 
-## [Unit 10: Project Solution](units/unit_10/unit_10.qmd)
+- **Task A** — a single-site CPU-friendly inverse problem that
+  trains in ~30 minutes on a laptop. The introductory capstone.
+- **Task B** — the three-site joint inverse with the full modern
+  PINN toolkit, GPU at full scale. The advanced capstone.
 
-The capstone solved: a `MethodOfLines.jl` finite-difference
-reference that walks through the four toy-task scenarios with
-plots, a forward PINN trained against that reference, an inverse
-PINN that recovers an unknown wind-stress envelope from sparse
-mooring data, and a Python parallel using `DeepXDE`. Source code
-embedded inline.
+Plus the shared forward problem, the toy-task ladder both versions
+build on, and an honest CPU-vs-GPU runtime breakdown.
 
-## [References](units/references/references.qmd)
+## [Unit 10: A project the solution](units/unit_10/unit_10.qmd)
 
-The consolidated bibliography. In-text citations across all units
-link directly to the matching entry here and open in a new window.
+The worked **solution** to the capstone — read at your own risk.
+The page opens behind a triple-click confirmation overlay (we
+recommend attempting the project before viewing); inside, the
+solutions to Task A and Task B sit as collapsible sections so the
+shared infrastructure stays readable without spoilers.
+
+## Appendices
+
+- [**References**](units/references/references.qmd) — the
+  consolidated bibliography. In-text citations across all units
+  link here.
+- [**Software Resources**](units/software/software.qmd) — Julia
+  packages (first) then Python packages (second), with one-line
+  descriptions and canonical links.
+- [**Mathematical Review**](units/math_review/math_review.qmd) —
+  glossary of notation used throughout the course: partial
+  derivatives, gradients, dot products, PINN-specific symbols.
+- [**Physical / Oceanography Review**](units/physical_review/physical_review.qmd)
+  — glossary of physical and ocean-science terms: Coriolis,
+  eddies, thermocline, mixing-layer closures, bulk flux formulas.
+
+## Supporting files
+
+All the source code, data, and configuration the participants need
+to reproduce the workshop, with direct GitHub links. (If your team
+doesn't have access to the GitHub repo, ask the workshop
+maintainer for a tarball — the file list below is the manifest.)
+
+### Course-wide configuration
+
+- [`_quarto.yml`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/_quarto.yml){target="_blank"}
+  — Quarto site configuration
+- [`Project.toml`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/Project.toml){target="_blank"}
+  — Julia package dependencies
+- [`Manifest.toml`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/Manifest.toml){target="_blank"}
+  — pinned Julia dependency versions
+- [`requirements.txt`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/requirements.txt){target="_blank"}
+  — Python (venv) dependencies
+- [`build.sh`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/build.sh){target="_blank"}
+  — workshop build / render / execute driver
+- [`SETUP.md`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/SETUP.md){target="_blank"}
+  — environment-setup instructions
+
+### Unit 1 — Brisbane River surge
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/scripts){target="_blank"}
+  — `build_bay.jl`, `generate_site_map.py`, `generate_surge_data.jl`,
+  `generate_surge_frames.jl`, `generate_surge_animation.jl`,
+  `train_inverse_pinn.jl`, `train_inverse_adjoint.jl`,
+  `render_recovery_plot.jl`
+- Data: [`data/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/data){target="_blank"}
+  — `bay_bathymetry.csv`, `bay_gauges.csv`, `bay_mask.csv`,
+  `river_source.csv`, `bay_meta.json`, `gauges_observed.csv`,
+  `gauges_adjoint_pred.csv`, `gauges_pinn_pred.csv`,
+  `psi_recovered.csv`, `psi_recovered_adjoint.csv`, `snapshots.bin`
+
+### Unit 2 — ML foundations
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_02/scripts){target="_blank"}
+  — `iris_lux.jl`, `mnist_rf_julia.jl`, `mnist_rf_sklearn.py`,
+  `mnist_linear_lux.jl`, `mnist_linear_sklearn.py`,
+  `mnist_mlp_sklearn.py`, `mnist_mlp_pytorch.py`,
+  `kan_julia.jl`, `kan_pykan.py`
+
+### Unit 3 — Sci-ML and PIML
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_03/scripts){target="_blank"}
+  — `decay_python.py`, `damped_python.py`, `sindy_lorenz.jl`,
+  `sindy_lorenz_python.py`, `pod_chain.jl`, `pod_chain_python.py`
+
+### Unit 4 — Neural differential equations
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_04/scripts){target="_blank"}
+  — `lotka_volterra_python.py`
+
+### Unit 5 — First PINN
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_05/scripts){target="_blank"}
+  — `pinn_neuralpde_ode.jl`, `pinn_neuralpde_heat.jl`,
+  `pinn_poisson_disk.jl`
+
+### Unit 10 — Capstone solution
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_10/scripts){target="_blank"}
+  — `column_fd.jl`, `generate_mooring_csvs.jl`,
+  `task_a_forward_pinn.jl`, `task_a_inverse_pinn.jl`,
+  `task_a_diagnostics.jl`, `task_b_forward_pinn.jl`,
+  `task_b_joint_inverse.jl`, `task_b_subscale_prototype.jl`,
+  `task_b_gpu_launch.md`
+- Data: [`data/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_10/data){target="_blank"}
+  — `mooring_A.csv`, `mooring_B.csv`, `mooring_C.csv`,
+  `sites_metadata.csv`
+
+::: {.callout-note appearance="simple"}
+A handful of the script files in Unit 10's list above are **part
+of the Task B answer key** and only exist if you've checked out
+the full repo — they're listed here as placeholders so the
+manifest is complete.
+:::

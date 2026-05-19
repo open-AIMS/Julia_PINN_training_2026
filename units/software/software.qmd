@@ -1,0 +1,294 @@
+---
+title: "Software Resources"
+toc-title: "Software Resources"
+date: today
+date-format: "DD/MM/YYYY"
+number-sections: false
+---
+
+::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555;"}
+[← Back to References](../references/references.qmd)  ·
+[→ Mathematical Review](../math_review/math_review.qmd)
+:::
+
+This appendix lists the software packages used or referenced
+throughout the course, in the same style as the bibliographic
+references. **Julia packages come first** (the workshop's primary
+language); **Python packages** follow. Each entry has a one-line
+description and a link to the canonical source.
+
+A wider catalogue with commercial offerings and the
+residual-loss-PINN-vs-surrogate distinction lives in
+[Unit 7 §7.6](../unit_07/unit_07.qmd#sec-software).
+
+## Julia packages
+
+### Core SciML stack — used throughout
+
+::: {#pkg-neuralpde}
+**[`NeuralPDE.jl`](https://github.com/SciML/NeuralPDE.jl){target="_blank"}**
+— Symbolic PINN solver. Takes a `ModelingToolkit.PDESystem` (equation
++ domain + BCs) and a `PhysicsInformedNN(chain, training_strategy)`
+discretisation and builds the physics-informed loss automatically.
+The workshop's primary PINN driver.
+:::
+
+::: {#pkg-lux}
+**[`Lux.jl`](https://lux.csail.mit.edu/stable/){target="_blank"}**
+— Explicit-parameter neural-network framework. Keeps parameters
+`ps` and state `st` separated from the model so they compose
+cleanly with SciML solvers. Used inside `NeuralPDE.jl` for all
+network architectures from [Unit 2](../unit_02/unit_02.qmd)
+onwards.
+:::
+
+::: {#pkg-modelingtoolkit}
+**[`ModelingToolkit.jl`](https://github.com/SciML/ModelingToolkit.jl){target="_blank"}**
+— Symbolic-numeric CAS. Defines `PDESystem`, the canonical
+symbolic-PDE input for both `MethodOfLines.jl` and
+`NeuralPDE.jl`.
+:::
+
+::: {#pkg-methodoflines}
+**[`MethodOfLines.jl`](https://github.com/SciML/MethodOfLines.jl){target="_blank"}**
+— Automated finite-difference discretisation of `PDESystem`s.
+Used in [Unit 5](../unit_05/unit_05.qmd) and
+[Unit 10](../unit_10/unit_10.qmd) to generate FD reference
+solutions against which PINNs are benchmarked.
+:::
+
+::: {#pkg-ordinarydiffeq}
+**[`OrdinaryDiffEq.jl`](https://github.com/SciML/OrdinaryDiffEq.jl){target="_blank"}**
+— High-performance ODE/DAE solvers (Tsit5, Rodas5P, QNDF, etc.).
+Drives Neural-ODE / UDE training loops in
+[Unit 4](../unit_04/unit_04.qmd) and provides ground-truth
+trajectories throughout.
+:::
+
+::: {#pkg-optimization}
+**[`Optimization.jl`](https://docs.sciml.ai/Optimization/stable/){target="_blank"}**
+— Unified wrapper over `Optim`, `Optimisers.jl`, `NLopt`, `Ipopt`,
+etc. The interface `NeuralPDE.jl` drives for Adam / L-BFGS PINN
+training.
+:::
+
+::: {#pkg-scimlsensitivity}
+**[`SciMLSensitivity.jl`](https://docs.sciml.ai/SciMLSensitivity/stable/){target="_blank"}**
+— Forward and adjoint sensitivity backends (`InterpolatingAdjoint`,
+`BacksolveAdjoint`, `EnzymeVJP`, `ZygoteVJP`) for differentiating
+through ODE / PDE solves inside neural training. Required by the
+Neural-ODE / UDE workflow in [Unit 4](../unit_04/unit_04.qmd).
+:::
+
+### Automatic differentiation
+
+::: {#pkg-zygote}
+**[`Zygote.jl`](https://github.com/FluxML/Zygote.jl){target="_blank"}**
+— Reverse-mode source-to-source AD. The default outer-gradient
+backend for PINN training in
+[Units 5–9](../unit_05/unit_05.qmd).
+:::
+
+::: {#pkg-forwarddiff}
+**[`ForwardDiff.jl`](https://github.com/JuliaDiff/ForwardDiff.jl){target="_blank"}**
+— Forward-mode AD via dual numbers. The default for *inner*
+derivatives (spatial / temporal derivatives of the network output)
+in PINN residuals.
+[Unit 5 §5.2](../unit_05/unit_05.qmd) walks the forward-over-forward
+recipe.
+:::
+
+::: {#pkg-enzyme}
+**[`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl){target="_blank"}**
+— LLVM-level AD; increasingly the default in 2025–26 across SciML
+(used by `SciMLSensitivity` as `EnzymeVJP`).
+:::
+
+### Neural networks and operator learning
+
+::: {#pkg-deepequilibrium}
+**[`DeepEquilibriumNetworks.jl`](https://github.com/SciML/DeepEquilibriumNetworks.jl){target="_blank"}**
+— Implicit / equilibrium layers built on Lux + DifferentialEquations
+with $O(1)$-memory backprop.
+:::
+
+::: {#pkg-neuraloperators}
+**[`NeuralOperators.jl`](https://github.com/SciML/NeuralOperators.jl){target="_blank"}**
+— DeepONet, FNO, Markov NO, NOMAD in Julia. Pairs with
+`NeuralPDE.jl` for PINO-style losses; replaces the older
+`FluxNeuralOperators.jl`.
+:::
+
+::: {#pkg-kolmogorovarnold}
+**[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}**
+— Lux-compatible KAN layers (radial basis functions, custom
+gradients). Introduced in
+[Unit 2 §2.7](../unit_02/unit_02.qmd).
+:::
+
+### Classical ML and data
+
+::: {#pkg-mlj}
+**[`MLJ.jl`](https://github.com/alan-turing-institute/MLJ.jl){target="_blank"}**
+— `scikit-learn`-style classical ML framework. Used in
+[Unit 2](../unit_02/unit_02.qmd) for the random-forest baseline.
+:::
+
+::: {#pkg-decisiontree}
+**[`DecisionTree.jl`](https://github.com/JuliaAI/DecisionTree.jl){target="_blank"}**
+— Pure-Julia decision-tree and random-forest implementation. The
+backend for the MNIST RF demo in
+[Unit 2 §2.2](../unit_02/unit_02.qmd).
+:::
+
+::: {#pkg-mldatasets}
+**[`MLDatasets.jl`](https://github.com/JuliaML/MLDatasets.jl){target="_blank"}**
+— Standard ML dataset loaders (MNIST, CIFAR, etc.). Required by
+the MNIST examples in [Unit 2](../unit_02/unit_02.qmd); not in
+the workshop default `Project.toml` to keep precompile light.
+:::
+
+### Plotting and IO
+
+::: {#pkg-plots}
+**[`Plots.jl`](https://github.com/JuliaPlots/Plots.jl){target="_blank"}**
+— High-level plotting (GR backend by default). Used for all
+inline figures.
+:::
+
+::: {#pkg-cairomakie}
+**[`CairoMakie.jl`](https://github.com/MakieOrg/Makie.jl){target="_blank"}**
+— High-quality static figures. Used for the published-quality
+plots in [Unit 1](../unit_01/unit_01.qmd) and
+[Unit 10](../unit_10/unit_10.qmd).
+:::
+
+::: {#pkg-csv}
+**[`CSV.jl`](https://github.com/JuliaData/CSV.jl){target="_blank"}**
+**+ [`DataFrames.jl`](https://github.com/JuliaData/DataFrames.jl){target="_blank"}**
+— Tabular IO. Used throughout for synthetic-mooring data
+exchange.
+:::
+
+## Python packages
+
+### PINN libraries
+
+::: {#pkg-deepxde}
+**[`DeepXDE`](https://github.com/lululxvi/deepxde){target="_blank"}**
+— The reference Python PINN library (Lu Lu, originally
+Karniadakis group at Brown). Multi-backend (TF1/TF2, PyTorch,
+JAX, PaddlePaddle); forward + inverse ODE / PDE / IDE with CSG
+geometries. The closest Python analogue to `NeuralPDE.jl`. Used
+in [Unit 10 §10.4](../unit_10/unit_10.qmd) for the cross-language
+parallel.
+:::
+
+::: {#pkg-physicsnemo}
+**[`NVIDIA PhysicsNeMo`](https://github.com/NVIDIA/physicsnemo){target="_blank"}**
+— PyTorch-based physics-ML framework (formerly *Modulus*). PINNs,
+FNOs, MeshGraphNets, diffusion surrogates. The commercial /
+production-grade stack catalogued in
+[Unit 7 §7.8](../unit_07/unit_07.qmd).
+:::
+
+::: {#pkg-physicsnemo-sym}
+**[`PhysicsNeMo-Sym`](https://github.com/NVIDIA/physicsnemo-sym){target="_blank"}**
+— Symbolic PDE/BC layer on top of PhysicsNeMo (formerly
+*Modulus-Sym*); Python analogue of `NeuralPDE.jl`.
+:::
+
+::: {#pkg-pina}
+**[`PINA`](https://github.com/mathLab/PINA){target="_blank"}**
+— PyTorch-Lightning-based PINN + neural operator + PINO library
+from mathLab @ SISSA (Rozza group).
+:::
+
+::: {#pkg-jinns}
+**[`jinns`](https://github.com/mia-jinns/jinns){target="_blank"}**
+— JAX-native PINN library (PINNs, SPINNs, HyperPINNs, adaptive
+weights) built on Equinox + Optax.
+:::
+
+### JAX ecosystem (used in Unit 5 §5.2)
+
+::: {#pkg-diffrax}
+**[`Diffrax`](https://github.com/patrick-kidger/diffrax){target="_blank"}**
+— Autodiff / GPU ODE / SDE / CDE solvers in JAX (Patrick
+Kidger). The JAX counterpart to `OrdinaryDiffEq.jl`.
+:::
+
+::: {#pkg-equinox}
+**[`Equinox`](https://github.com/patrick-kidger/equinox){target="_blank"}**
+— Callable-PyTree neural networks for JAX. Foundation of
+`Diffrax` and the typical NN layer for JAX PINNs.
+:::
+
+::: {#pkg-flax}
+**[`Flax (NNX)`](https://github.com/google/flax){target="_blank"}**
+— Google's JAX neural-network library. NNX (2024) is the current
+object-oriented API replacing Linen.
+:::
+
+### PyTorch ecosystem
+
+::: {#pkg-torchdiffeq}
+**[`torchdiffeq`](https://github.com/rtqichen/torchdiffeq){target="_blank"}**
+— Differentiable ODE solvers in PyTorch with adjoint backprop.
+Standard for Neural-ODE and Burgers-class PINN demos. Used
+implicitly in the PyTorch examples of
+[Unit 2 §2.6](../unit_02/unit_02.qmd).
+:::
+
+::: {#pkg-torchdyn}
+**[`torchdyn`](https://github.com/DiffEqML/torchdyn){target="_blank"}**
+— PyTorch library dedicated to neural differential equations and
+implicit models.
+:::
+
+::: {#pkg-pytorch}
+**[`PyTorch`](https://github.com/pytorch/pytorch){target="_blank"}**
+— The deep-learning framework underpinning DeepXDE, PhysicsNeMo,
+PINA, torchdiffeq. The MNIST MLP in
+[Unit 2 §2.6](../unit_02/unit_02.qmd) is its first appearance.
+:::
+
+### Classical ML / data / discovery
+
+::: {#pkg-scikitlearn}
+**[`scikit-learn`](https://github.com/scikit-learn/scikit-learn){target="_blank"}**
+— The Python classical-ML workhorse. Used in
+[Unit 2](../unit_02/unit_02.qmd) for the random-forest, softmax,
+and MLP baselines on MNIST.
+:::
+
+::: {#pkg-scipy}
+**[`SciPy`](https://github.com/scipy/scipy){target="_blank"}**
+— Scientific computing routines (`scipy.integrate.solve_ivp`,
+`scipy.linalg.svd`). Used in
+[Unit 3](../unit_03/unit_03.qmd) for the Python ODE / POD
+parallels.
+:::
+
+::: {#pkg-numpy}
+**[`NumPy`](https://github.com/numpy/numpy){target="_blank"}**
+— The Python array library. Foundation of everything else above.
+:::
+
+::: {#pkg-pysindy}
+**[`PySINDy`](https://github.com/dynamicslab/pysindy){target="_blank"}**
+— Sparse identification of nonlinear dynamics (Brunton / Kutz
+groups). The Python equivalent of the hand-rolled STLSQ in
+[Unit 3 §3.4](../unit_03/unit_03.qmd).
+:::
+
+::: {#pkg-pykan}
+**[`pykan`](https://github.com/KindXiaoming/pykan){target="_blank"}**
+— Reference Kolmogorov-Arnold Network implementation
+(Liu et al. 2024). Used in
+[Unit 2 §2.7](../unit_02/unit_02.qmd) for the KAN demo.
+:::
+
+::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; text-align: right;"}
+[**→ Mathematical Review**](../math_review/math_review.qmd){style="font-weight: bold; padding: 0.4em 1em; background: #f4d03f; color: #20242c; border-radius: 4px; text-decoration: none;"}
+:::
