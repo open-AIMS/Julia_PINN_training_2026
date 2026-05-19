@@ -18,7 +18,7 @@ the workshop.
 You are a fictional oceanographer with three thermistor chains
 deployed along a cross-shelf transect of the central Great Barrier
 Reef, offshore from Townsville. Each chain samples temperature at
-five depths, hourly, for 20 days. A storm passes through on day 10,
+five depths, hourly, for 30 days. A storm passes through on day 10,
 and across the three sites the deeper sensors record signatures
 that do *not* line up with each other — one site cools quickly and
 recovers, another shows a deep slow cooling, and the third looks
@@ -338,7 +338,7 @@ time on commodity hardware.
   ($\tanh$); $\tau_\phi(t)$ as a 2-layer 16-neuron MLP. ~5 000
   parameters total.
 - **Collocation.** $N_r = 2000$ residual points, $N_b = 200$ BC
-  points, $N_d = 2400$ data points.
+  points, $N_d = 5 \text{ sensors} \times 720 \text{ samples} = 3600$ data points.
 
 ### 9.9.2 Workflow
 
@@ -429,8 +429,9 @@ single coherent storm signal explains all three.
   for the diurnal cycle; hard BC at $z = -H$ and at the IC;
   adaptive loss weighting (gradient-balancing) for the
   per-site residual and BC losses; causal time training.
-- **Collocation.** $N_r = 50\,000$ per site, $N_d = 7\,200$ per
-  site (3 × 5 sensors × 480 samples).
+- **Collocation.** $N_r = 50\,000$ per site, $N_d = 3\,600$ per
+  site (5 sensors × 720 hourly samples); 10 800 data points across
+  the three sites combined.
 
 ### 9.10.2 Workflow
 

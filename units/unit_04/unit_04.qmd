@@ -257,12 +257,13 @@ governing PDE in part of the domain, a well-established empirical
 law) and *some* term that's empirical or unknown. UDEs let you
 write the known bits with a pencil and learn the rest with a small
 network — the position taken throughout
-[Units 8–9](../unit_08/unit_08.qmd) of the capstone.
+[Units 8–10](../unit_08/unit_08.qmd) of the capstone.
 
 ### Known physics + learned closure
 
-A **Universal Differential Equation (UDE)** [Rackauckas et al.,
-2020] is an ODE whose right-hand side splits into a *known* term
+A **Universal Differential Equation (UDE)**
+([Rackauckas et al. 2020](../references/references.qmd#ref-rackauckas2020){target="_blank"})
+is an ODE whose right-hand side splits into a *known* term
 and a *learned* term:
 
 $$\dot{\mathbf{x}} = \underbrace{f_{\text{phys}}(\mathbf{x}, t)}_{\text{known}}
@@ -467,7 +468,7 @@ units add the rest of the toolkit:
 - **[Unit 7](../unit_07/unit_07.qmd)** covers what goes wrong in
   practice with the residual approach (the so-called "PINN failure
   modes") and the modern fixes.
-- **[Units 8–9](../unit_08/unit_08.qmd)** combine *both* approaches
+- **[Units 8–10](../unit_08/unit_08.qmd)** combine *both* approaches
   on the capstone column problem: a UDE forward model, then a
   hybrid residual + trajectory inverse for the unknown driver.
 

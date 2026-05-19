@@ -46,7 +46,7 @@ classify, and solve them.
 | **Wave** | $u_{tt} = c^2\,\nabla^2 u$ | Hyperbolic | Vibrations, sound, electromagnetic waves |
 | **Advection–diffusion** | $u_t + c\,\partial_x u = \alpha\,u_{xx}$ | Mixed (parabolic + 1st-order hyperbolic) | Pollutant or heat in a flow |
 | **Burgers** | $u_t + u\,u_x = \nu\,u_{xx}$ | Nonlinear | Shock formation; simple fluid model |
-| **Shallow water** | $\eta_t + H\,\nabla\!\cdot\!\mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in [Unit 8](../unit_08/unit_08.qmd)) |
+| **Shallow water** | $\eta_t + H\,\nabla\!\cdot\!\mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in §6.8) |
 
 ### Order, Linearity, and Type
 
@@ -416,7 +416,7 @@ closed form $u(x, t) = \sin(\pi x)\, e^{-\alpha \pi^2 t}$. For
 $\alpha = 0.01$, $\Delta x = 0.01$, $\Delta t = 0.4\,\Delta x^2 /
 \alpha$, the FTCS solution agrees with the exact answer to
 $\sim 10^{-3}$ over $t \in [0, 5]$ — better than the rounded
-plot you'd see by eye. The script in §6.3 above is one line away
+plot you'd see by eye. The script in §6.4 above is one line away
 from this benchmark (swap the IC).
 
 ## 6.5 Finite Volumes

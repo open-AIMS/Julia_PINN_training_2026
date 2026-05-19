@@ -233,7 +233,7 @@ Learning (ICML)**, PMLR 97.
 
 [Documents the bias of MLPs with smooth activations toward learning
 low frequencies first — the root cause of the "Gaussian-bump-smooths-
-too-fast" failure flagged in Unit 5.5 and the motivation for Fourier
+too-fast" failure flagged in Unit 5 §5.6 and the motivation for Fourier
 features in Unit 7.3.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
 :::
 
@@ -424,7 +424,7 @@ neural networks.*
 
 [Causal training: re-weights residual losses in time so a slice
 contributes only after earlier slices have converged. Directly
-addresses the "causal violation" failure mode flagged in Units 5.5
+addresses the "causal violation" failure mode flagged in Units 5.6
 and 7.2 — and one of the most effective fixes when the PDE has
 genuine time-direction structure.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
 :::

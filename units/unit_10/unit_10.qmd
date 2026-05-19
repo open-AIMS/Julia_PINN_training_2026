@@ -201,7 +201,7 @@ $$
 
 Hand-tuned weights: $\lambda_r = 1$, $\lambda_d = 100$,
 $\lambda_{\text{reg}} = 10^{-2}$ — the data weight is high
-because the data set is small (5 sensors × 480 samples) and the
+because the data set is small (5 sensors × 720 hourly samples) and the
 $H^1$ penalty is the only thing keeping $\tau_\phi$ from absorbing
 noise. Trained Adam(1e-3) for 5000 + L-BFGS for 1000. **~15
 minutes on an M2 MacBook.**

@@ -582,6 +582,7 @@ Click any filename to jump to the source on GitHub:
 | [`generate_site_map.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_site_map.py){target="_blank"} | OSM/CartoDB site-map figure | ~$\!10$ s |
 | [`generate_surge_data.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_data.jl){target="_blank"} | linearised-SWE forward solve, gauge timeseries, snapshots | ~$\!12$ s |
 | [`generate_surge_frames.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_frames.jl){target="_blank"} | per-snapshot PNG frames for the slider | ~$\!90$ s |
+| [`generate_surge_animation.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_animation.jl){target="_blank"} | optional GIF assembled from the surge frames | ~$\!30$ s |
 | [`train_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_pinn.jl){target="_blank"} | naive PINN inverse (`Lux.jl` for the network, `Zygote.jl` for autodiff — both covered in [Unit 2](../unit_02/unit_02.qmd) / [Unit 5](../unit_05/unit_05.qmd)) | ~$\!3$ min |
 | [`train_inverse_adjoint.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_adjoint.jl){target="_blank"} | Green's-function / Tikhonov inverse | ~$\!15$ s |
 | [`render_recovery_plot.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/render_recovery_plot.jl){target="_blank"} | the ψ + 2×2 gauge comparison plot | ~$\!2$ s |
@@ -647,8 +648,9 @@ example assumed without explanation. In order:
   harder PDEs.** Fourier features, causal training, hard BC
   enforcement, adaptive loss weighting — the fixes for the exact
   failure mode the naive PINN exhibited above.
-- **[Unit 8](../unit_08/unit_08.qmd) — Reef-scale PDE background.**
-  The ocean physics the capstone column rests on: the column
+- **[Unit 8](../unit_08/unit_08.qmd) — PDE modelling in key AIMS
+  domains.** The reef-scale ocean physics the capstone column
+  rests on: the column
   idealisation, advection vs diffusion in fluids, the surface
   energy budget, stratification and mixing, dimensionless regimes.
 - **[Unit 9](../unit_09/unit_09.qmd) — Capstone specification.**

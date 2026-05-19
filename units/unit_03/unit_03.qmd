@@ -212,7 +212,7 @@ control engineers exploit. We'll come back to damped oscillators
 when we discuss the inverse problem in [Unit 4](../unit_04/unit_04.qmd):
 recovering $\zeta$ from a noisy trajectory is the simplest possible
 "physics parameter from data" problem and a useful sanity check
-before attempting the AIMS capstone in [Unit 8–9](../unit_08/unit_08.qmd).
+before attempting the AIMS capstone in [Units 8–10](../unit_08/unit_08.qmd).
 
 ### Why ODEs matter for the rest of the unit
 
@@ -644,5 +644,5 @@ oscillator above and a small collection of ODE / PDE toys.
 [Unit 6](../unit_06/unit_06.qmd) provides the PDE foundations.
 [Unit 7](../unit_07/unit_07.qmd) addresses where naïve PINNs fail
 and how the modern fixes close the gap.
-[Units 8–9](../unit_08/unit_08.qmd) assemble the AIMS capstone —
+[Units 8–10](../unit_08/unit_08.qmd) assemble the AIMS capstone —
 forward (Part I) and inverse (Part II).

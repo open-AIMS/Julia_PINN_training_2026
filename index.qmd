@@ -67,8 +67,12 @@ universal approximation rather than classical numerics — no
 Runge–Kutta theory, no stiff-solver internals. We follow the
 ResNet-to-Neural-ODE bridge from Unit 2 and arrive at Universal
 Differential Equations: known physics + learnable closure. Worked
-examples include a damped pendulum with unknown friction and a
-Lotka–Volterra inverse variant.
+examples include a damped pendulum with unknown friction, a
+Lotka–Volterra inverse variant, and — as a real-world AIMS domain
+case — a Crown-of-Thorns starfish UDE for the Great Barrier Reef
+(after Morello et al. 2014), where the COTS mortality term is the
+learned closure on top of known logistic coral growth + Holling-II
+grazing.
 
 ## [Unit 5: PINNs on Basic Models](units/unit_05/unit_05.qmd)
 
@@ -102,7 +106,7 @@ practitioners actually use. Closes with a software-ecosystem map
 where PINNs have shown success across seven application areas,
 and an honest catalogue of industrial deployments.
 
-## [Unit 8: The Science of Ocean PDE Modelling](units/unit_08/unit_08.qmd)
+## [Unit 8: PDE Modelling in Key AIMS Domains](units/unit_08/unit_08.qmd)
 
 A short, intuition-first tour of the ocean physics that powers the
 capstone — for people fluent in PDEs and ML but not in

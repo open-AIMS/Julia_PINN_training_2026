@@ -109,7 +109,7 @@ vector). 60 000 are reserved for training, 10 000 for test. It is
 the canonical "easy classification benchmark" in deep learning —
 small enough to fit in memory, hard enough that a naive baseline
 isn't perfect, and used in [Goodfellow, Bengio &
-Courville](../references/references.qmd){target="_blank"} (Chapters
+Courville](../references/references.qmd#ref-goodfellow2016){target="_blank"} (Chapters
 1, 5, 6) and *Mathematical Engineering of Deep Learning* (Chapters
 5–6) for exactly the kind of side-by-side comparison we're about
 to do.
@@ -395,7 +395,7 @@ that often finishes the job (L-BFGS), the batching choices that
 determine how noisy each gradient estimate is, and finally the
 forward-vs-reverse-mode autodiff distinction that PINNs depend on.
 Most of this material is treated at greater depth in
-[Goodfellow, Bengio & Courville Chapter 8](../references/references.qmd){target="_blank"};
+[Goodfellow, Bengio & Courville Chapter 8](../references/references.qmd#ref-goodfellow2016){target="_blank"};
 the goal here is a working understanding sufficient to read PINN
 training code and know which knob to turn when it doesn't converge.
 

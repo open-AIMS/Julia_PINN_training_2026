@@ -1,7 +1,7 @@
 # Reference 1D vertical heat-transport column solver (finite-difference,
-# method-of-lines). See unit_11.qmd for the model specification.
+# method-of-lines). See unit_09.qmd for the model specification.
 #
-# Scenarios (per unit_11.qmd §11.8):
+# Scenarios (per unit_09.qmd §9.11):
 #   1. pure diffusion to steady state
 #   2. diurnal cycle (Q_SW + body source S)
 #   3. add upwelling (w(z))
@@ -17,7 +17,7 @@ using DomainSets: ClosedInterval
 using CairoMakie
 using Printf
 
-# ── reference parameters (unit_11.qmd §11.6) ────────────────────────────
+# ── reference parameters (unit_09.qmd §9.6) ────────────────────────────
 const PARAMS = (
     H         = 100.0,    # column depth (m)
     ρ         = 1025.0,   # seawater density (kg/m³)
@@ -152,7 +152,7 @@ scenario_3() = (
 # Scenario 4 (storm): Gaussian gust centred at t_storm. The gust spikes
 # upwelling (w_storm) and dims the surface SW (cloud cover via S_storm).
 # Real SWE-driven forcings would replace these envelopes; this is the
-# prescribed-driver stub used in §11.8 task 5.
+# prescribed-driver stub used in §9.11 task 5.
 scenario_4() = (
     name   = "storm fingerprint",
     w      = w_storm,
@@ -243,7 +243,7 @@ function plot_mooring(r; depths_m=(2.0, 10.0, 30.0, 60.0, 90.0),
 end
 
 # ── entry point when run as script ──────────────────────────────────────
-# Used by ./build.sh execute 11 to populate units/unit_11/output/.
+# Used by ./build.sh execute 10 to populate units/unit_10/output/.
 if abspath(PROGRAM_FILE) == @__FILE__
     r1 = run_scenario(scenario_1());  plot_scn1(r1)
     r2 = run_scenario(scenario_2());  plot_scn2(r2)
