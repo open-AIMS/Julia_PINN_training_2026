@@ -133,7 +133,7 @@ versions**:
 Plus the shared forward problem, the toy-task ladder both versions
 build on, and an honest CPU-vs-GPU runtime breakdown.
 
-## [Unit 10: A project the solution](units/unit_10/unit_10.qmd)
+## [Unit 10: Project Solution](units/unit_10/unit_10.qmd)
 
 The worked **solution** to the capstone — read at your own risk.
 The page opens behind a triple-click confirmation overlay (we
@@ -149,7 +149,7 @@ shared infrastructure stays readable without spoilers.
 - [**Software Resources**](units/software/software.qmd) — Julia
   packages (first) then Python packages (second), with one-line
   descriptions and canonical links.
-- [**Mathematical Review**](units/math_review/math_review.qmd) —
+- [**Mathematical Notation**](units/math_review/math_review.qmd) —
   glossary of notation used throughout the course: partial
   derivatives, gradients, dot products, PINN-specific symbols.
 - [**Physical / Oceanography Review**](units/physical_review/physical_review.qmd)

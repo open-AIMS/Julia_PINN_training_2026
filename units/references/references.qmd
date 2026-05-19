@@ -6,19 +6,6 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-This page collects all bibliographic references cited in the course.
-In-text citations such as `[Author et al., year]` link directly here
-and open in a new window; close the popup to return to the unit you
-were reading. Each entry has a short blurb on *why* the work matters
-and *where* it shows up in the workshop.
-
-Three companion appendices follow in the table of contents:
-[Software Resources](../software/software.qmd) (Julia + Python
-packages), [Mathematical Review](../math_review/math_review.qmd)
-(notation glossary), and
-[Physical / Oceanography Review](../physical_review/physical_review.qmd)
-(domain-term glossary).
-
 ## Cited works
 
 ::: {#ref-brunton2016}

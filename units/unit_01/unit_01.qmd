@@ -432,6 +432,41 @@ These four timeseries, the bathymetry, and the physics are
 **all the information the inverse solver gets**. The river-mouth
 source $\psi(t)$ is hidden.
 
+::: {.callout-note collapse="true"}
+## "But G1 is right next to the river mouth — why is recovering ψ even hard?"
+
+A reasonable challenge after looking at the site map. Three
+reasons the answer isn't just "$\hat\psi(t) \approx \eta_{G1}(t)$":
+
+1. **G1 isn't on top of the mouth.** It sits at Brisbane Bar /
+   Pile Light, ~1.5 km north of the Luggage Point mouth cell
+   (cells (29, 105) → (29, 108), same iy, 3 cells east).
+   At the inner-bay wave speed
+   $c = \sqrt{g\,H} \approx 7.7\,\mathrm{m/s}$ that's a ~3-minute
+   travel time — short but not zero.
+2. **Even at G1, $\eta$ is a *convolution* of $\psi$ with the bay's
+   Green's function**, not $\psi$ itself. Geometric spreading
+   attenuates the signal; reflections off Moreton Island and the
+   southern bay add ringing; the eastern sponge layer takes some
+   energy out. Reading $\hat\psi$ off G1 alone is a 1-D
+   deconvolution — and deconvolution is the textbook ill-posed
+   inverse problem, because the inverse filter amplifies the
+   $1.5\,\text{cm}$ observation noise into a $\sim 5$–$10\,\text{cm}$
+   error envelope on $\psi$.
+3. **Robust recovery uses *all four* gauges + the SWE physics.**
+   G2, G3, G4 contribute complementary information (different
+   distances, different depths, different reflection paths). The
+   §1.2.6 adjoint inversion and the naive PINN both consume all
+   four; the §1.2.7 figure shows how Tikhonov regularisation
+   stabilises what would otherwise be a noise-dominated inversion.
+
+The capstone in [Unit 9](../unit_09/unit_09.qmd) flips this story
+on its side: there is *no* sensor anywhere near the unknown
+wind-stress driver, and the mooring data is sparse in space (one
+column) and dense in time. The recovery is harder, and the same
+machinery is what makes it possible.
+:::
+
 ### The inverse problem, two ways {#sec-inverse}
 
 We try two complementary approaches that bracket the spectrum

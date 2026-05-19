@@ -1,6 +1,6 @@
 ---
-title: "Mathematical Review"
-toc-title: "Mathematical Review"
+title: "Mathematical Notation"
+toc-title: "Mathematical Notation"
 date: today
 date-format: "DD/MM/YYYY"
 number-sections: false
