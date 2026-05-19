@@ -145,8 +145,3 @@ For a second-order linear PDE $a\, u_{xx} + 2b\, u_{xy} + c\, u_{yy} + \ldots = 
 | Richardson Ri | $N^2/(\partial_z U)^2$ | buoyancy vs. shear |
 | Courant–Friedrichs–Lewy CFL | $c\,\Delta t/\Delta x$ | numerical wave speed |
 | Strouhal St | $fL/U$ | unsteadiness vs. advection |
-
-::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 1em;"}
-[← Software Resources](../software/software.qmd)
-[Physical / Oceanography Review →](../physical_review/physical_review.qmd)
-:::

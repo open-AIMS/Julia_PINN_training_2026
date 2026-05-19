@@ -268,8 +268,3 @@ in [Unit 1 §1.2](../unit_01/unit_01.qmd) and
 | $\alpha_T$ | $\sim 2\times 10^{-4}\,\text{K}^{-1}$ | thermal expansion coefficient |
 | $\kappa_{\text{molecular}}$ | $1.4\times 10^{-7}\,\text{m}^2\,\text{s}^{-1}$ | molecular thermal diffusivity (water) |
 | $\kappa_{\text{turbulent}}$ | $10^{-5}$–$10^{-3}\,\text{m}^2\,\text{s}^{-1}$ | typical *effective* eddy diffusivity |
-
-::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 1em;"}
-[← Mathematical Review](../math_review/math_review.qmd)
-[Course index →](../../index.qmd)
-:::

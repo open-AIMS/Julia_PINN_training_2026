@@ -428,8 +428,3 @@ addresses the "causal violation" failure mode flagged in Units 5.5
 and 7.2 — and one of the most effective fixes when the PDE has
 genuine time-direction structure.]{style="display:block; margin-left:1.75em; font-size:0.9em; color:#555; margin-top:0.3em; margin-bottom:0.6em;"}
 :::
-
-::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 1em;"}
-[← Unit 10: A project the solution](../unit_10/unit_10.qmd)
-[Software Resources →](../software/software.qmd)
-:::
