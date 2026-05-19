@@ -21,7 +21,7 @@ Course material is **75% Julia, 25% Python**, developed in collaboration
 with the [Australian Institute of Marine Science (AIMS)](https://www.aims.gov.au/).
 
 ::: {style="margin: 1.5em 0; padding: 1em 1.2em; border-left: 3px solid #2b486b; background: #f4f7fb; font-size: 0.95em;"}
-**Created by** [Yoni Nazarathy](https://www.accumulationpoint.com/) at
+**Created by** [Yoni Nazarathy](https://yoninazarathy.com/) at
 [Accumulation Point](https://www.accumulationpoint.com/).
 
 **Prerequisite / Julia refresher** — participants who want a
