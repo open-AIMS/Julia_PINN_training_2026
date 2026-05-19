@@ -62,8 +62,8 @@ different fingerprint of the same event.
 
 The simplest reading of the capstone is **three independent inverse
 problems**: each site recovers its own local wind-stress envelope
-$\tau_i(t)$ from its own mooring data. That's what §9.8 below sets
-up.
+$\tau_i(t)$ from its own mooring data. That's what §9.9 (Task A)
+below sets up.
 
 An *extended* problem couples all three sites by sharing a single
 storm-event forcing $\tau(t)$ (an atmospheric input felt across the
@@ -162,7 +162,7 @@ temperature up.
   surface. Sum of: longwave radiation, sensible heat, latent heat
   (evaporation). Units: W/m². Positive means heat *into* the ocean.
 - **$\rho_0$** — reference seawater density, $\approx 1025\,\text{kg/m}^3$.
-- **$c_p$** — specific heat of seawater, $\approx 4000\,\text{J/(kg·K)}$.
+- **$c_p$** — specific heat of seawater, $\approx 3990\,\text{J/(kg·K)}$.
 
 The penetrating shortwave $Q_{\text{SW}}$ is *not* in this BC — it
 lives inside $\mathcal{S}(z, t)$ as a body source instead.
@@ -255,7 +255,7 @@ Three closures in increasing realism (pick one per experiment):
 | $H$ | 100 | m | column depth |
 | $T_f$ | 30 days | s | simulation horizon |
 | $\rho_0$ | 1025 | kg/m³ | seawater density |
-| $c_p$ | 4000 | J/(kg·K) | specific heat |
+| $c_p$ | 3990 | J/(kg·K) | specific heat |
 | $\alpha$ | $2\!\times\!10^{-4}$ | 1/K | thermal expansion |
 | $T_{\text{surface}}$ | 28 | °C | initial SST |
 | $T_{\text{deep}}$ | 18 | °C | deep reservoir |
@@ -288,7 +288,7 @@ Solved two ways, both in [Unit 10](../unit_10/unit_10.qmd):
    the modern fixes from [Unit 7](../unit_07/unit_07.qmd) (hard BC,
    causal training, Fourier features).
 
-The toy-task ladder of §9.10 builds up to the forward problem in
+The toy-task ladder of §9.11 builds up to the forward problem in
 five stages. Both Task A and Task B inverse problems start from
 this same forward solver.
 

@@ -55,7 +55,8 @@ choosing which terms to keep and which to drop.
 This unit is about which terms reef-scale modellers keep, and *why*.
 The capstone focuses on the **thermal column** problem (a single
 sensor near a reef, over a few weeks) but the same ideas transfer
-directly to nutrients and tracers — we spell that out in §8.6.
+directly to nutrients and tracers — same equation, different
+source term and boundary conditions.
 
 ## 8.2 The column idealisation
 
@@ -111,18 +112,20 @@ $$ {#eq-column}
 closed by the two boundary conditions
 
 $$
--\,\rho\, c_p\, \kappa(0, t)\,\frac{\partial T}{\partial z}\bigg|_{z = 0}
+\rho\, c_p\, \kappa(0, t)\,\frac{\partial T}{\partial z}\bigg|_{z = 0}
 \;=\; Q_{\text{np}}(t),
 \qquad
 T(-H, t) \;=\; T_{\text{deep}}.
 $$ {#eq-column-bcs}
 
 The Neumann condition at the surface is the **bulk air–sea heat-flux
-relation**: the diffusive temperature flux out of the column equals
-the non-penetrating heat loss $Q_{\text{np}}$ (longwave + sensible +
-latent). The Dirichlet condition at $z = -H$ pins the bottom to a
-much-slower-varying deep reservoir. $\rho \approx 1025\,\mathrm{kg/m^3}$
-and $c_p \approx 3990\,\mathrm{J\,kg^{-1}\,K^{-1}}$ are the seawater
+relation**: with $z$ measured upward, $\kappa\,\partial_z T$ is the
+*downward* diffusive heat flux entering the ocean, set equal to the
+non-penetrating heat input $Q_{\text{np}}$ (positive = heat into the
+ocean; longwave + sensible + latent combined). The Dirichlet
+condition at $z = -H$ pins the bottom to a much-slower-varying deep
+reservoir. $\rho_0 \approx 1025\,\mathrm{kg/m^3}$ and
+$c_p \approx 3990\,\mathrm{J\,kg^{-1}\,K^{-1}}$ are the seawater
 density and heat capacity — they're the only "where do these
 numbers come from" constants in @eq-column-bcs.
 
@@ -218,14 +221,15 @@ The two mechanisms compete. The **Péclet number** $\mathrm{Pe} = wH /
 \kappa$ measures who wins on the column scale: $\mathrm{Pe} \gg 1$ is
 advection-dominated, $\mathrm{Pe} \ll 1$ is diffusion-dominated, and
 $\mathrm{Pe} \sim 1$ is the messy interesting case the capstone column
-lives in (see §8.7).
+lives in (see §8.6).
 
 The same advection–diffusion equation governs *any* passive scalar:
 replace $T$ with a nutrient concentration $C$, a sediment
 concentration, or a tracer dye, and the equation is unchanged. What
 changes is the source term — biological uptake for nutrients,
 gravitational sinking for sediment, photochemical decay for dyes —
-and the boundary conditions. §8.6 spells out the nutrient case.
+and the boundary conditions. The capstone focuses on the thermal
+case; the nutrient case has the same machinery throughout.
 
 ## 8.4 Surface energy budget
 
@@ -344,7 +348,7 @@ $w_0 = 10^{-5}$ m/s:
   layer.
 
 These three numbers explain almost every qualitative behaviour
-you'll see in the toy tasks in [Unit 9](../unit_09/unit_09.qmd) §9.8:
+you'll see in the toy tasks in [Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks):
 why the diurnal warm layer is thin, why a 3-day storm leaves a
 fingerprint deeper than naive cooling would suggest, why SST cools
 slowly under upwelling, and why the steady state is reached only

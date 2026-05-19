@@ -609,10 +609,12 @@ unexpected cooling pattern. The competing hypotheses:
 3. **Surface heating reduced** — cloud cover and evaporation cut
    the net flux into the ocean.
 
-Each leaves a distinct fingerprint in the depth–time record. By
-[Unit 9](../unit_09/unit_09.qmd) we build a PINN that, given the
-mooring data, identifies which mechanism dominated. The full model
-specification lives in [Unit 10](../unit_10/unit_10.qmd).
+Each leaves a distinct fingerprint in the depth–time record. The
+full model specification — Task A (single-site, CPU) and Task B
+(three-site joint, GPU) — lives in
+[Unit 9](../unit_09/unit_09.qmd); the worked solution that recovers
+which mechanism dominated is in
+[Unit 10](../unit_10/unit_10.qmd).
 
 Same intellectual shape as today's worked example — *physics +
 sparse data → unknown driver* — but with a different geometry,
@@ -645,21 +647,24 @@ example assumed without explanation. In order:
   harder PDEs.** Fourier features, causal training, hard BC
   enforcement, adaptive loss weighting — the fixes for the exact
   failure mode the naive PINN exhibited above.
-- **[Unit 8](../unit_08/unit_08.qmd) — Capstone forward model.**
-  Building the full 1-D ocean column + shallow-water driver for the
-  capstone scenario previewed in §1.3.
-- **[Unit 9](../unit_09/unit_09.qmd) — Capstone inverse.** Closing the
-  loop: recover an unknown driver from sparse mooring data —
-  exactly the workflow you saw in §1.2, fully derived from first
-  principles.
-- **[Unit 10](../unit_10/unit_10.qmd) — Capstone specification.** The
-  full problem statement, success criteria, and dataset for the
-  end-of-course capstone.
+- **[Unit 8](../unit_08/unit_08.qmd) — Reef-scale PDE background.**
+  The ocean physics the capstone column rests on: the column
+  idealisation, advection vs diffusion in fluids, the surface
+  energy budget, stratification and mixing, dimensionless regimes.
+- **[Unit 9](../unit_09/unit_09.qmd) — Capstone specification.**
+  Both versions of the project: Task A (single-site,
+  CPU-friendly) and Task B (three-site joint inverse, GPU-class).
+  Every equation, parameter, deliverable, and success criterion.
+- **[Unit 10](../unit_10/unit_10.qmd) — Capstone solution.** Worked
+  solutions for both tasks, behind a triple-click reveal so you
+  can attempt the project first. Closes the loop by recovering
+  the unknown driver from sparse mooring data — exactly the
+  workflow you saw in §1.2.
 
 ### 75 % Julia, 25 % Python
 
 Julia is the primary language: `Lux.jl`, `NeuralPDE.jl`,
 `MethodOfLines.jl`, the broader SciML stack. Python parallels
 appear in [Unit 2](../unit_02/unit_02.qmd) (`scikit-learn`,
-`PyTorch`) and [Unit 9](../unit_09/unit_09.qmd) (`DeepXDE`) so
+`PyTorch`) and [Unit 10](../unit_10/unit_10.qmd) (`DeepXDE`) so
 participants leave with a sense of the cross-ecosystem landscape.

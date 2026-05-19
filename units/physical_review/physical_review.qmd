@@ -6,11 +6,6 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555; display: flex; justify-content: space-between;"}
-[← Mathematical Review](../math_review/math_review.qmd)
-[→ Course index](../../index.qmd)
-:::
-
 A glossary of the physical and oceanographic concepts used in the
 course, especially those that appear in [Unit 1](../unit_01/unit_01.qmd)
 (Moreton Bay shallow-water surge) and
@@ -140,7 +135,7 @@ by the Coriolis parameter $f = 2\Omega \sin\phi$, with $\phi$
 latitude. Deflects rightward in the Northern hemisphere,
 leftward in the Southern. Negligible on the Unit 1 surge scale
 ($\sim$ 50 km, $\sim$ 6 hours) but dominant in the full SWE
-system of [Unit 7 §7.2](../unit_07/unit_07.qmd).
+system referenced in [Unit 7 §7.2](../unit_07/unit_07.qmd).
 :::
 
 ::: {#term-diffusion}
@@ -222,8 +217,9 @@ of the 3-D Navier–Stokes equations valid when horizontal
 length-scales greatly exceed water depth. The 2-D unknowns are
 surface elevation $\eta$ and depth-averaged horizontal velocity
 $\mathbf{u}_h$. Cover the Unit 1 surge problem in linearised
-form; the full nonlinear system is in
-[Unit 7 §7.2](../unit_07/unit_07.qmd).
+form; the full nonlinear system is sketched in
+[Unit 7 §7.2](../unit_07/unit_07.qmd) (where it serves as a
+worked PINN-failure example, not a fully-solved benchmark).
 :::
 
 ::: {#term-storm-surge}
@@ -272,3 +268,8 @@ in [Unit 1 §1.2](../unit_01/unit_01.qmd) and
 | $\alpha_T$ | $\sim 2\times 10^{-4}\,\text{K}^{-1}$ | thermal expansion coefficient |
 | $\kappa_{\text{molecular}}$ | $1.4\times 10^{-7}\,\text{m}^2\,\text{s}^{-1}$ | molecular thermal diffusivity (water) |
 | $\kappa_{\text{turbulent}}$ | $10^{-5}$–$10^{-3}\,\text{m}^2\,\text{s}^{-1}$ | typical *effective* eddy diffusivity |
+
+::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 1em;"}
+[← Mathematical Review](../math_review/math_review.qmd)
+[Course index →](../../index.qmd)
+:::

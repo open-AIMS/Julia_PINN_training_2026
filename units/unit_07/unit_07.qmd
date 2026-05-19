@@ -12,7 +12,7 @@ violation) on a column heat equation and on shallow water, then walk
 through the modern fixes that mostly close the gap: causal training,
 Fourier feature embeddings, hard boundary-condition enforcement,
 adaptive loss weighting. By the end of the unit the toolkit needed for
-the [capstone](../unit_08/unit_08.qmd) is in place.
+the [capstone](../unit_09/unit_09.qmd) is in place.
 
 ## 7.1 Vanilla PINNs on PDEs
 
@@ -212,7 +212,7 @@ a new diagnosis. We reproduce the cleanest case — the 1-D
 reduction of their linearised SWE — below to make the failure
 concretely visible before we discuss fixes.
 
-### Worked example: naïve linearised shallow water
+### Worked example: naïve linearised shallow water {#sec-de-wolff}
 
 A 1-D reduction of the linearised SWE
 ($\eta_t + H u_x = 0,\;u_t + g\eta_x = 0$ on $[0, 2]\times[0,
@@ -455,7 +455,7 @@ With those in hand, the modern PINN is ready for the
 [capstone](../unit_08/unit_08.qmd). [Unit 9](../unit_09/unit_09.qmd)
 walks Workflow 3 end-to-end on the AIMS thermistor column.
 
-## 7.6 The PINN software ecosystem
+## 7.6 The PINN software ecosystem {#sec-software}
 
 A practitioner reading the 2026 PINN literature will hit at least
 three software stacks. The next three subsubsections lay out the

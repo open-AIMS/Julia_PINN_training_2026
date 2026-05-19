@@ -383,7 +383,7 @@ PDE residual). ReLU's second derivative is zero almost everywhere
 GELU) are the safe default; we use Swish throughout
 [Units 5–7](../unit_05/unit_05.qmd).
 
-## 2.5 Optimisation and autodiff
+## 2.5 Optimisation and autodiff {#sec-optimisation-and-autodiff}
 
 Training a neural network — or fitting a PINN — comes down to
 **minimising a scalar loss over a large parameter vector $\theta

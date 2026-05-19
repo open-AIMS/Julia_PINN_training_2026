@@ -6,11 +6,6 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-::: {style="margin-bottom: 1.5em; padding: 0.6em 1em; border-left: 3px solid #aaa; font-size: 0.95em; color: #555; display: flex; justify-content: space-between;"}
-[← References](../references/references.qmd)
-[→ Mathematical Review](../math_review/math_review.qmd)
-:::
-
 This appendix lists the software packages used or referenced
 throughout the course, in the same style as the bibliographic
 references. **Julia packages come first** (the workshop's primary
@@ -210,7 +205,7 @@ from mathLab @ SISSA (Rozza group).
 weights) built on Equinox + Optax.
 :::
 
-### JAX ecosystem (used in Unit 5 §5.2)
+### JAX ecosystem (cross-language pointers in Units 5 and 7)
 
 ::: {#pkg-diffrax}
 **[`Diffrax`](https://github.com/patrick-kidger/diffrax){target="_blank"}**
@@ -287,4 +282,9 @@ groups). The Python equivalent of the hand-rolled STLSQ in
 — Reference Kolmogorov-Arnold Network implementation
 (Liu et al. 2024). Used in
 [Unit 2 §2.7](../unit_02/unit_02.qmd) for the KAN demo.
+:::
+
+::: {style="margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 1em;"}
+[← References](../references/references.qmd)
+[Mathematical Review →](../math_review/math_review.qmd)
 :::

@@ -83,7 +83,7 @@ sits in [Unit 8](../unit_08/unit_08.qmd). Here we cover three
 things in this order:
 
 - **Shared infrastructure** (§10.1 — open). The finite-difference
-  reference solver, the toy-task ladder ([Unit 9 §9.10](../unit_09/unit_09.qmd)),
+  reference solver, the toy-task ladder ([Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks)),
   and the SWE driver. Both Task A and Task B start from these.
 - **Solution to Task A** (§10.2 — *locked, triple-click to unlock*).
   Single-site CPU-friendly inverse problem.
@@ -100,7 +100,7 @@ through the inverse problem, not in reading our answer.
 ## 10.1 Shared infrastructure
 
 The finite-difference reference solver, the four toy scenarios from
-[Unit 9 §9.10](../unit_09/unit_09.qmd), and the SWE driver — all
+[Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks), and the SWE driver — all
 needed regardless of whether you're solving Task A or Task B.
 
 ### Finite-difference reference solver
@@ -111,7 +111,7 @@ ground truth we compare PINN predictions against. Uses
 central differences in $z$, with the surface Neumann condition
 imposed via a ghost cell. The full source listing is in §10.6;
 below we work through the four scenarios from
-[Unit 9 §9.10](../unit_09/unit_09.qmd) of increasing complexity.
+[Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks) of increasing complexity.
 
 #### Scenario 1 — pure diffusion to steady state
 
@@ -164,7 +164,7 @@ of scenario 4 with a physically derived $w(t)$.
   <div class="solution-gate-body">
 ```
 
-*Spec: [Unit 9 §9.8](../unit_09/unit_09.qmd). Site A (Cleveland
+*Spec: [Unit 9 §9.9](../unit_09/unit_09.qmd#sec-task-a). Site A (Cleveland
 Bay, $H = 15$ m), one driver to recover, ~30 min on a laptop CPU.*
 
 ### Forward PINN — small architecture
@@ -212,7 +212,7 @@ Plot the recovered $\hat\tau(t)$ against the synthetic ground
 truth. With the regularisation above, the gust envelope is
 recovered with **~12% peak-amplitude error** and timing offset
 under 2 hours — well within the target stated in
-[Unit 9 §9.8](../unit_09/unit_09.qmd). The rising edge is
+[Unit 9 §9.9](../unit_09/unit_09.qmd#sec-task-a). The rising edge is
 slightly smoothed (the $H^1$ penalty does its job) and the tail
 is over-relaxed by ~5% (a classic Tikhonov bias).
 
@@ -262,7 +262,7 @@ These choices are the ones that fail at Task B's scale.
   <div class="solution-gate-body">
 ```
 
-*Spec: [Unit 9 §9.9](../unit_09/unit_09.qmd). Three moorings
+*Spec: [Unit 9 §9.10](../unit_09/unit_09.qmd#sec-task-b). Three moorings
 jointly, $H = 100$ m, modern PINN toolkit, GPU at full scale.
 Here we develop on CPU and queue the GPU launch.*
 
@@ -277,10 +277,13 @@ Here we develop on CPU and queue the GPU launch.*
 - **Hard BC** at $z = -H$ as in Task A; *also* hard at the IC
   via $T_\theta(z, t) = T_0(z) + t\,N_\theta(z, t)$ so the IC
   loss term drops out entirely.
-- **Adaptive loss weighting** (gradient-balancing — McClenny &
-  Braga-Neto 2022) for the surface-flux BC and the residual.
-- **Causal training** (Wang 2022) — residual losses at later
-  times weighted by how well earlier times have already converged.
+- **Adaptive loss weighting** (gradient-balancing —
+  [McClenny & Braga-Neto 2022](../references/references.qmd#ref-mcclenny2022){target="_blank"})
+  for the surface-flux BC and the residual.
+- **Causal training**
+  ([Wang et al. 2022](../references/references.qmd#ref-wang2022causal){target="_blank"})
+  — residual losses at later times weighted by how well earlier
+  times have already converged.
 
 ### Joint three-site inverse
 
@@ -308,7 +311,7 @@ work.
 
 ### What we *did* run on CPU
 
-Three sub-scale prototypes per the [Unit 9 §9.9](../unit_09/unit_09.qmd)
+Three sub-scale prototypes per the [Unit 9 §9.10](../unit_09/unit_09.qmd#sec-task-b)
 checklist:
 
 1. **Sub-scale prototype on Task A's column.** Same modern-toolkit
@@ -433,9 +436,3 @@ cheap. Run with `./build.sh execute 10`; outputs land in
 Captured stdout from `./build.sh execute 10`:
 
 {{< include output/column_fd.md >}}
-
----
-
-::: {style="margin-top: 3em; padding: 1em; border-top: 2px solid #ddd; text-align: right; font-size: 1.05em;"}
-[**→ References**](../references/references.qmd){style="font-weight: bold; padding: 0.4em 1em; background: #f4d03f; color: #20242c; border-radius: 4px; text-decoration: none;"}
-:::

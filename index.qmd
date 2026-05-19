@@ -72,9 +72,10 @@ tackling formal PDE theory in Unit 6 and harder PDE PINNs in Unit 7.
 A fast, intensive tour of the PDE essentials we'll need: classification
 (elliptic, parabolic, hyperbolic), boundary and initial conditions,
 well-posedness, the three canonical mechanisms (diffusion, advection,
-reaction), and finite-difference numerics. Closes with the linearised
-shallow water equations as a worked nonlinear example we revisit in
-the capstone.
+reaction), and finite-difference / finite-volume / finite-element
+numerics with a comparison table. Closes by revisiting the Unit 1
+linearised shallow-water solver in classical PDE terms — hyperbolic
+classification, CFL, staggered grids, radiation boundaries.
 
 ## [Unit 7: When PINNs Meet PDEs](units/unit_07/unit_07.qmd)
 
