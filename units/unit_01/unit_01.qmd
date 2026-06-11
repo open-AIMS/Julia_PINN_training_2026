@@ -298,7 +298,7 @@ speed. We will revisit when each dropped term matters in
 We close the system with a **Dirichlet boundary condition at the
 river-mouth cell** — a "Dirichlet" BC just means we pin the value
 of $\eta$ at that point, as opposed to a "Neumann" BC which would
-pin its derivative — :
+pin its derivative:
 
 $$
 \eta(x_r, y_r, t) \;=\; \psi(t),

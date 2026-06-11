@@ -206,9 +206,9 @@ surge example.
 
 ::: {#term-pile-light}
 **Pile Light.** The historic light station at the entrance of
-the Brisbane River into Moreton Bay; in Unit 1 it locates the
-G1 Brisbane Bar tide gauge near the modelled river-mouth
-boundary condition.
+the Brisbane River into Moreton Bay; in Unit 1 it marks the
+river-mouth region that anchors the surge model's boundary
+condition (the G1 gauge itself sits mid-bay at Mud Island).
 :::
 
 ::: {#term-shallow-water-equations}

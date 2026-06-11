@@ -545,7 +545,7 @@ not just on $\mathbf{x}$):
 Each row inherits the qualitative behaviour of the parent
 mechanisms — diffusion smooths, advection translates, reaction
 sources/sinks. The mixed cases are where the modelling
-*judgement* lives: which terms keep, which to drop, which
+*judgement* lives: which terms to keep, which to drop, which
 constants to estimate. That's the choice the capstone column
 PDE [Unit 8 §8.2](../unit_08/unit_08.qmd) makes for the
 oceanographic setting.
@@ -656,7 +656,7 @@ flux through $\partial V$. Two consequences:
 - **The mesh can be unstructured.** Control volumes are just
   polygons or polyhedra; you don't need a Cartesian grid. This
   makes FV the obvious choice for irregular domains (river
-  networks, coastal coastlines, blood vessels).
+  networks, coastlines, blood vessels).
 
 ### The 1-D conservation-law example
 

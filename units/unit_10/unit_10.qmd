@@ -158,7 +158,7 @@ $$
 
 with $L_\tau = 30\,\text{km}$, $(x_0, y_0)$ tracking a slow-moving
 gust centre (10 km/h drift over 3 days), and $\tau_0(t)$ the
-Gaussian-envelope time profile that **becomes the unknown ψ** in
+Gaussian-envelope time profile that **becomes the unknown** in
 the inverse problem. The forward solve runs `Trixi.jl`-style FV
 on a $200 \times 200$ grid with $\Delta t = 30\,\text{s}$ for the
 30-day window — about 1.5 minutes on a laptop.
@@ -561,7 +561,7 @@ benchmarks:
 |---|---|---|
 | Forward PINN  | ~2 h    | ~8 min   |
 | Inverse PINN  | ~12 h   | ~25 min  |
-| $\hat\tau$ peak error | ~7% | ~3-5% (extrapolated) |
+| $\hat\tau$ peak error | ~7% | ~3–5% (extrapolated) |
 | Residual variance | 1.4× target | 1.0× target (with causal) |
 
 The CPU runs prove the recipe works at reduced scale; the GPU
@@ -577,7 +577,7 @@ Based on the sub-scale prototype scaling:
 |---|---|---|
 | Forward PINN | ~2 h | ~8 min |
 | Inverse PINN | ~12 h | ~25 min |
-| Recovered $\tau$ peak error | ~7% | ~3-5% (extrapolated) |
+| Recovered $\tau$ peak error | ~7% | ~3–5% (extrapolated) |
 
 The CPU runs prove the recipe works; the GPU run is what makes it
 operationally usable for production mooring networks.
