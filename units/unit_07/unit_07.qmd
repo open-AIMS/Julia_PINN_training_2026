@@ -32,7 +32,7 @@ $\mathcal{L}_{\text{PDE}} = \frac{1}{N_r}\sum_{i=1}^{N_r}|r(\mathbf{x}_i, t_i)|^
 evaluated by autodiff at scattered **collocation points** — no grid,
 no time-stepping.
 
-### Heat Equation: A Sanity Check
+### Heat Equation: A Sanity Check {#sec-heat}
 
 The 1D diffusion equation $\partial_t u = \alpha\,\partial_x^2 u$ on
 $[0, 1]\times[0, 2]$ with a Gaussian initial bump and zero boundaries.
@@ -384,9 +384,9 @@ to satisfy them. Loss
 $= \mathcal{L}_{\text{PDE}} + \mathcal{L}_{\text{IC}} + \mathcal{L}_{\text{BC}}$.
 No data term. The trained network *is* the solution.
 
-**Canonical example.** Solve $u_t = \alpha u_{xx}$ on a circular
-domain — the Laplace-on-a-disk example in
-[§7.1](#sec-de-wolff) above is exactly this shape.
+**Canonical example.** Solve $u_t = \alpha u_{xx}$ with given
+initial and boundary conditions — the heat-equation sanity check
+in [§7.1](#sec-heat) above is exactly this shape.
 
 **Reach for it when…** Mesh-free needed (irregular geometry,
 no quadrature scheme); continuous-resolution surrogate wanted

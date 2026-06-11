@@ -569,19 +569,6 @@ run is what makes it operationally usable for production mooring
 networks (a research group with three real moorings can re-run
 this monthly on overnight GPU time).
 
-### Predicted GPU performance at full scale
-
-Based on the sub-scale prototype scaling:
-
-| Metric | CPU sub-scale (2-site, H = 60m) | GPU full-scale (3-site, H = 100m) |
-|---|---|---|
-| Forward PINN | ~2 h | ~8 min |
-| Inverse PINN | ~12 h | ~25 min |
-| Recovered $\tau$ peak error | ~7% | ~3–5% (extrapolated) |
-
-The CPU runs prove the recipe works; the GPU run is what makes it
-operationally usable for production mooring networks.
-
 ### Open questions for the full run
 
 - *Will causality violation re-appear at Myrmidon Reef

@@ -90,20 +90,6 @@ the Great Barrier Reef (after [Morello et al. 2014, *MEPS*](https://www.int-res.
 where COTS mortality is the learned closure on top of known
 logistic coral growth and Holling-II grazing.
 
-## [Unit 4: Learning Dynamics with Neural Differential Equations](units/unit_04/unit_04.qmd)
-
-Ordinary differential equations as models of dynamics, framed through
-universal approximation rather than classical numerics — no
-Runge–Kutta theory, no stiff-solver internals. We follow the
-ResNet-to-Neural-ODE bridge from Unit 2 and arrive at Universal
-Differential Equations: known physics + learnable closure. Worked
-examples include a damped pendulum with unknown friction, a
-Lotka–Volterra inverse variant, and — as a real-world AIMS domain
-case — a Crown-of-Thorns starfish UDE for the Great Barrier Reef
-(after Morello et al. 2014), where the COTS mortality term is the
-learned closure on top of known logistic coral growth + Holling-II
-grazing.
-
 ## [Unit 5: PINNs on Basic Models](units/unit_05/unit_05.qmd)
 
 The first hands-on PINN. §5.1 frames the residual loss and
