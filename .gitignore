@@ -36,4 +36,6 @@ __pycache__/
 
 # Quarto build output
 /_site/
-/_freeze/
+
+# _freeze/ is committed on purpose: it holds Quarto's cached execution
+# results so CI can render the site without re-running the heavy Julia code.

@@ -7,7 +7,11 @@ execute:
     echo: true
     enabled: true
     daemon: 300
-    freeze: auto
+    # freeze: true means a normal project render (`quarto render`) NEVER
+    # re-executes code — it always reuses the committed _freeze/ cache. The
+    # heavy Julia execution only happens when a document is rendered on its
+    # own (see `make recompute` and the "Recompute" GitHub Action).
+    freeze: true
 
 julia:
     exeflags: ["--project=@.", "--threads=1"]
