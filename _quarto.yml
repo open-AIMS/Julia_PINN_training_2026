@@ -7,11 +7,18 @@ execute:
     echo: true
     enabled: true
     daemon: 300
-    # freeze: true means a normal project render (`quarto render`) NEVER
-    # re-executes code — it always reuses the committed _freeze/ cache. The
-    # heavy Julia execution only happens when a document is rendered on its
-    # own (see `make recompute` and the "Recompute" GitHub Action).
-    freeze: true
+    # freeze: auto — a project render (`quarto render`) reuses the committed
+    # _freeze/ cache for documents whose SOURCE IS UNCHANGED, and re-executes
+    # any document whose source changed (prose included: the cache stores the
+    # whole rendered markdown, not just code outputs). Workflow: edit a unit →
+    # render locally (refreshes that unit's _freeze entry) → commit the qmd
+    # AND _freeze together. CI then renders purely from cache; if _freeze is
+    # stale relative to the source, the CI render tries to execute Julia,
+    # which isn't installed there, and fails loudly — by design.
+    #
+    # (Was freeze: true, which silently served stale cached markdown whenever
+    # a source changed without a re-render — prose edits never deployed.)
+    freeze: auto
 
 julia:
     exeflags: ["--project=@.", "--threads=1"]
@@ -43,6 +50,8 @@ website:
           - units/unit_10/unit_10.qmd
       - section: Appendices
         contents:
+          - text: Exercise Solutions
+            href: units/exercise_solutions/exercise_solutions.qmd
           - text: References
             href: units/references/references.qmd
           - text: Software Resources

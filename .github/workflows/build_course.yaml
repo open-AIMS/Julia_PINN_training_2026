@@ -2,10 +2,14 @@ name: Deploy course site
 
 # Light, automatic deploy. Runs on every push to main.
 #
-# With `freeze: true` in _quarto.yml, `quarto render` reuses the committed
-# _freeze/ cache and never executes the Julia code, so this finishes in a
-# couple of minutes. The heavy re-execution lives in recompute.yaml, which
-# only you trigger.
+# With `freeze: auto` in _quarto.yml, `quarto render` reuses the committed
+# _freeze/ cache for every document whose source is unchanged. The cache
+# stores each document's ENTIRE rendered markdown (prose included), so any
+# edit to a unit — code or prose — must be rendered locally first
+# (`make course`), refreshing that unit's _freeze entry, and the _freeze
+# change committed alongside the qmd. When that discipline is followed this
+# job never executes Julia and finishes in a couple of minutes. The
+# from-scratch re-execution lives in recompute.yaml, which only you trigger.
 
 on:
   push:
@@ -31,9 +35,12 @@ jobs:
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
-      # No Julia here on purpose: freeze: true guarantees no code execution.
-      # If this step ever tries to execute (e.g. new code added without a
-      # recompute), it fails loudly — your cue to run the Recompute action.
+      # No Julia here on purpose. With freeze: auto, a document whose source
+      # changed without a fresh local render has a stale _freeze entry, and
+      # this step then tries to execute it — failing loudly because Julia
+      # isn't installed. That's the guard: a stale cache breaks the build
+      # instead of silently deploying stale content. Fix: render locally and
+      # commit _freeze/, or run the Recompute action for that unit.
       - name: Render site from freeze cache
         run: quarto render
 
