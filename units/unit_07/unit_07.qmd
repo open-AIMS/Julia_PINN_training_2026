@@ -122,6 +122,33 @@ prob = discretize(pde_system, discretization)
 res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
+::: {#ex-7-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — grade the disk PINN against the exact harmonic
+
+The Laplace-on-a-disk example has a closed-form answer,
+$u(r, \theta) = r^3 \sin(3\theta)$ — so use it. Run the disk script
+above, then evaluate the trained network on a $50 \times 100$ polar
+grid and compute the relative $L^2$ error and the *worst-case*
+pointwise error. Two follow-ups: (a) where on the disk does the
+worst error sit — interior, outer boundary, or near the $r_{\min}$
+cutoff — and what about the collocation cloud explains it?
+(b) Re-run with the boundary condition changed to $\sin(6\theta)$
+(exact solution $r^6\sin(6\theta)$) and report what happens to the
+error — a first taste of the frequency story §7.2 tells.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+After `Optimization.solve`, the trained network is callable via `discretization.phi([r, θ], res.u)`. Build the polar grid with two `range`s and a comprehension; relative $L^2$ is `sqrt(sum(abs2, err) / sum(abs2, exact))` and `findmax(abs.(err))` locates the worst point. For (b), only the `bcs` lines change.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-1)
+:::
+:::
+
 ## 7.2 Why Naïve PINNs Fail
 
 "Vanilla" PINN training — one global loss weight, smooth-MLP
@@ -269,6 +296,38 @@ because of spectral bias; the predicted $\eta(x, t)$ at late times
 doesn't propagate the IC correctly because of causal violation.
 This is the **target failure** that §7.3 dismantles.
 
+::: {#ex-7-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — reproduce the failure, then prove it
+
+Run the 1-D linearised-SWE script above (it trains in seconds) and
+produce the two diagnostics from @fig-naive-swe yourself:
+
+1. The half-time snapshot of $\eta(x, t)$ against an FD reference —
+   a 20-line leapfrog solver of the same system is enough (or
+   d'Alembert: the IC splits into two half-height bumps moving at
+   $c = \sqrt{gH} \approx 9.9$ m/s).
+2. The residual-vs-time histogram: evaluate the PDE residual on a
+   dense grid, bin by $t$ into 10 bins, and plot the mean per bin.
+
+State which of the three failure modes each diagnostic exposes.
+Then the cheap experiment: multiply the BC loss terms by 100 (crude
+manual loss-balancing) and report which symptom improves and which
+doesn't — evidence that the three failure modes really are
+*distinct* diseases.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+The cheapest reference isn't FD at all — d'Alembert says the IC splits into two half-height bumps moving at $\pm\sqrt{gH}$, which you can evaluate in closed form at the snapshot time. For the histogram, evaluate the residual with nested `ForwardDiff` on `discretization.phi`, bin by $t$ with a comprehension, and plot the per-bin mean.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-2)
+:::
+:::
+
 ## 7.3 Modern Fixes
 
 ### Causal Training
@@ -321,6 +380,38 @@ stay roughly balanced. Three families of approaches:
 
 All beat hand-tuning. With these, the modern PINN is ready for the
 problems §7.4 catalogues.
+
+::: {#ex-7-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — Fourier features in twenty lines
+
+Isolate the spectral-bias cure from all PINN machinery. Fit
+$f(x) = \sin(25x)$ on $[0, 1]$ from 200 samples with two `Lux`
+networks: (a) a plain 1 → 64 → 64 → 1 `tanh` MLP, and (b) the same
+MLP fed the Fourier-feature embedding
+$\gamma(x) = [\sin(Bx), \cos(Bx)]$ with 16 frequencies
+$B \sim \mathcal{N}(0, 10^2)$ (so input width 32). Train both with
+identical Adam budgets (2 000 iterations) and plot the two
+loss curves and the two fits. Then break it: re-draw $B$ with
+$\sigma = 1$ and with $\sigma = 100$, and describe both failure
+directions. The takeaway to write in one sentence: what does
+$\sigma$ have to match for the embedding to work? Separately,
+verify the **hard-BC trick**: show that
+$u_\theta(x, t) = x(1 - x)N_\theta(x, t)$ satisfies
+$u(0, t) = u(1, t) = 0$ for any network, and find an analogous
+ansatz that enforces $u(x, 0) = g(x)$.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+The embedding is a fixed (untrained) layer: `Lux.WrappedFunction(x -> vcat(sin.(B * x), cos.(B * x)))` with `B` drawn once — remember the next `Dense` layer's input width doubles to 2×16. Keep the Adam budget identical across runs or the comparison proves nothing. For the hard-IC ansatz, ask what function of $t$ vanishes at $t=0$ regardless of the network.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-3)
+:::
+:::
 
 ## 7.4 A taxonomy of PINN workflows
 
@@ -509,6 +600,41 @@ these four. The Unit 1 worked example, the capstone, and the
 modern fixes from §7.3 are all aimed at making **W3** practical
 on real problems; that's the through-line of the workshop.
 
+::: {#ex-7-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — file these five papers
+
+Classify each published setup into W1–W4 using the quick-reference
+table, and name the giveaway:
+
+1. *Hidden Fluid Mechanics* (§7.7): given dye-concentration movies,
+   reconstruct the unmeasured velocity and pressure fields under a
+   Navier–Stokes residual.
+2. A PINN solves Burgers' equation from IC + BCs alone, benchmarked
+   against a spectral solver.
+3. From sparse pressure-head wells, recover the scalar parameters of
+   a van-Genuchten soil-retention curve *and* the head field.
+4. A climate model keeps its dynamical core but learns a sub-grid
+   cloud-microphysics correction from high-resolution simulation
+   output.
+5. The Unit 1 problem: four tide gauges, known SWE physics, unknown
+   river-mouth timeseries ψ(t).
+
+One of the five is genuinely arguable between two workflows — say
+which, and defend both readings.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Run the §7.4 decision tree on each: is the unknown the *field itself*, a few *scalars*, a *function*, or a *correction to trusted physics*? For the arguable one, ask whether the governing equations contain any unknown at all — and then ask what's substituting for the missing BCs/ICs.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-4)
+:::
+:::
+
 ## 7.5 The inverse problem in practice
 
 Workflows 2 and 3 above are *the* operational reason to use
@@ -568,6 +694,35 @@ ecosystem around all of this: the software you'd build a PINN with
 ([§7.6](#sec-software)), where PINNs have actually delivered in
 the published literature (§7.7), and the commercial / industrial
 deployments worth knowing about (§7.8).
+
+::: {#ex-7-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — recover a diffusivity (Workflow 2, end-to-end)
+
+The smallest honest inverse problem. Generate synthetic data from
+the heat equation with *known* $\alpha^\star = 0.07$: solve
+$u_t = \alpha^\star u_{xx}$ on $[0,1]\times[0,1]$ (FD, Dirichlet
+BCs, $u_0 = \sin(\pi x)$ — or just use the exact solution
+$e^{-\alpha^\star \pi^2 t}\sin(\pi x)$), sample 50 random interior
+points, add 1% noise. Now *forget* $\alpha^\star$ and recover it:
+train a small PINN $u_\theta$ with a **trainable scalar** $\alpha$
+in the residual, jointly over $(\theta, \alpha)$, following the
+§7.5 recipe (forward sanity-check first, then add the data term).
+Report the recovered $\alpha$, then re-run with 5% noise and with
+10 data points and tabulate the degradation. Which item of the
+"when it doesn't work" list do you hit first?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Make α trainable by log-parameterising it (`logα`) and appending it to a `ComponentArray` alongside the network parameters — Zygote then differentiates through both. Kill the BC/IC terms with the hard ansatz `sin(πx)·(1 + t·N_θ(x,t))` so the loss has only residual + data. Follow the §7.5 recipe order: forward sanity-check *before* adding the data term.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-5)
+:::
+:::
 
 ## 7.6 The PINN software ecosystem {#sec-software}
 
@@ -640,6 +795,35 @@ The Ansys × NVIDIA SeaScape integration (November 2024) is the
 hybrid case — Ansys' semiconductor signoff toolchain
 (RedHawk-SC, Totem-SC, PathFinder-SC) now embeds PhysicsNeMo for
 power-integrity surrogates.
+
+::: {#ex-7-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — pick the package
+
+For each job below, name the *one* package from the §7.6 tables
+you'd reach for first (Julia or Python — your call), and the
+runner-up from the other ecosystem:
+
+1. Generate a trusted FD reference solution for the capstone column
+   PDE, starting from a symbolic `PDESystem`.
+2. Train a PINN for a PDE specified symbolically, in Julia.
+3. Backprop through an ODE solve in a JAX codebase.
+4. Recover a sparse symbolic equation from trajectory data.
+5. A PyTorch team wants industrial-grade PINN + neural-operator
+   tooling with vendor support and GPU recipes.
+6. Swap a KAN into an existing Lux-based PINN.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Rows 1–2 reward the symbolic Julia stack (`ModelingToolkit`-based); row 3 is the Kidger JAX ecosystem; row 4 is the Brunton group's; row 5 is NVIDIA's; row 6 needs the one Lux-compatible KAN package in the §7.6 table. The interesting part is which rows have *no* good answer in the other ecosystem.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-6)
+:::
+:::
 
 ## 7.7 Where PINNs have shown success — a survey of the literature
 
@@ -781,6 +965,31 @@ have eaten that lunch; whether PINNs ever return to it depends
 on whether the §7.3 modern fixes scale further than they
 currently do.
 
+::: {#ex-7-7 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — read one keystone paper properly
+
+Pick **one** of the seven application areas above, open its keystone
+paper (all are linked), and fill in a five-row claims table:
+(1) the PDE(s) enforced in the residual; (2) what was *measured* vs
+what was *reconstructed*; (3) which of the W1–W4 workflows it is;
+(4) the limitation the authors themselves acknowledge; (5) one
+modern fix from §7.3 that the paper pre-dates or omits, and whether
+it would plausibly help. Finally, the calibration question: does the
+paper's headline claim survive its own limitations section?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Read in this order: abstract (claim), figures (what's measured vs reconstructed), then the limitations/discussion section *before* the methods — it calibrates everything else. For row 5, compare the paper's publication year against the §7.3 fix papers (2020–2022): anything it predates, it couldn't have used.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-7)
+:::
+:::
+
 ## 7.8 Commercial and industrial deployments
 
 Where the residual-loss PINN idea has actually shipped. This is a
@@ -879,3 +1088,40 @@ hand, the modern PINN is ready for the
 [capstone](../unit_09/unit_09.qmd) —
 [Unit 10](../unit_10/unit_10.qmd) walks Workflow 3 end-to-end on
 the AIMS thermistor column.
+
+::: {#ex-7-8 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — the marketing audit
+
+You receive five vendor claims. Sort each into the section's three
+buckets — **residual-loss PINN**, **neural operator**, or
+**FEM/CFD-trained surrogate** — and state the one question you'd
+ask the vendor to confirm your classification:
+
+1. "Our model was trained on 40 000 Fluent simulations and predicts
+   drag for new geometries in 50 ms."
+2. "The network minimises the Navier–Stokes residual at 2M
+   collocation points alongside the sensor data."
+3. "A graph neural network trained on 40 years of ERA5 reanalysis
+   produces a 10-day global forecast in under a minute."
+4. "Physics-informed AI: our surrogate respects conservation of
+   energy because the training data came from an energy-conserving
+   solver."
+5. "We embed the governing equations as soft constraints during
+   training, so the model needs 100× less simulation data."
+
+Claim 4 is the trap — explain precisely why "trained on
+physics-respecting data" is not the same as "physics-informed
+training", and what can go wrong out-of-distribution.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+One question sorts everything: *what exactly is in the training loss?* Data misfit only → surrogate; PDE residual at collocation points → PINN; reanalysis/simulation targets with a learned operator → neural operator. For claim 4, ask what enforces the conservation law on an input *unlike* the training set.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-8)
+:::
+:::

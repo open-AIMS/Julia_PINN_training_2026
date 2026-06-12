@@ -113,6 +113,37 @@ for the workshop — the decoupled version is the baseline; the
 joint version is a stretch goal documented as a closing exercise.
 :::
 
+::: {#ex-9-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — read the mooring CSVs before modelling them
+
+Load `units/unit_10/data/mooring_{A,B,C}.csv` and do the
+look-before-you-leap pass every inverse problem deserves:
+
+1. Plot all five depths per site on shared axes (15 traces, three
+   panels). Mark day 10.
+2. From the raw traces alone — no model — write down for each site:
+   which sensor cools most during the storm window, the approximate
+   lag between surface and deepest response, and whether the site
+   recovers by day 30.
+3. Estimate the noise floor empirically: difference each trace at
+   one-hour lag and compute the standard deviation of the
+   increments in a calm window (days 1–5). Do you recover something
+   near the advertised $\sigma = 0.05\,°\mathrm{C}$ — and why is
+   the raw increment SD an *over*-estimate?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+`CSV.read(path, DataFrame)` — the columns are `time_hours` plus one per sensor depth. For the noise floor, `diff(df.T_col)` in a calm window and `std`; the factor between increment-SD and σ comes from $\mathrm{Var}(X_{t+1}-X_t) = 2\sigma^2$ for white noise. Think about which sensor's calm window is least calm.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-9-1)
+:::
+:::
+
 ## 9.2 The coupled model
 
 The 1D column is the central object. A 2D shallow-water solver
@@ -150,6 +181,35 @@ $$w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t).$$
 A simple linear-in-$z$ vertical velocity profile, computed offline
 from the SWE run and fed as a time series into the column model.
 
+::: {#ex-9-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — build $w(z,t)$ from a divergence trace
+
+Implement the coupling formula. Take a synthetic divergence
+time series mimicking a storm response,
+$\nabla_h\!\cdot\!\mathbf{u}_h(t) = -2\times10^{-7}\,
+\exp[-((t - 10\,\text{d})/1\,\text{d})^2]\;\text{s}^{-1}$, over 30
+days, and compute $w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t)$
+for the $H = 100$ m column. Plot $w$ at $z = -10, -50, -90$ m.
+Check three things: $w(-H, t) = 0$ always; the sign during the
+storm (negative divergence = convergence... or is it? — work out
+whether this trace gives upwelling or downwelling); and the peak
+$|w|$ in m/day at mid-column. How does that peak compare with the
+reference $w_0 \sim 1$ m/day, and what does the *linear-in-$z$*
+shape assume physically about the horizontal flow?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Implement $w(z,t) = -(z+H)\,\nabla_h\!\cdot\mathbf{u}_h(t)$ directly and evaluate at three depths. For the sign, integrate continuity $\partial_z w = -\nabla_h\!\cdot\mathbf{u}_h$ upward from $w(-H)=0$ rather than guessing. Convert to m/day (×86 400) before comparing with $w_0$.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-9-2)
+:::
+:::
+
 ## 9.3 The column equation
 
 $$
@@ -176,6 +236,39 @@ surface (so $z < 0$ inside the ocean), $w > 0$ is upward motion of
 water. *Upwelling* — cold deep water rising — therefore
 corresponds to $w > 0$. The advection term $w \, \partial_z T$ then
 has the right physical sign.
+:::
+
+::: {#ex-9-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — get the signs right, once and forever
+
+Sign errors in the advection term are the single most common bug in
+student column models. Settle yours with a two-minute argument and
+a five-minute check:
+
+1. **Argument.** In a stably stratified column ($\partial_z T > 0$:
+   warmer above), upwelling is $w > 0$. Show from the equation
+   (term (b) moved to the right-hand side:
+   $\partial_t T = -w\,\partial_z T + \ldots$) that this *cools*
+   every fixed depth — as cold deep water should.
+2. **Check.** Solve the pure-advection column
+   $\partial_t T = -w_0\,\partial_z T$ with a first-order upwind
+   scheme, $w_0 = 10^{-4}$ m/s (exaggerated for visibility),
+   the §9.4 tanh initial profile, for 2 days. Confirm the
+   thermocline translates *upward* and every sensor depth cools.
+   Then flip the sign of $w_0$ and confirm downwelling warms the
+   interior instead.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+For the numerical check, first-order upwind with the stencil direction set by the flow: $w > 0$ carries information from *below*, so the difference is `(T[i] - T[i-1])/dz`. Keep $\Delta t \le \Delta z/|w|$. If your thermocline moves the wrong way, you've either flipped the stencil or the sign in the update — which is exactly the bug the exercise inoculates against.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-9-3)
+:::
 :::
 
 ## 9.4 Boundary conditions
@@ -227,6 +320,40 @@ $$
 
 with $z_t \approx -30\,\text{m}$ sitting the thermocline at 30 m
 depth and $\delta_t \approx 5\,\text{m}$ setting its sharpness.
+
+::: {#ex-9-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — what does the bottom BC actually cost?
+
+The spec offers two bottom boundary conditions: Dirichlet
+($T(-H) = T_{\text{deep}}$) and zero-flux
+($\partial_z T|_{-H} = 0$). They are *not* interchangeable — find
+out how much it matters:
+
+1. For the steady-state pure-diffusion problem (constant $\kappa$,
+   constant $Q_{\text{np}} < 0$, no advection, no source), derive
+   the steady profile under each bottom BC. One of the two has *no*
+   steady state at all — which, and why? (Think about where the
+   heat extracted at the surface comes from.)
+2. For a 30-day run, estimate how far up from the bottom the
+   choice of BC can influence the solution
+   ($\sqrt{\kappa_b\, \times 30\,\text{d}}$ with the background
+   diffusivity). Which of the five Site B sensor depths (2, 10,
+   25, 45, 58 m on a 60 m column) could tell the difference?
+3. Conclude in one sentence: for the capstone inverse problem, is
+   the bottom-BC choice a risk to the recovered $\hat\tau(t)$?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Part 1: integrate the steady PDE over the column and ask where the surface heat extraction is resupplied from under each BC — one of the two has no supply. Part 2 is one square root with the *background* $\kappa_b$ (that's what governs near the floor). Part 3 follows from comparing part 2's reach against the sensor depths.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-9-4)
+:::
+:::
 
 ## 9.5 Forcing functions
 
@@ -286,6 +413,35 @@ Three closures in increasing realism (pick one per experiment):
    prescribed shear $\partial_z U$. Mixing is suppressed in stably
    stratified water (see [Unit 8](../unit_08/unit_08.qmd) §8.5).
 
+::: {#ex-9-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — plot every forcing before you trust it
+
+One figure, four panels, using the reference values of §9.6: (a)
+$Q_{\text{SW}}(t)$ over 3 days; (b) the Beer–Lambert source
+$\rho_0 c_p\,\mathcal{S}(z)$ at noon with $\zeta = 10$ m; (c) the
+$w(z)$ sine profile; (d) all three $\kappa$ closures overlaid
+(use $\mathrm{Ri}$ from the §9.4 initial profile and
+$\partial_z U = 0.01\,\text{s}^{-1}$ for closure 3). Then read
+three numbers off your own figure: the depth at which the noon
+body source has dropped to 10% of its surface value, $w$ at the
+Site B thermocline ($z = -30$ m of $H = 60$... careful — the sine
+profile depends on the site's $H$), and the factor between
+closure 2's $\kappa$ at the surface and at $-60$ m. Any surprises
+versus what you assumed while reading?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Four small `plot` panels assembled with `plot(p1, p2, p3, p4, layout = (2,2))`. Two traps built in: the sine profile's argument uses the *site's* $H$, and closure 3 needs the Ri formula from the §9.4 initial profile (Solution 8.5 has the sech² derivative). Log-x for the κ panel or you'll see nothing.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-9-5)
+:::
+:::
+
 ## 9.6 Reference parameter values and dimensionless groups
 
 | Symbol | Value | Units | Meaning |
@@ -311,6 +467,40 @@ $\mathrm{Pe} = w_0 H / \kappa_m \approx 1$,
 $T_\kappa = H^2/\kappa_m \approx 116$ days,
 $\tau_d / T_\kappa \sim 10^{-2}$ — are tabulated and interpreted in
 [Unit 8](../unit_08/unit_08.qmd) §8.6.
+
+::: {#ex-9-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — the daily heat budget, by hand
+
+Does the reference parameter set heat or cool the column on an
+average day? Integrate over 24 hours:
+
+1. Total shortwave in:
+   $\int_0^{\tau_d} Q_{\text{SW}}^{\max}\max(0, \cos(2\pi t/\tau_d))\,dt$
+   — evaluate it analytically (the positive half of a cosine
+   integrates to $\tau_d/\pi$).
+2. Total non-penetrative out: $Q_{\text{cool}} \times \tau_d$.
+3. Net daily heat input in J/m², and the implied warming rate of a
+   20 m mixed layer in K/day
+   ($\Delta T = E_{\text{net}} / (\rho_0 c_p h_m)$).
+
+Cross-check your K/day against toy-task 2's claim that the bulk
+profile "barely changes" over 30 days — is the net warming over a
+month small compared to the 10 K surface-to-deep contrast? Finally:
+by what fraction must $Q_{\text{SW}}^{\max}$ drop (storm-cloud
+scenario) before the daily budget goes negative?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+The positive half of a cosine integrates to amplitude × period/π — no numerics. Then it's bookkeeping: net J/m² per day, divided by $\rho_0 c_p h_m$ for K/day. The threshold question inverts the same formula: set net = 0 and solve for $Q_{SW}^{max}$.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-9-6)
+:::
+:::
 
 ## 9.7 The shared forward problem
 

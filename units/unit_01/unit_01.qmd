@@ -142,6 +142,38 @@ it twice in this unit so the ill-posedness is *visible* before we
 spend Units 5–9 learning the modern (PINN-based) tools that
 disambiguate it.
 
+::: {#ex-1-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — de-tide a synthetic gauge record
+
+Build your own miniature de-tiding pipeline. Generate a synthetic
+5-day gauge record at 3-minute sampling: a "tide" made of two
+sinusoids ($M_2$ at 12.42 h, amplitude 0.8 m; $S_2$ at 12.00 h,
+amplitude 0.3 m), plus the Unit 1 surge pulse
+$0.45\exp[-((t - 50\,\text{h})/3\,\text{h})^2]$, plus
+$\sigma = 1.5\,\text{cm}$ Gaussian noise. Then:
+
+1. Fit the harmonic constants (amplitude and phase of both
+   constituents) by **linear least squares** using only the first
+   36 hours — a "calm" calibration window before the surge.
+2. Reconstruct the tide over the full record, subtract it, and
+   compare the residual to the true surge pulse.
+3. Repeat the fit using the *whole* record (surge included) as the
+   calibration window. How much surge energy leaks into the
+   harmonic fit, and what does that do to the recovered pulse?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+With the constituent frequencies known, the fit is *linear* least squares: build a design matrix with columns `[1, sin.(ω₁t), cos.(ω₁t), sin.(ω₂t), cos.(ω₂t)]` via `hcat` and solve with Julia's backslash (`A \ y`). For step 1, select the calibration rows with a boolean mask like `t .< 36`; the amplitude/phase form $A\sin(\omega t + \phi)$ is equivalent to the sin+cos form, which is what keeps the problem linear.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-1-1)
+:::
+:::
+
 ## 1.2 The worked example
 
 This section walks the full pipeline end-to-end: we set up a
@@ -666,6 +698,36 @@ The whole pipeline is offline-reproducible on a single laptop CPU.
 Everything is written so it ports cleanly to a GPU once the rest of
 the course has motivated why we'd want one.
 
+::: {#ex-1-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — travel-time forensics on the slider
+
+The shallow-water wave speed is $c = \sqrt{g\,H}$. Using the gauge
+table above (distances from the river mouth: G1 ≈ 18 km, G2 ≈ 26 km,
+G3 ≈ 35 km, G4 ≈ 50 km) and a representative depth along each path,
+estimate the arrival time of the leading surge peak at each gauge.
+Then scrub the §1.2 slider and read off when each gauge first
+responds. Two follow-ups:
+
+- Which gauge's predicted arrival is most sensitive to your choice
+  of "representative depth", and why does the bathymetry figure
+  make that obvious?
+- The surge peaks at the mouth at $t = 2$ h. Roughly when should
+  the G4 (Russell Channel) peak arrive, and why is the constant-depth
+  estimate likely to be *late* or *early* there?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Everything follows from $c = \sqrt{gH}$ — pick a depth per path from the bathymetry figure (inner-bay flat ≈ 6 m, NE channel ≈ 25 m), convert to m/s, and divide distance by speed. For the G3 path, try the calculation twice (all-shallow vs all-channel) and quote the bracket rather than a single number.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-1-2)
+:::
+:::
+
 ## 1.3 The capstone preview: an AIMS thermistor column
 
 The Moreton Bay surge is a 2-D *shallow-water* problem. The capstone
@@ -695,6 +757,32 @@ which mechanism dominated is in
 Same intellectual shape as today's worked example — *physics +
 sparse data → unknown driver* — but with a different geometry,
 different physics, and a richer inverse-problem story.
+
+::: {#ex-1-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — sketch the three fingerprints
+
+Before reading any of the capstone units, commit to a prediction.
+For each of the three competing mechanisms (intensified upwelling,
+enhanced vertical mixing, reduced surface heating), sketch — on
+paper, axes $z$ vs $t$ — the pattern of temperature change you'd
+expect a five-sensor thermistor chain to record over the days after
+the storm. For each mechanism note: which sensors cool, which (if
+any) warm, and which respond *first*. Keep the sketch; you'll grade
+it against [Unit 10](../unit_10/unit_10.qmd)'s mechanism-partition
+plots.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Ask, for each mechanism, which *term* of the column equation it perturbs: $w\,\partial_z T$ (upwelling), $\partial_z(\kappa\,\partial_z T)$ (mixing), or the surface flux/source (heating). Then ask where in the column that term is largest. One mechanism only *redistributes* heat within the column — that's the discriminating signature to look for.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-1-3)
+:::
+:::
 
 ## 1.4 Course roadmap
 

@@ -229,6 +229,32 @@ Every Sci-ML idea in §§3.2–3.5 starts from an ODE picture:
 Keep the picture $\dot{\mathbf{x}} = f(\mathbf{x}, t)$ in mind as we
 go through each.
 
+::: {#ex-3-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — find the fastest landing
+
+The text claims $\zeta = 1$ minimises the time to "land" near zero.
+Test it. Define the **settling time** as the first time after which
+$|x(t)|$ stays below $0.02$ forever (numerically: below 0.02 for
+the rest of a 10-second solve). Sweep
+$\zeta \in \{0.1, 0.2, \ldots, 2.0\}$ with the damped-oscillator
+code above, compute the settling time for each, and plot it against
+$\zeta$. Where is the minimum — exactly at $\zeta = 1$, or slightly
+below? (Control engineers will tell you the answer is ~0.7 for this
+tolerance; find out whether they're right.)
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Solve once per ζ with a fine `saveat` (0.001 is plenty), then the settling time is `sol.t[findall(abs.(x) .> tol)[end]]` — the time of the *last* excursion outside the band. A comprehension over `ζs = 0.1:0.05:2.0` gives the whole curve in seconds. Watch the minimum move when you change `tol`.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-3-1)
+:::
+:::
+
 ## 3.2 The SciML landscape
 
 ### Hybrid physics + ML
@@ -276,6 +302,37 @@ conservation:
 The pattern recurs throughout the unit: *the more physics we bake
 in, the less data we need*.
 
+::: {#ex-3-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — pick the right tool
+
+For each scenario below, decide which SciML pattern fits best —
+**hybrid model**, **surrogate**, or **conservation-aware
+architecture** — and say in one sentence what the "physics part"
+and the "ML part" would be:
+
+1. A wind-farm operator needs aerodynamic loads for 10 000 candidate
+   turbine layouts; each CFD evaluation takes 8 hours.
+2. A pharmacokinetic model has well-understood drug clearance but an
+   unknown absorption mechanism that varies between patients.
+3. A satellite-dynamics propagator slowly drifts in total energy
+   over multi-year simulations, corrupting conjunction forecasts.
+4. A coastal model needs the current field *between* expensive
+   simulation runs, but its predictions are only ever queried inside
+   the simulated parameter range.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Classify by bottleneck: is the problem *cost per query* (→ surrogate), an *unknown term inside known dynamics* (→ hybrid), or a *violated invariant* (→ conservation-aware architecture)? Scenario 4's stated guarantee about where the model is queried is itself a clue.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-3-2)
+:::
+:::
+
 ## 3.3 Hamiltonian and Lagrangian neural networks
 
 ### The construction
@@ -311,6 +368,33 @@ a vanilla MLP fit to the same data. The win is sharpest on long
 extrapolation horizons.
 
 *Code placeholder — `units/unit_03/scripts/hnn_pendulum.jl` (TODO).*
+
+::: {#ex-3-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — energy conservation by construction
+
+Verify the HNN's core claim without training anything. Take the
+pendulum Hamiltonian $H(q, p) = \tfrac{1}{2}p^2 + (1 - \cos q)$
+and build the vector field $(\dot q, \dot p) = (\partial_p H,
+-\partial_q H)$ **via `ForwardDiff`** (don't differentiate by hand —
+the point is that this is exactly what an HNN does with $H_\theta$).
+Integrate from $(q_0, p_0) = (2.0, 0.0)$ for 100 time units and plot
+the energy drift $H(t) - H(0)$. Then do the same for a "slightly
+wrong" field — multiply the $\dot p$ component by $1.02$, mimicking
+a vanilla MLP's 2% error — and compare the drifts. What property of
+the *exact* Hamiltonian field does the perturbed field lose?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+`ForwardDiff.gradient(H, u)` returns $(\partial_q H, \partial_p H)$ in one call — build the field by swapping and negating, never differentiating by hand. Run the solver at `reltol = 1e-9` so the drift you plot is the field's property, not the integrator's. The 2%-wrong field needs only one extra factor in `du[2]`.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-3-3)
+:::
+:::
 
 ## 3.4 Equation discovery: SINDy
 
@@ -448,6 +532,34 @@ SINDy wins when
 It loses when the dynamics are intrinsically high-dimensional, the
 right basis isn't in your library, or the noise drowns the
 derivatives.
+
+::: {#ex-3-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — SINDy on the damped oscillator
+
+Run the full SINDy recipe yourself on a system where you know the
+answer: the damped oscillator of §3.1,
+$\dot x = v$, $\dot v = -\omega^2 x - 2\zeta\omega v$ with
+$\omega = 2\pi$, $\zeta = 0.1$. Simulate a trajectory, estimate
+$\dot X$ by central differences, build a polynomial library up to
+degree 2 in $(x, v)$, and run 5 iterations of STLSQ (threshold 0.5).
+You should recover the two equations with coefficients
+$(-\omega^2, -2\zeta\omega) \approx (-39.5, -1.26)$. Then add
+1% Gaussian noise to the trajectory *before* differentiating and
+watch what happens to the recovered coefficients. Which step of the
+pipeline failed?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Differentiate with central differences `(X[3:end,:] .- X[1:end-2,:]) ./ (t[3:end] .- t[1:end-2])` and drop the endpoints. The library is one `hcat`; STLSQ is literally: fit with `\`, zero the small coefficients, refit the survivors, repeat five times. For the noise experiment, perturb `X` *before* differencing — that ordering is the whole point.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-3-4)
+:::
+:::
 
 ## 3.5 Proper Orthogonal Decomposition (POD)
 
@@ -600,6 +712,34 @@ low-dimensional manifold, then evolve there. We won't go deep into
 them in the workshop, but the POD picture is the right mental
 starting point.
 
+::: {#ex-3-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — POD on a diffusing field
+
+The chain example showed slow singular-value decay for an
+oscillatory system. Now try a *diffusive* one, where POD shines.
+Solve the 1-D heat equation $u_t = \alpha u_{xx}$
+($\alpha = 0.01$, $x \in [0, 1]$, homogeneous Dirichlet BCs,
+initial condition $u_0(x) = \exp(-200(x - 0.3)^2)$) with simple
+finite differences, collect ~200 snapshots, and compute the
+snapshot SVD. How many modes capture 99% of the variance, and how
+does that compare to the oscillator chain? Bonus: plot the first
+three POD modes — what classical basis do they resemble, and why
+was that predictable from §6.2's separation of variables (peek
+ahead if curious)?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+The §6.4 FTCS code is your simulator — just change the IC and push a `copy(u)` into a snapshot vector every ~40 steps. Then `svd` from `LinearAlgebra` on `reduce(hcat, snapshots)`, and the variance captured is `cumsum(Σ.^2) ./ sum(Σ.^2)`. Plot `U[:, 1:3]` against `x` for the modes.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-3-5)
+:::
+:::
+
 ## 3.6 Physics-informed machine learning: a conceptual preview
 
 ### The core idea
@@ -646,3 +786,32 @@ oscillator above and a small collection of ODE / PDE toys.
 and how the modern fixes close the gap.
 [Units 8–10](../unit_08/unit_08.qmd) assemble the AIMS capstone —
 forward (Part I) and inverse (Part II).
+
+::: {#ex-3-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — evaluate a residual by hand
+
+No training yet — just the residual. For the oscillator
+$\ddot u + \omega^2 u = 0$ with $\omega = 2\pi$, take three
+*candidate* solutions: (a) the exact $u(t) = \cos(\omega t)$,
+(b) the wrong-frequency $u(t) = \cos(0.9\,\omega t)$, and (c) the
+damped impostor $u(t) = e^{-t/2}\cos(\omega t)$. Compute the PINN
+residual loss
+$\mathcal{L}_{\text{PDE}} = \frac{1}{N}\sum_i |\ddot u(t_i) + \omega^2 u(t_i)|^2$
+for each over $N = 100$ uniform points on $[0, 2]$, computing
+$\ddot u$ with nested `ForwardDiff.derivative` rather than by hand.
+Rank the three losses. Candidate (c) fits the IC perfectly and looks
+plausible — what does its residual reveal, and at which $t$ is the
+residual largest?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Each candidate is a plain Julia function of `t` — no network anywhere. Get $\ddot u$ by nesting `ForwardDiff.derivative` twice on the function, then `mean` the squared residual over the grid. For the 'where is it largest' question, plot the residual of candidate (c) against `t` rather than reasoning it out.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-3-6)
+:::
+:::

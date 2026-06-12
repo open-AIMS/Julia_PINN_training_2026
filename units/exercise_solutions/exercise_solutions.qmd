@@ -1,0 +1,2652 @@
+---
+title: "Section Exercise Solutions"
+engine: julia
+toc-title: "Exercise Solutions"
+date: today
+date-format: "DD/MM/YYYY"
+---
+
+Worked solutions to the section exercises scattered through
+[Units 1–10](../unit_01/unit_01.qmd). Julia is the primary language
+throughout; JAX / Python variants appear where the cross-ecosystem
+comparison earns its keep. Where a solution produces a plot or a
+number with workshop-only dependencies, the cell is **executed** and
+its output shown below the code (each executed cell is wrapped in a
+`let` block so the solutions stay independent of each other — drop
+the `let`/`end` pair when pasting into your own session). Solutions
+that need heavyweight extras (MNIST downloads, `SciMLSensitivity`,
+`KolmogorovArnold`, DeepXDE, trained `NeuralPDE` models) remain
+static listings with the expected results quoted in the prose.
+Every solution links back to its exercise.
+
+## Unit 1 — Introduction
+
+### Solution 1.1 — de-tide a synthetic gauge record {#sol-1-1}
+
+The harmonic fit is a plain linear least-squares problem: with the
+constituent frequencies *known*, the unknowns (amplitude and phase
+of each constituent) enter linearly through
+$A\sin\omega t + B\cos\omega t$.
+
+```{julia}
+using Random, LinearAlgebra, Plots
+
+let
+rng  = MersenneTwister(1)
+dt_h = 0.05                                  # 3-minute sampling, hours
+t    = collect(0.0:dt_h:120.0)               # 5 days
+ω    = 2π ./ [12.42, 12.0]                   # M2, S2 (rad/hour)
+
+tide  = 0.8 .* sin.(ω[1] .* t) .+ 0.3 .* sin.(ω[2] .* t .+ 1.0)
+surge = 0.45 .* exp.(-((t .- 50.0) ./ 3.0).^2)
+η     = tide .+ surge .+ 0.015 .* randn(rng, length(t))
+
+# Design matrix: constant + sin/cos at each known frequency
+design(t) = hcat(ones(length(t)),
+                 sin.(ω[1] .* t), cos.(ω[1] .* t),
+                 sin.(ω[2] .* t), cos.(ω[2] .* t))
+
+# (1) Calibrate on the calm window only
+calm   = t .< 36.0
+c_calm = design(t[calm]) \ η[calm]
+resid_calm = η .- design(t) * c_calm
+
+# (3) Calibrate on the whole record, surge included
+c_all  = design(t) \ η
+resid_all = η .- design(t) * c_all
+
+plt = plot(t, surge, label = "true surge", lw = 2, c = :black,
+           xlabel = "t (hours)", ylabel = "η (m)")
+plot!(plt, t, resid_calm, label = "residual (calm-window fit)", alpha = 0.7)
+plot!(plt, t, resid_all,  label = "residual (full-record fit)", alpha = 0.7)
+end
+```
+
+What you should see:
+
+- **Calm-window fit:** the residual sits on top of the true surge
+  to within the noise floor — the harmonic constants were estimated
+  from data that contained no surge, so the subtraction is clean.
+- **Full-record fit:** least squares *cannot tell* surge energy
+  near the tidal frequencies from tide. Part of the pulse is
+  absorbed into the fitted constituents, so the recovered surge is
+  visibly underestimated and the residual rings at the tidal
+  period away from the pulse. With a 3-hour pulse the leakage is
+  modest (the pulse is far from the 12-hour band); make the pulse
+  wider — say a 10-hour width — and the leakage becomes severe.
+
+This is the practical point of the Unit 1 callout: de-tiding is
+itself an inverse problem, and the surge you recover downstream
+inherits whatever your calibration window let leak into the
+harmonic constants.
+
+::: {.exercise-solution-link}
+[← Back to Unit 1 §1.1](../unit_01/unit_01.qmd#ex-1-1)
+:::
+
+### Solution 1.2 — travel-time forensics on the slider {#sol-1-2}
+
+With $c = \sqrt{gH}$:
+
+| Gauge | Distance | Representative depth | $c$ | Predicted arrival |
+|---|---|---|---|---|
+| G1 Mud Island | 18 km | 6 m (inner-bay flat) | 7.7 m/s | ~39 min |
+| G2 Wellington Pt | 26 km | 6 m | 7.7 m/s | ~56 min |
+| G3 Tangalooma | 35 km | 6–18 m (path crosses NE channel) | 7.7–13.3 m/s | ~44–76 min |
+| G4 Russell Channel | 50 km | 6 m, constricted path | 7.7 m/s | ~1 h 48 min |
+
+Add these delays to the $t = 2$ h source peak to predict each
+gauge's peak time (e.g. G4 peak ≈ 3.8 h), then check against the
+slider — agreement to within ~10 minutes for G1/G2 is typical.
+
+- **Most depth-sensitive: G3.** Its propagation path crosses the
+  deep NE channel, where $c$ nearly doubles. The fraction of the
+  path spent in deep water is exactly what the bathymetry figure
+  shows, and a single "representative depth" can't capture it —
+  the honest estimate is a *range*.
+- **G4's constant-depth estimate is early.** The straight-line
+  distance ignores the detour around the Russell / Macleay /
+  Karragarra constriction (longer effective path) and the very
+  shallow southern flats (slower $c$). Both corrections delay the
+  real arrival, so the naive estimate undershoots — which is
+  precisely why G4's signal is described as "attenuated, delayed,
+  reflection-laden".
+
+::: {.exercise-solution-link}
+[← Back to Unit 1 §1.2](../unit_01/unit_01.qmd#ex-1-2)
+:::
+
+### Solution 1.3 — sketch the three fingerprints {#sol-1-3}
+
+The qualitative answer key (graded properly against the Unit 10
+partition plots):
+
+| Mechanism | Who cools | Who warms | Who responds first |
+|---|---|---|---|
+| **Upwelling** ($w > 0$) | every sensor below the surface layer; strongest where $\partial_z T$ is largest (thermocline) | nobody | the **deep** sensors — cold water arrives from below and works upward |
+| **Enhanced mixing** ($\kappa \uparrow$) | sensors *above* the thermocline (heat is carried down, away from them) | sensors *below* the thermocline (the same heat arrives there) | both sides of the thermocline together — mixing redistributes, it doesn't import |
+| **Reduced surface heating** ($Q\downarrow$) | the surface sensor first and most; deeper sensors later and weaker | nobody | the **top** sensor, with the diurnal wiggle visibly flattened |
+
+Two discriminating features worth having had on your sketch:
+
+1. **Mixing approximately conserves column heat** — cooling above
+   the thermocline is mirrored by warming below it. Upwelling and
+   reduced heating both *remove* heat from the column (one out the
+   bottom boundary's budget, one at the top), so the
+   depth-integrated temperature falls. A warming deep sensor is
+   therefore a strong vote for mixing.
+2. **Direction of propagation in time**: deep-first cooling →
+   upwelling; top-first cooling → surface flux; near-simultaneous
+   two-sided change centred on the thermocline → mixing.
+
+The real capstone signal is a *blend* (one storm drives all three),
+which is exactly why Unit 9 makes mechanism attribution a
+quantitative partition rather than an eyeball call.
+
+::: {.exercise-solution-link}
+[← Back to Unit 1 §1.3](../unit_01/unit_01.qmd#ex-1-3)
+:::
+
+## Unit 2 — ML Foundations
+
+### Solution 2.1 — watch the U-shape appear {#sol-2-1}
+
+```{julia}
+using Random, LinearAlgebra, Statistics, Plots
+
+let
+rng = MersenneTwister(0)
+N   = 60
+x   = sort(rand(rng, N))
+y   = sin.(2π .* x) .+ 0.2 .* randn(rng, N)
+
+vander(x, d) = hcat((x .^ p for p in 0:d)...)
+rmse(a, b)   = sqrt(mean(abs2, a .- b))
+
+degrees = 1:15
+train_err = Float64[]; cv_err = Float64[]
+folds = [i:5:N for i in 1:5]                 # 5 interleaved folds
+
+for d in degrees
+    # training error on everything
+    c = vander(x, d) \ y
+    push!(train_err, rmse(vander(x, d) * c, y))
+
+    # 5-fold CV by hand
+    fold_scores = Float64[]
+    for f in folds
+        test  = falses(N); test[f] .= true
+        c_f   = vander(x[.!test], d) \ y[.!test]
+        push!(fold_scores, rmse(vander(x[test], d) * c_f, y[test]))
+    end
+    push!(cv_err, mean(fold_scores))
+end
+
+plt = plot(degrees, train_err, marker = :circle, label = "train RMSE",
+           xlabel = "polynomial degree", ylabel = "RMSE", yscale = :log10)
+plot!(plt, degrees, cv_err, marker = :square, label = "5-fold CV RMSE")
+end
+```
+
+Typical outcome: the training curve decreases monotonically (a
+degree-15 polynomial can always fit 60 points better than a
+degree-3 one), while the CV curve bottoms out around degree 5–7 —
+enough flexibility to represent one full sine period — and then
+climbs steeply as the fits start chasing the $\varepsilon$ noise.
+Past degree ~12 the CV error can explode by orders of magnitude:
+high-degree monomial bases are also numerically ill-conditioned,
+which compounds the statistical overfitting. The gap between the
+two curves *is* the generalisation gap from §2.1.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.1](../unit_02/unit_02.qmd#ex-2-1)
+:::
+
+### Solution 2.2 — how many trees is enough? {#sol-2-2}
+
+```julia
+using MLDatasets, DecisionTree, Statistics
+
+train_x, train_y = MLDatasets.MNIST(split = :train)[:]
+test_x,  test_y  = MLDatasets.MNIST(split = :test)[:]
+flatten(x) = reshape(Float32.(x), 28 * 28, size(x, 3))'
+X = flatten(train_x)[1:10_000, :];  yl = Int.(train_y)[1:10_000]
+Xt = flatten(test_x);               yt = Int.(test_y)
+
+for n_trees in (1, 5, 20, 50, 100, 200)
+    forest = build_forest(yl, X, 28, n_trees, 0.7, -1, 1, 0.0, 0; rng = 0)
+    acc = mean(apply_forest(forest, Xt) .== yt)
+    println("trees = $n_trees:  acc = $(round(acc, digits = 4))")
+end
+
+for nsub in (5, 28, 100, 784)
+    forest = build_forest(yl, X, nsub, 100, 0.7, -1, 1, 0.0, 0; rng = 0)
+    acc = mean(apply_forest(forest, Xt) .== yt)
+    println("n_subfeatures = $nsub:  acc = $(round(acc, digits = 4))")
+end
+```
+
+Expected shape of the results (exact numbers vary with the
+subset): a single tree lands somewhere near 80%; accuracy climbs
+steeply to ~20 trees, and the curve is essentially flat beyond
+50–100 — the variance-reduction benefit of averaging decays like
+$1/\sqrt{n_{\text{trees}}}$, so each doubling buys less.
+
+The `n_subfeatures = 784` question is the conceptual heart: a
+random forest's variance reduction comes from averaging trees that
+make **decorrelated** errors. If every split sees every feature,
+all trees greedily pick the same dominant splits and become near
+copies of each other — stronger individually, but correlated, so
+the *ensemble* averages away less noise. The $\sqrt{784} = 28$
+default is the standard bias-variance compromise.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.2](../unit_02/unit_02.qmd#ex-2-2)
+:::
+
+### Solution 2.3 — logistic regression from scratch {#sol-2-3}
+
+```julia
+using MLDatasets, Statistics, Random
+
+train_x, train_y = MLDatasets.MNIST(split = :train)[:]
+test_x,  test_y  = MLDatasets.MNIST(split = :test)[:]
+flatten(x) = reshape(Float32.(x), 28 * 28, size(x, 3))
+
+function binary_subset(X, y, a, b)
+    keep = (y .== a) .| (y .== b)
+    X[:, keep], Float32.(y[keep] .== b)       # label 1 for digit b
+end
+
+Xtr, ytr = binary_subset(flatten(train_x), Int.(train_y), 0, 1)
+Xte, yte = binary_subset(flatten(test_x),  Int.(test_y),  0, 1)
+
+σ(z) = 1 ./ (1 .+ exp.(-z))
+
+w = zeros(Float32, 784);  b = 0f0;  ηlr = 0.5f0
+N = size(Xtr, 2)
+for step in 1:500
+    p  = σ(Xtr' * w .+ b)                     # N-vector of probabilities
+    δ  = p .- ytr                             # ∂L/∂z, derived by hand
+    w -= ηlr .* (Xtr * δ) ./ N
+    b -= ηlr .* mean(δ)
+end
+
+acc = mean((σ(Xte' * w .+ b) .> 0.5) .== (yte .> 0.5))
+println("0-vs-1 test accuracy: ", round(acc, digits = 4))
+```
+
+The gradient derivation is the small jewel here: for
+$\hat p = \sigma(w^\top x + b)$ and binary cross-entropy, the chain
+rule collapses to $\partial \mathcal{L}/\partial z = \hat p - y$ —
+the sigmoid's derivative cancels against the log's. That's why
+the code never computes $\sigma'$.
+
+**0 vs 1** is nearly linearly separable in raw pixel space (a "1"
+lights a thin vertical band, a "0" a ring), so ~99.8% falls out.
+**4 vs 9** shares almost all of its ink — the discriminating
+feature is whether the upper loop closes, a *conjunction* of pixels
+that no single linear threshold on pixel intensities can express.
+Accuracy drops to roughly 96–97%, and no amount of training fixes
+it: the model class, not the optimiser, is the bottleneck. That gap
+is the motivation for hidden layers in §2.4.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.3](../unit_02/unit_02.qmd#ex-2-3)
+:::
+
+### Solution 2.4 — universal approximation, and the ReLU trap {#sol-2-4}
+
+```{julia}
+using Lux, Random, Zygote, Optimisers, ForwardDiff, Plots
+
+target_24(x) = sin(4π * x) * exp(-x)
+xs_24 = collect(Float32, range(0, 1; length = 256))
+ys_24 = target_24.(xs_24)
+
+function fit_mlp(width, act; iters = 4000)
+    rng = Random.MersenneTwister(0)
+    model = Lux.Chain(Lux.Dense(1 => width, act), Lux.Dense(width => 1))
+    ps, st = Lux.setup(rng, model)
+    loss(p) = sum(abs2,
+                  vec(first(model(reshape(xs_24, 1, :), p, st))) .- ys_24)
+    opt = Optimisers.setup(Optimisers.Adam(1f-2), ps)
+    for _ in 1:iters
+        g = first(Zygote.gradient(loss, ps))
+        opt, ps = Optimisers.update(opt, ps, g)
+    end
+    model, ps, st
+end
+
+let
+plt = plot(xs_24, ys_24, label = "target", lw = 3, c = :black,
+           xlabel = "x")
+for w in (5, 20, 100)
+    model, ps, st = fit_mlp(w, tanh)
+    plot!(plt, xs_24, vec(first(model(reshape(xs_24, 1, :), ps, st))),
+          label = "tanh, width $w", ls = :dash)
+end
+plt
+end
+```
+
+Width 5 underfits badly (two sine lobes need more bumps than five
+tanh units want to make), width 20 is close, width 100 is visually
+exact — universal approximation in action, with the usual caveat
+that the theorem promised none of this would be *trainable*, just
+representable.
+
+The second derivative:
+
+```{julia}
+function second_derivative(model, ps, st)
+    u(x) = first(model([x], ps, st))[1]
+    x -> ForwardDiff.derivative(ξ -> ForwardDiff.derivative(u, ξ), x)
+end
+
+let
+m_tanh, p_tanh, s_tanh = fit_mlp(20, tanh)
+m_relu, p_relu, s_relu = fit_mlp(20, relu)
+
+xs_f = collect(Float32, range(0, 1; length = 400))
+plt = plot(xs_f, second_derivative(m_tanh, p_tanh, s_tanh).(xs_f),
+           label = "tanh f''", lw = 2, xlabel = "x")
+plot!(plt, xs_f, second_derivative(m_relu, p_relu, s_relu).(xs_f),
+      label = "relu f''", lw = 2)
+end
+```
+
+The tanh curve is a smooth, meaningful $f''$. The ReLU curve is
+**identically zero** except at the (measure-zero) kink locations —
+a ReLU network is piecewise *linear*, so its second derivative
+carries no information anywhere autodiff can evaluate it. A
+diffusion residual $u_t - \alpha u_{xx}$ built on a ReLU network
+would see $u_{xx} \equiv 0$: the optimiser would happily "solve"
+the wrong equation $u_t = 0$. Hence the smooth-activation rule for
+PINNs.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.4](../unit_02/unit_02.qmd#ex-2-4)
+:::
+
+### Solution 2.5 — race the optimisers down a ravine {#sol-2-5}
+
+```{julia}
+using Plots
+
+let
+f(x, y)  = (1 - x)^2 + 100 * (y - x^2)^2
+∇f(x, y) = [-2(1 - x) - 400x * (y - x^2),  200 * (y - x^2)]
+
+function descend(update!, state, x0; iters = 5000)
+    xs = [copy(x0)]
+    x  = copy(x0)
+    for t in 1:iters
+        update!(x, ∇f(x...), state, t)
+        push!(xs, copy(x))
+    end
+    reduce(hcat, xs)
+end
+
+# plain GD
+gd!(x, g, s, t)  = (x .-= s.η .* g)
+
+# momentum
+function mom!(x, g, s, t)
+    s.v .= s.μ .* s.v .+ g
+    x  .-= s.η .* s.v
+end
+
+# Adam
+function adam!(x, g, s, t)
+    s.m .= s.β1 .* s.m .+ (1 - s.β1) .* g
+    s.v .= s.β2 .* s.v .+ (1 - s.β2) .* g.^2
+    m̂ = s.m ./ (1 - s.β1^t);  v̂ = s.v ./ (1 - s.β2^t)
+    x .-= s.η .* m̂ ./ (sqrt.(v̂) .+ 1e-8)
+end
+
+x0 = [-1.5, 2.0]
+T_gd  = descend(gd!,  (η = 1e-3,),                          x0)
+T_mom = descend(mom!, (η = 1e-3, μ = 0.9, v = zeros(2)),     x0)
+T_ad  = descend(adam!,(η = 2e-2, β1 = 0.9, β2 = 0.999,
+                       m = zeros(2), v = zeros(2)),          x0)
+
+xr = range(-2, 2; length = 200); yr = range(-1, 3; length = 200)
+plt = contour(xr, yr, (a, b) -> log10(f(a, b)); levels = 30,
+              c = :grays, xlabel = "x", ylabel = "y")
+plot!(plt, T_gd[1, :],  T_gd[2, :],  label = "GD",       lw = 1.5)
+plot!(plt, T_mom[1, :], T_mom[2, :], label = "momentum", lw = 1.5)
+plot!(plt, T_ad[1, :],  T_ad[2, :],  label = "Adam",     lw = 1.5)
+scatter!(plt, [1.0], [1.0], label = "minimum", marker = :star, ms = 8)
+end
+```
+
+What the three trajectories show, mapped to the §2.5 failure modes:
+
+- **GD zig-zags** across the parabolic valley
+  ($y \approx x^2$): the gradient points mostly across the ravine,
+  and any $\eta$ large enough to make progress along the floor is
+  unstable across it. After 5 000 iterations it is typically still
+  far from $(1, 1)$.
+- **Momentum** averages out the across-valley oscillation
+  (alternating signs cancel in $v_t$) and accumulates speed along
+  the floor — the $O(\kappa) \to O(\sqrt{\kappa})$ claim made
+  visible.
+- **Adam** additionally rescales per-coordinate: the $y$-direction
+  gradient (scale ~200) and the $x$-direction gradient (scale ~2)
+  get *individually* normalised step sizes, so one global $\eta$
+  serves both — failure mode 2 (bad scaling between parameters)
+  solved by construction. It reaches the minimum's basin in a few
+  hundred iterations.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.5](../unit_02/unit_02.qmd#ex-2-5)
+:::
+
+### Solution 2.6 — close the MNIST gap in Lux {#sol-2-6}
+
+The only changes from `mnist_linear_lux.jl` are the model
+definition and the post-Adam fine-tune:
+
+```julia
+model = Lux.Chain(
+    Lux.Dense(784 => 256, relu),
+    Lux.Dense(256 => 128, relu),
+    Lux.Dense(128 => 10),
+    Lux.softmax,
+)
+
+# ... identical data pipeline and mini-batch Adam loop, 10 epochs ...
+
+# fine-tune: 5 more epochs at 10× smaller learning rate
+opt_state = Optimisers.setup(Optimisers.Adam(1f-3), ps)
+# ... same loop, 5 epochs ...
+```
+
+Expected numbers: ~97.5–98.2% after the 10 Adam epochs — past the
+random forest's ~97% — and the small-learning-rate fine-tune
+typically adds another 0.1–0.3% by letting the iterate settle into
+the minimum instead of bouncing around it at the larger step size.
+That two-phase pattern (fast optimiser to get close, careful
+optimiser to finish) is a miniature of the **Adam → L-BFGS**
+schedule every PINN in Units 5–10 uses.
+
+Parameter count:
+$784\!\times\!256 + 256 + 256\!\times\!128 + 128 + 128\!\times\!10 + 10
+= 235\,146$ — thirty times the softmax baseline's
+$784\!\times\!10 + 10 = 7\,850$, for about six points of accuracy.
+Depth is buying feature composition, not free lunch.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.6](../unit_02/unit_02.qmd#ex-2-6)
+:::
+
+### Solution 2.7 — KAN vs MLP on a sharp feature {#sol-2-7}
+
+```julia
+using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics, Plots
+
+rng = Random.MersenneTwister(0)
+n  = 512
+X  = reshape(collect(Float32, range(-1, 1; length = n)), 1, n)
+y  = reshape(abs.(X[1, :]) .+ 0.2f0 .* sin.(5f0 .* X[1, :]), 1, n)
+
+kan = Lux.Chain(KDense(1 => 6; basis_func = rbf, normalizer = softsign),
+                KDense(6 => 1; basis_func = rbf, normalizer = softsign))
+mlp = Lux.Chain(Lux.Dense(1 => 14, tanh), Lux.Dense(14 => 14, tanh),
+                Lux.Dense(14 => 1))   # ≈ same parameter count; check with
+                                      # Lux.parameterlength(...)
+
+function train(model; iters = 3000)
+    ps, st = Lux.setup(rng, model)
+    loss(p) = mean(abs2, first(model(X, p, st)) .- y)
+    opt = Optimisers.setup(Optimisers.Adam(1f-2), ps)
+    for _ in 1:iters
+        g = first(Zygote.gradient(loss, ps))
+        opt, ps = Optimisers.update(opt, ps, g)
+    end
+    ps, st, loss(ps)
+end
+
+ps_k, st_k, L_k = train(kan)
+ps_m, st_m, L_m = train(mlp)
+println("KAN MSE = $L_k,  MLP MSE = $L_m")
+```
+
+Typical outcome at matched parameter count and budget: the KAN's
+final MSE is a factor of a few lower, and the difference is
+concentrated exactly where the exercise pointed — zoom into
+$x \in [-0.1, 0.1]$ and the MLP rounds the $|x|$ kink into a smooth
+parabola-like cap, while the KAN's per-edge basis functions place a
+genuine corner. With 10× the iterations the MLP keeps improving and
+narrows the gap (a tanh network *can* approximate a kink arbitrarily
+well — it just spends many units and many iterations doing it),
+which is the honest summary of the KAN literature: an advantage in
+*efficiency* on sharp low-dimensional structure, not in ultimate
+expressiveness.
+
+The Python check, if you want it, is a five-line edit of the
+`pykan` script in §2.7 — replace the dataset function with
+`f = lambda x: torch.abs(x[:, [0]]) + 0.2 * torch.sin(5 * x[:, [0]])`.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.7](../unit_02/unit_02.qmd#ex-2-7)
+:::
+
+### Solution 2.8 — translate the vocabulary {#sol-2-8}
+
+| Supervised concept | PINN counterpart | What changes |
+|---|---|---|
+| (a) labelled example $(x_i, y_i)$ | a collocation point $t_i$ with target *residual* $0$ | the "label" is implicit — the equation itself says what the network should do there |
+| (b) test set | held-out collocation points (or a dense grid vs a trusted reference) | generalisation = small residual *between* training points, not just at them |
+| (c) overfitting | small residual at the sampled points, large in between; or the data term fitting observation noise | the regulariser against it is the physics itself, plus held-out residual checks |
+| (d) $L_2$ weight penalty | the PDE residual term (and smoothness priors like the $H^1$ penalty on a recovered driver) | the prior is *structural* — it encodes what the function must satisfy, not just "be small" |
+| (e) mini-batch | a resampled batch of collocation points per step | resampling is free (sample the domain at will), which is why PINNs can also afford full-batch L-BFGS |
+
+"Infinite training data": a PINN can draw as many collocation
+points as it likes — the domain is a sampling distribution, not a
+finite dataset. The catch is that all those points carry the *same*
+information (the one PDE), so more points reduce sampling error but
+cannot supply anything the equation + BCs don't already determine.
+Past a modest density, the binding constraint is **optimisation**
+(can the network actually be trained to satisfy the residual
+everywhere — see Unit 7), not data volume.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.8](../unit_02/unit_02.qmd#ex-2-8)
+:::
+
+## Unit 3 — Sci-ML and PIML
+
+### Solution 3.1 — find the fastest landing {#sol-3-1}
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+let
+ω = 2π
+function damped(u, p, t)
+    ζ = p[1]
+    [u[2], -ω^2 * u[1] - 2ζ * ω * u[2]]
+end
+
+function settling_time(ζ; tol = 0.02, Tmax = 10.0)
+    sol = solve(ODEProblem(damped, [1.0, 0.0], (0.0, Tmax), [ζ]),
+                Tsit5(); saveat = 0.001)
+    x = [u[1] for u in sol.u]
+    bad = findall(abs.(x) .> tol)            # indices still outside the band
+    isempty(bad) ? 0.0 : sol.t[bad[end]]     # last excursion = settling time
+end
+
+ζs = 0.1:0.05:2.0
+ts = settling_time.(ζs)
+println("settling time minimised at ζ = ", ζs[argmin(ts)])
+plot(ζs, ts, marker = :circle, xlabel = "ζ", ylabel = "settling time (s)",
+     title = "2% settling time vs damping ratio", legend = false)
+end
+```
+
+The minimum lands near $\zeta \approx 0.7$–$0.8$, **not** at
+$\zeta = 1$ — the control engineers are right. The intuition: a
+slightly underdamped system overshoots once, but that first
+overshoot can stay *inside* the 2% band while the approach is much
+faster than the critically damped crawl. Critical damping is the
+fastest response **with no overshoot at all**; once you tolerate a
+small band, mild underdamping wins. (Try `tol = 1e-4` and watch
+the optimum migrate toward 1 — the tighter the band, the less
+overshoot you can afford.) The lesson, beyond the control trivia:
+"check the claim numerically" is a five-line job once you have a
+solver loop, and the claim was subtly miscalibrated.
+
+::: {.exercise-solution-link}
+[← Back to Unit 3 §3.1](../unit_03/unit_03.qmd#ex-3-1)
+:::
+
+### Solution 3.2 — pick the right tool {#sol-3-2}
+
+1. **Surrogate.** A precomputable (input → output) map queried many
+   times: train on a few hundred CFD runs, then evaluate the 10 000
+   layouts in milliseconds each. Physics part: the CFD runs that
+   generate training data; ML part: the regression replacing the
+   solver. The trap to mention out loud: layout 7 832 had better be
+   *inside* the training distribution.
+2. **Hybrid (UDE).** Known clearance term written down exactly;
+   unknown absorption term $N_\theta(\cdot)$ learned per patient
+   from concentration time-series. Exactly the
+   $f_{\text{phys}} + N_\theta$ split.
+3. **Conservation-aware architecture.** The complaint is energy
+   drift, so bake conservation in: an HNN-style parameterisation
+   (learn the Hamiltonian, derive the dynamics) or a symplectic
+   integrator. A soft energy penalty would merely slow the drift;
+   the architectural constraint eliminates it.
+4. **Surrogate** again — and the stated guarantee ("only queried
+   inside the simulated range") is precisely the condition that
+   makes a surrogate trustworthy. A POD-based linear ROM
+   (§3.5) is the cheap first candidate before any neural network.
+
+::: {.exercise-solution-link}
+[← Back to Unit 3 §3.2](../unit_03/unit_03.qmd#ex-3-2)
+:::
+
+### Solution 3.3 — energy conservation by construction {#sol-3-3}
+
+```{julia}
+using OrdinaryDiffEq, ForwardDiff, Plots
+
+let
+H(u) = 0.5 * u[2]^2 + (1 - cos(u[1]))        # u = (q, p)
+
+# Hamilton's equations via autodiff — what an HNN does with H_θ
+function ham!(du, u, p, t)
+    g = ForwardDiff.gradient(H, u)
+    du[1] =  g[2]                            #  ∂H/∂p
+    du[2] = -g[1]                            # -∂H/∂q
+end
+
+# the "2% wrong" field a vanilla MLP might learn
+function ham_bad!(du, u, p, t)
+    g = ForwardDiff.gradient(H, u)
+    du[1] =  g[2]
+    du[2] = -1.02 * g[1]
+end
+
+u0 = [2.0, 0.0];  ts = (0.0, 100.0)
+sol  = solve(ODEProblem(ham!,     u0, ts), Tsit5(); saveat = 0.05,
+             reltol = 1e-9, abstol = 1e-9)
+solb = solve(ODEProblem(ham_bad!, u0, ts), Tsit5(); saveat = 0.05,
+             reltol = 1e-9, abstol = 1e-9)
+
+drift(s)  = [H(u) - H(u0) for u in s.u]
+plt = plot(sol.t, drift(sol), label = "exact Hamiltonian field", lw = 2,
+           xlabel = "t", ylabel = "H(t) − H(0)")
+plot!(plt, solb.t, drift(solb), label = "2%-perturbed field", lw = 2)
+end
+```
+
+The exact field's drift sits at the solver-tolerance floor
+($\sim 10^{-8}$ here — tighten `reltol` and it shrinks further: the
+residual drift is *numerical*, not structural). The perturbed
+field's energy error is qualitatively different: it grows
+secularly, oscillating with an expanding envelope, because the
+field is no longer **orthogonal to $\nabla H$**. That orthogonality
+— $\dot H = \nabla H \cdot (\partial_p H, -\partial_q H) \equiv 0$,
+an algebraic identity independent of what $H$ is — is exactly the
+property an HNN inherits *for free* by parameterising $H_\theta$
+and differentiating, and that a vanilla MLP fitting
+$(\dot q, \dot p)$ directly has no way to express.
+
+::: {.exercise-solution-link}
+[← Back to Unit 3 §3.3](../unit_03/unit_03.qmd#ex-3-3)
+:::
+
+### Solution 3.4 — SINDy on the damped oscillator {#sol-3-4}
+
+```{julia}
+using OrdinaryDiffEq, LinearAlgebra, Statistics
+
+let
+ω, ζ = 2π, 0.1
+osc(u, p, t) = [u[2], -ω^2 * u[1] - 2ζ * ω * u[2]]
+sol = solve(ODEProblem(osc, [1.0, 0.0], (0.0, 6.0)), Tsit5();
+            saveat = 0.002, reltol = 1e-10, abstol = 1e-10)
+X  = reduce(hcat, sol.u)'                    # (N, 2): columns x, v
+ts = sol.t
+
+# central differences for Ẋ (drop the endpoints)
+Ẋ = (X[3:end, :] .- X[1:end-2, :]) ./ (ts[3:end] .- ts[1:end-2])
+Xc = X[2:end-1, :]
+
+# degree-2 polynomial library: 1, x, v, x², xv, v²
+Θ(x, v) = hcat(ones(length(x)), x, v, x.^2, x .* v, v.^2)
+term_names = ["1", "x", "v", "x²", "xv", "v²"]
+lib = Θ(Xc[:, 1], Xc[:, 2])
+
+function stlsq(lib, dx; threshold = 0.5, iters = 5)
+    ξ = lib \ dx
+    for _ in 1:iters
+        small = abs.(ξ) .< threshold
+        ξ[small] .= 0
+        big = .!small
+        ξ[big] = lib[:, big] \ dx
+    end
+    ξ
+end
+
+for (k, label) in enumerate(("ẋ", "v̇"))
+    ξ = stlsq(lib, Ẋ[:, k])
+    terms = [string(round(ξ[i]; digits = 3), "·", term_names[i])
+             for i in eachindex(ξ) if ξ[i] != 0]
+    println("$label = ", join(terms, " + "))
+end
+println("\ntargets:  -ω² = ", round(-ω^2; digits = 3),
+        ",  -2ζω = ", round(-2ζ*ω; digits = 3))
+end
+```
+
+Clean data recovers `ẋ = 1.0·v` and
+`v̇ = -39.48·x + -1.257·v` — i.e. $-\omega^2 = -39.478$ and
+$-2\zeta\omega = -1.2566$, to four figures.
+
+Add the noise — `X .+= 0.01 .* std(X) .* randn(size(X))` before
+differentiating — and the recovered coefficients degrade badly or
+spurious quadratic terms survive thresholding. The failed step is
+**step 2 of the SINDy recipe, numerical differentiation**: central
+differences amplify noise by $\mathcal{O}(\sigma/\Delta t)$, and at
+$\Delta t = 0.002$ a 1% state noise becomes overwhelming derivative
+noise. The regression itself is fine — feed it the *true*
+$\dot X$ with noisy $X$ and recovery barely suffers. The fixes the
+unit names (total-variation differentiation, smoothing splines)
+all attack that one step; a cheap version worth trying is
+differencing over a wider stencil or pre-smoothing $X$ with a
+low-pass filter.
+
+The `pysindy` cross-check is three lines around the §3.4 Python
+script: same trajectory, `ps.SINDy(feature_library =
+ps.PolynomialLibrary(degree=2), optimizer = ps.STLSQ(threshold=0.5))`.
+
+::: {.exercise-solution-link}
+[← Back to Unit 3 §3.4](../unit_03/unit_03.qmd#ex-3-4)
+:::
+
+### Solution 3.5 — POD on a diffusing field {#sol-3-5}
+
+```{julia}
+using LinearAlgebra, Plots
+
+let
+nx, α = 101, 0.01
+dx = 1.0 / (nx - 1)
+dt = 0.4 * dx^2 / α
+x  = range(0, 1; length = nx)
+u  = exp.(-200 .* (x .- 0.3).^2);  u[1] = u[end] = 0.0
+
+snapshots = [copy(u)]
+u_new = similar(u)
+for n in 1:8000
+    for i in 2:nx-1
+        u_new[i] = u[i] + α * dt / dx^2 * (u[i+1] - 2u[i] + u[i-1])
+    end
+    u_new[1] = u_new[end] = 0.0
+    u, u_new = u_new, u
+    n % 40 == 0 && push!(snapshots, copy(u))   # ~200 snapshots
+end
+
+X = reduce(hcat, snapshots)
+U, Σ, V = svd(X)
+energy = cumsum(Σ.^2) ./ sum(Σ.^2)
+println("modes for 99% variance: ", findfirst(energy .≥ 0.99))
+
+plot(x, U[:, 1:3], label = ["mode 1" "mode 2" "mode 3"],
+     xlabel = "x", title = "first three POD modes")
+end
+```
+
+Typically **2–4 modes** carry 99% of the variance — versus ~6 for
+the 50-mass oscillator chain, and the tail decays much faster here.
+Diffusion actively *destroys* high-frequency content (each Fourier
+mode dies like $e^{-\alpha (n\pi)^2 t}$), so the snapshot set is
+dominated by a handful of slowly-decaying smooth shapes; an
+oscillatory system keeps recycling its energy through many modes
+instead.
+
+The first POD modes look like slightly distorted
+$\sin(n\pi x)$ — distorted because the off-centre initial bump
+weights the snapshots asymmetrically. That was predictable from
+separation of variables: the heat equation's evolution is diagonal
+in the sine eigenbasis (Unit 6 §6.2), so the snapshot covariance is
+nearly diagonal there too, and POD — which diagonalises the
+snapshot covariance — has little choice but to recover
+(approximately) the same basis.
+
+::: {.exercise-solution-link}
+[← Back to Unit 3 §3.5](../unit_03/unit_03.qmd#ex-3-5)
+:::
+
+### Solution 3.6 — evaluate a residual by hand {#sol-3-6}
+
+```{julia}
+using ForwardDiff, Statistics
+
+let
+ω = 2π
+candidates = (
+    a = t -> cos(ω * t),
+    b = t -> cos(0.9 * ω * t),
+    c = t -> exp(-t / 2) * cos(ω * t),
+)
+
+d2(f, t) = ForwardDiff.derivative(τ -> ForwardDiff.derivative(f, τ), t)
+ts = range(0, 2; length = 100)
+for (name, f) in pairs(candidates)
+    L = mean(t -> (d2(f, t) + ω^2 * f(t))^2, ts)
+    println("candidate $name:  L_PDE = ", round(L; sigdigits = 3))
+end
+end
+```
+
+The ranking (printed above): (a) $\approx 10^{-30}$ — zero up to
+rounding through the nested duals — then (c) $\approx 8.5$, and
+(b) $\approx 27$ worst of all.
+
+Working the algebra for (c),
+$u = e^{-t/2}\cos\omega t$ gives
+$\ddot u + \omega^2 u = e^{-t/2}\bigl(\tfrac{1}{4}\cos\omega t + \omega \sin\omega t\bigr)$
+— a residual of amplitude $\approx \omega e^{-t/2}$, largest near
+$t \approx 0.12$ (the first place $\sin\omega t = 1$, before the
+envelope decays). So the impostor that *perfectly matches the
+initial condition* is loudly rejected by the residual, and rejected
+**earliest in time** — the residual sees the spurious damping
+immediately, no data required. Note also the mildly surprising
+ordering: a 10% frequency error (b) costs *more* residual than
+visible damping (c), because the residual of (b) is proportional to
+$\omega^2 \,(1 - 0.81)$, and $\omega^2$ is large. Residual loss
+punishes frequency errors harshly — a foreshadowing of why
+spectral content dominates so much of PINN behaviour in
+Units 5–7.
+
+::: {.exercise-solution-link}
+[← Back to Unit 3 §3.6](../unit_03/unit_03.qmd#ex-3-6)
+:::
+
+## Unit 4 — Neural DEs
+
+### Solution 4.1 — test the invariant {#sol-4-1}
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+let
+α, β, γ, δ = 1.5, 1.0, 3.0, 1.0
+function lv!(du, u, p, t)
+    du[1] = α*u[1] - β*u[1]*u[2]
+    du[2] = δ*u[1]*u[2] - γ*u[2]
+end
+
+V(x, y) = δ*x - γ*log(x) + β*y - α*log(y)
+u0 = [1.0, 1.0];  V0 = V(u0...)
+
+plt = plot(xlabel = "t", ylabel = "V(t) − V(0)")
+for rtol in (1e-3, 1e-10)
+    sol = solve(ODEProblem(lv!, u0, (0.0, 50.0)), Tsit5();
+                saveat = 0.05, reltol = rtol, abstol = rtol)
+    plot!(plt, sol.t, [V(u...) - V0 for u in sol.u],
+          label = "reltol = $rtol")
+end
+plt
+end
+```
+
+(a) The drift is **numerics**. At `reltol = 1e-3` the invariant
+drifts visibly (typically $10^{-3}$–$10^{-2}$ over 50 time units,
+growing with $t$); at `reltol = 1e-10` it collapses by many orders
+of magnitude. If the drift were physics — a genuinely non-conserved
+$V$ — tightening the solver tolerance would *not* reduce it. That
+two-tolerance comparison is the standard cheap test for "is my
+conservation violation real?"
+
+(b) A neural network fit to one trajectory has no reason to keep
+$\nabla V \cdot f_\theta = 0$; its ~percent-level vector-field
+errors act like the perturbed field in Solution 3.3, so over 500
+time units $V$ drifts secularly and the orbit spirals inward or
+outward — qualitatively wrong long-run behaviour even when the
+short-run fit looks perfect. Encoding the invariant structurally
+(HNN/LNN for mechanical systems, or learning $V$ itself) is the
+fix, which is why §3.3 exists.
+
+::: {.exercise-solution-link}
+[← Back to Unit 4 §4.1](../unit_04/unit_04.qmd#ex-4-1)
+:::
+
+### Solution 4.2 — train a tiny Neural ODE on a spiral {#sol-4-2}
+
+```julia
+using Lux, OrdinaryDiffEq, SciMLSensitivity, Zygote, Optimisers,
+      ComponentArrays, Random, Plots
+
+# ground truth: decaying linear spiral
+A = [-0.1 2.0; -2.0 -0.1]
+true_rhs!(du, u, p, t) = (du .= A * u)
+ts   = range(0.0f0, 6.0f0; length = 30)
+data = Array(solve(ODEProblem(true_rhs!, Float32[2, 0], (0f0, 6f0)),
+                   Tsit5(); saveat = ts))
+
+rng    = Random.MersenneTwister(0)
+net    = Lux.Chain(Lux.Dense(2 => 16, tanh), Lux.Dense(16 => 2))
+ps, st = Lux.setup(rng, net)
+ps     = ComponentArray(ps)
+
+function predict(p, tspan, saveat)
+    rhs!(du, u, p_, t) = (du .= first(net(u, p_, st)))
+    Array(solve(ODEProblem(rhs!, Float32[2, 0], tspan, p), Tsit5();
+                saveat, sensealg = InterpolatingAdjoint()))
+end
+
+loss(p) = sum(abs2, predict(p, (0f0, 6f0), ts) .- data)
+
+opt = Optimisers.setup(Optimisers.Adam(1f-2), ps)
+for i in 1:1000
+    g = first(Zygote.gradient(loss, ps))
+    opt, ps = Optimisers.update(opt, ps, g)
+    i % 100 == 0 && println("iter $i  loss = $(loss(ps))")
+end
+
+# extrapolate to t = 12 against the truth
+t_ext   = range(0f0, 12f0; length = 200)
+pred    = predict(ps, (0f0, 12f0), t_ext)
+truth   = Array(solve(ODEProblem(true_rhs!, Float32[2, 0], (0f0, 12f0)),
+                      Tsit5(); saveat = t_ext))
+plot(truth[1, :], truth[2, :], label = "truth", lw = 2, c = :black)
+plot!(pred[1, :], pred[2, :], label = "Neural ODE", ls = :dash, lw = 2)
+vline!([0], alpha = 0); # cosmetic
+```
+
+Expected behaviour: inside the training window the fit is
+excellent (final loss $\sim 10^{-2}$ on this scale). Extrapolating
+to $t = 12$, the spiral continues *roughly* correctly for another
+turn or two — the trajectory keeps visiting states near ones the
+network saw — then degrades as the decaying radius enters
+state-space the network was never supervised on; the learned field
+there is unconstrained and the decay rate drifts. Training on only
+the first half of the spiral makes this much worse: the network
+never sees small-radius states at all, and the extrapolated orbit
+can stall, spiral at the wrong rate, or invent a limit cycle.
+
+The moral, stated in UDE terms: a black-box $f_\theta$ is only as
+good as its state-space coverage. If you *know* the dynamics are
+linear (or know any structural piece), encoding it shrinks what the
+data must cover — which is §4.3's argument.
+
+JAX users: the same experiment is ~30 lines with
+`diffrax.diffeqsolve` + `equinox.nn.MLP` + `optax.adam`, with
+`diffrax`'s default backsolve adjoint playing the role of
+`InterpolatingAdjoint`.
+
+::: {.exercise-solution-link}
+[← Back to Unit 4 §4.2](../unit_04/unit_04.qmd#ex-4-2)
+:::
+
+### Solution 4.3 — the functional inverse, in miniature {#sol-4-3}
+
+```julia
+using Lux, OrdinaryDiffEq, SciMLSensitivity, Zygote, Optimisers,
+      ComponentArrays, Random, Plots
+
+α, β, γ, δ = 1.5, 1.0, 3.0, 1.0
+lv!(du, u, p, t) = (du[1] = α*u[1] - β*u[1]*u[2];
+                    du[2] = δ*u[1]*u[2] - γ*u[2])
+
+ts    = range(0.0f0, 8.0f0; length = 60)
+rng   = Random.MersenneTwister(0)
+truth = Array(solve(ODEProblem(lv!, Float32[1, 1], (0f0, 8f0)),
+                    Tsit5(); saveat = ts))
+data  = truth .* (1 .+ 0.02f0 .* randn(rng, Float32, size(truth)))
+
+# UDE: keep everything except the predator-growth term, learn that
+nn      = Lux.Chain(Lux.Dense(2 => 8, tanh), Lux.Dense(8 => 1))
+ps, st  = Lux.setup(rng, nn)
+ps      = ComponentArray(ps)
+
+function ude!(du, u, p, t)
+    N = first(nn(u, p, st))[1]
+    du[1] = α*u[1] - β*u[1]*u[2]
+    du[2] = N - γ*u[2]                      # δxy replaced by N_θ(x, y)
+end
+
+predict(p) = Array(solve(ODEProblem(ude!, Float32[1, 1], (0f0, 8f0), p),
+                         Tsit5(); saveat = ts,
+                         sensealg = InterpolatingAdjoint()))
+loss(p) = sum(abs2, predict(p) .- data)
+
+opt = Optimisers.setup(Optimisers.Adam(5f-3), ps)
+for i in 1:600
+    g = first(Zygote.gradient(loss, ps))
+    opt, ps = Optimisers.update(opt, ps, g)
+end
+
+# compare N_θ(x, y) with δ·x·y over a grid
+xs = range(0.2f0, 4f0; length = 60); ys = range(0.2f0, 2.5f0; length = 60)
+Nθ = [first(nn(Float32[x, y], ps, st))[1] for y in ys, x in xs]
+Ntrue = [δ * x * y for y in ys, x in xs]
+p1 = heatmap(xs, ys, Nθ,    title = "learned N_θ(x, y)")
+p2 = heatmap(xs, ys, Ntrue, title = "true δ·x·y")
+p3 = heatmap(xs, ys, Nθ .- Ntrue, title = "difference", c = :balance)
+plot(p1, p2, p3, layout = (1, 3), size = (1100, 320))
+# overlay the training orbit on the difference panel:
+plot!(p3, truth[1, :], truth[2, :], c = :black, lw = 1.5, label = "orbit")
+```
+
+Inside the band of phase space the training orbit actually visits,
+the difference panel is near zero — $N_\theta$ recovers
+$\delta x y$ to a few percent, *without ever being told the term
+was bilinear*. Outside the orbit (corners of the grid the
+trajectory never enters), the difference grows arbitrarily: the
+loss never constrained those inputs, so the network freelances.
+Plot the orbit over the difference heatmap and the correspondence
+is unmistakable — the trustworthy region of a learned closure *is*
+the data's footprint in state space.
+
+That picture is what you should reproduce, in grown-up form, for
+the capstone's learned wind-stress envelope: report the recovered
+function together with the region where the data actually
+constrains it.
+
+::: {.exercise-solution-link}
+[← Back to Unit 4 §4.3](../unit_04/unit_04.qmd#ex-4-3)
+:::
+
+## Unit 5 — First PINN
+
+### Solution 5.1 — count the solutions {#sol-5-1}
+
+1. Any $x(t) = C e^{-t}$ has zero residual — e.g. $C = 0$ (the
+   trivial solution $x \equiv 0$, a favourite of lazy optimisers),
+   $C = 1$, and $C = 5$. The zero-residual set is the full
+   one-parameter family $\{C e^{-t} : C \in \mathbb{R}\}$, and the
+   IC term selects $C = 1$. This is why §5.1 says "initial
+   conditions are what pin it down" — a residual-only loss has a
+   *continuum* of global minima, most of them useless.
+2. With $\lambda_{\text{IC}} = 10^{-6}$ and total loss $10^{-8}$,
+   the IC term alone satisfies
+   $\lambda_{\text{IC}} |x_\theta(0) - 1|^2 \leq 10^{-8}$, i.e.
+   $|x_\theta(0) - 1| \leq \sqrt{10^{-8}/10^{-6}} = 0.1$. The
+   network can start **10% off** while the headline loss looks
+   superb — and since the residual then locks the trajectory to
+   the (wrong) member $0.9\,e^{-t}$, the *whole solution* is 10%
+   off, uniformly. The takeaway generalises: never report or
+   monitor only the total PINN loss; track each term in its own
+   units, because the weights make raw magnitudes incomparable.
+
+::: {.exercise-solution-link}
+[← Back to Unit 5 §5.1](../unit_05/unit_05.qmd#ex-5-1)
+:::
+
+### Solution 5.2 — trust, then verify, the autodiff stack {#sol-5-2}
+
+```{julia}
+using ForwardDiff
+
+let
+u(x, t) = sin(3x) * exp(-2t)
+
+∂x  = ForwardDiff.derivative(ξ -> u(ξ, 0.4), 0.7)
+∂xx = ForwardDiff.derivative(
+          ξ -> ForwardDiff.derivative(η -> u(η, 0.4), ξ), 0.7)
+∂t  = ForwardDiff.derivative(τ -> u(0.7, τ), 0.4)
+
+println("∂x  = ", ∂x,  "   vs closed form ", 3cos(2.1) * exp(-0.8))
+println("∂xx = ", ∂xx, "  vs closed form ", -9sin(2.1) * exp(-0.8))
+println("∂t  = ", ∂t,  "  vs closed form ", -2sin(2.1) * exp(-0.8))
+
+α = 2 / 9
+println("heat-equation residual ∂t − α∂xx = ", ∂t - α * ∂xx)
+end
+```
+
+Numbers: $\partial_x u = -0.68047\ldots$,
+$\partial_{xx} u = -3.4902\ldots$, $\partial_t u = -0.77560\ldots$,
+and $\partial_t u - \tfrac{2}{9}\partial_{xx} u \approx 10^{-16}$.
+The why: $u = \sin(3x)e^{-2t}$ is a single separated heat-equation
+mode with decay rate $\alpha k^2 = \alpha \cdot 9 = 2$, so
+$\alpha = 2/9$ — the same eigenmode arithmetic as Unit 6 §6.2.
+
+The JAX twin:
+
+```python
+import jax, jax.numpy as jnp
+
+u = lambda x, t: jnp.sin(3 * x) * jnp.exp(-2 * t)
+du_dx   = jax.jacfwd(u, argnums=0)
+d2u_dx2 = jax.jacfwd(jax.jacfwd(u, argnums=0), argnums=0)
+du_dt   = jax.jacfwd(u, argnums=1)
+
+x, t = 0.7, 0.4
+print(du_dx(x, t), d2u_dx2(x, t), du_dt(x, t))
+print(du_dt(x, t) - (2 / 9) * d2u_dx2(x, t))   # ~1e-8 in float32
+```
+
+Same numbers (to float32 precision unless you enable
+`jax.config.update("jax_enable_x64", True)`). The habit this builds
+is the important part: before trusting any PINN residual, run its
+derivative pipeline on a function with known derivatives. Five
+minutes, and it catches a remarkable fraction of sign, argument-order,
+and nesting bugs.
+
+::: {.exercise-solution-link}
+[← Back to Unit 5 §5.2](../unit_05/unit_05.qmd#ex-5-2)
+:::
+
+### Solution 5.3 — your second PINN: the oscillator {#sol-5-3}
+
+The three changes, grafted onto the §5.3 script (everything not
+shown is unchanged):
+
+```julia
+ω = 2.0f0
+model = Lux.Chain(Lux.Dense(1 => 32, tanh), Lux.Dense(32 => 32, tanh),
+                  Lux.Dense(32 => 1))
+ps, st = Lux.setup(rng, model)
+
+x_θ(t, ps, st) = first(model([t], ps, st))[1]
+
+# first and second time derivatives through the network, by central
+# differences — the same robust choice as §5.3's dxdt, one order up.
+# Zygote differentiates exactly through the three network evaluations.
+h = 1f-2
+d1(t, ps) = (x_θ(t + h, ps, st) - x_θ(t - h, ps, st)) / (2h)
+d2(t, ps) = (x_θ(t + h, ps, st) - 2x_θ(t, ps, st) + x_θ(t - h, ps, st)) / h^2
+
+ts = collect(range(0f0, 4f0; length = 128))
+
+function loss(ps)
+    L_res = sum(t -> (d2(t, ps) + ω^2 * x_θ(t, ps, st))^2, ts) / length(ts)
+    L_ic1 = (x_θ(0f0, ps, st) - 1f0)^2       # x(0) = 1
+    L_ic2 = (d1(0f0, ps))^2                  # ẋ(0) = 0  ← the new IC term
+    L_res + 100f0 * (L_ic1 + L_ic2)
+end
+
+opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)
+for epoch in 1:4000
+    g = first(Zygote.gradient(loss, ps))
+    opt_state, ps = Optimisers.update(opt_state, ps, g)
+end
+```
+
+(In JAX the pure-AD version is clean and safe:
+`jax.jacfwd(jax.jacfwd(x_theta))` for $\ddot x_\theta$ with
+`jax.grad` outside — no finite differences needed. The Julia
+stack's AD-inside-AD caveats are §5.3's listing comment; the
+central difference keeps the training gradient exact for the
+discretised residual.)
+
+Expected results: on $[0, 4]$ the PINN overlays $\cos(2t)$ to
+plotting accuracy after ~4 000 Adam iterations. Why a second IC?
+Same counting as Solution 5.1: a second-order ODE has a
+*two*-parameter solution family
+($A\cos\omega t + B\sin\omega t$), so two conditions are needed to
+pin one member.
+
+On $[0, 12]$ — about 3.8 periods — the vanilla setup degrades in a
+characteristic way: the early-time fit stays good, but the
+amplitude at late times shrinks toward zero, sometimes with a
+phase drift. Nothing in the loss tells late times to be a
+*consequence* of early times (causal violation), and the
+oscillatory target sits exactly where spectral bias makes
+optimisation slow; the easiest way for the optimiser to cut
+residual at late $t$ is the flat function. Both Unit 7 fixes
+(causal weighting; Fourier features) directly target this
+experiment — worth rerunning after reading §7.3.
+
+::: {.exercise-solution-link}
+[← Back to Unit 5 §5.3](../unit_05/unit_05.qmd#ex-5-3)
+:::
+
+### Solution 5.4 — change the equation, not the plumbing {#sol-5-4}
+
+The whole edit, in `ModelingToolkit` terms:
+
+```julia
+@parameters t
+@variables x(..)
+Dₜ = Differential(t)
+
+eq  = Dₜ(x(t)) ~ x(t) * (1 - x(t))           # was: ~ -x(t)
+bcs = [x(0.0) ~ 0.1]                          # was: x(0) ~ 1.0
+domains = [t ∈ ClosedInterval(0.0, 8.0)]      # was: 0..4
+```
+
+Everything else — chain, `PhysicsInformedNN`, `discretize`,
+`Optimization.solve` — is untouched. That's the declarative payoff:
+the symbolic layer derives the new residual; you never wrote a
+`dxdt`.
+
+Against the exact $x(t) = 1/(1 + 9e^{-t})$, expect agreement to
+$\sim 10^{-3}$ with the default settings. The thing you *did* have
+to reconsider: the solution spends $t \gtrsim 5$ glued to the
+plateau $x \approx 1$, and a uniform `GridTraining` lavishes half
+its collocation points on that trivially-satisfied region while the
+interesting sigmoid transition around $t = \ln 9 \approx 2.2$ gets
+the same density as everywhere else. The fit is still fine here
+(the problem is easy), but the observation scales: collocation
+density should follow solution *activity*, which is the motivation
+for the adaptive sampling strategies mentioned in §5.1 — and
+trainable-quadrature strategies like `QuasiRandomTraining` in
+`NeuralPDE.jl` are the one-line upgrade.
+
+::: {.exercise-solution-link}
+[← Back to Unit 5 §5.4](../unit_05/unit_05.qmd#ex-5-4)
+:::
+
+### Solution 5.5 — sharpen the bump until it breaks {#sol-5-5}
+
+Concretely, the IC line in the script becomes
+`u(x, 0) ~ exp(-S * (x - 0.5)^2)` with `S ∈ (200, 800, 3200)` —
+bump full-widths of roughly 0.17, 0.083, 0.042.
+
+Indicative outcomes (your numbers will differ, the *trend* won't):
+
+| Sharpness $S$ | final loss | PINN at $t = 0$ |
+|---|---|---|
+| 200 | $\sim 10^{-4}$ | clean fit |
+| 800 | $\sim 10^{-3}$ | peak clipped by ~10–20% |
+| 3200 | $\sim 10^{-2}$ | bump smeared to a fraction of its true height |
+
+And the punchline experiment: at $S = 3200$, quadrupling the
+collocation density (`GridTraining([0.025, 0.025])` or finer)
+barely moves the result. The failure is **not a sampling problem**
+— the residual is already being *measured* near the bump — it's an
+*optimisation* problem: the loss-landscape directions that encode
+high-frequency structure are poorly conditioned, so Adam and even
+L-BFGS crawl along them (spectral bias, §5.6). More points sharpen
+the measurement of an error the optimiser already can't fix.
+What *does* fix it: give the network high-frequency inputs to work
+with — Fourier feature embeddings, Unit 7 §7.3 — at which point
+$S = 3200$ becomes as easy as $S = 200$ was.
+
+::: {.exercise-solution-link}
+[← Back to Unit 5 §5.5](../unit_05/unit_05.qmd#ex-5-5)
+:::
+
+### Solution 5.6 — diagnose before you medicate {#sol-5-6}
+
+1. **Loss imbalance.** The BC term is *numerically* tiny but the
+   solution is wrong at the boundary: the optimiser spent its
+   budget on the dominant residual term and the BC term's gradient
+   never competed at $\lambda_b = 1$. First fix: **hard BC
+   enforcement** (remove the term from the contest entirely);
+   otherwise adaptive loss weighting.
+2. **Causal violation.** Early times fine, late times a frozen
+   smear that doesn't follow from them — the textbook symptom.
+   Fix: **causal training** (weight late-time residuals by
+   early-time convergence).
+3. **Spectral bias.** Same network, 100× more iterations purely
+   because the target frequency went from $2\pi$ to $16\pi$.
+   Fix: **Fourier feature embeddings** with $B$ covering
+   $\sim 16\pi$.
+4. **Loss imbalance** again — the see-saw form. Cranking one
+   weight starves the other terms; manual tuning is a zero-sum
+   game across $10^2$-plus dynamic range. Fix: **adaptive loss
+   weighting** (gradient-balancing or NTK), or restructure so the
+   conflict disappears (hard IC enforcement removes
+   $\lambda_{\text{IC}}$ from the game).
+
+The meta-skill: each disease has a *cheap diagnostic* (per-term
+loss tracking for imbalance; residual-vs-$t$ histogram for
+causality; iteration-count-vs-frequency for spectral bias). Run
+the diagnostics before reaching for any fix — the fixes are not
+interchangeable, and applying the wrong one wastes a tuning cycle.
+
+::: {.exercise-solution-link}
+[← Back to Unit 5 §5.6](../unit_05/unit_05.qmd#ex-5-6)
+:::
+
+## Unit 6 — PDE Bootcamp
+
+### Solution 6.1 — classify, then prescribe {#sol-6-1}
+
+| # | $(a, 2b, c)$ | $\Delta = b^2 - ac$ | Type | Needs |
+|---|---|---|---|---|
+| 1 | $(1, 0, 4)$ | $-4$ | elliptic | BCs on a closed boundary, no IC |
+| 2 | $(1, 0, -4)$ | $4$ | hyperbolic | ICs ($u$ *and* $u_t$) + BCs |
+| 3 | heat form | $0$ | parabolic | one IC + BCs |
+| 4 | $(1, 2, 1)$ | $1 - 1 = 0$ | parabolic (degenerate) | like heat after a change of variables |
+| 5 | $(y, 0, 1)$ | $-y$ | **mixed**: elliptic for $y > 0$, hyperbolic for $y < 0$, parabolic on $y = 0$ | depends on region — the equation models transonic flow for exactly this reason |
+
+The traps:
+
+- **Both $u$ and $\partial_n u$ on an elliptic boundary** is Cauchy
+  data on Laplace — Hadamard's original example. A solution exists
+  only for very special (analytic, compatible) data, and even then
+  it doesn't depend continuously on it: perturb the Neumann data at
+  spatial frequency $k$ by $\varepsilon$ and the interior solution
+  changes by $\varepsilon e^{k d}$ at distance $d$ from the
+  boundary. Existence *and* stability both fail → ill-posed.
+- **Backward heat**: write the solution in the sine basis —
+  each mode evolves like $e^{+\alpha k^2 t}$ when you run
+  diffusion in reverse. Any measurement noise at high $k$, however
+  small, explodes faster than any polynomial; continuous dependence
+  fails catastrophically. (This is also why §6.3 says diffusion
+  "loses information" — the forward map is smoothing, so its
+  inverse is unbounded. Every regularised deconvolution method is
+  a response to exactly this.)
+
+PINN corollary worth repeating: a PINN will happily *minimise the
+residual* of an ill-posed problem — it just converges to something
+that isn't a solution, because no solution exists or none is
+stable. Well-posedness is a property of the problem, not the
+method.
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.1](../unit_06/unit_06.qmd#ex-6-1)
+:::
+
+### Solution 6.2 — two modes, two decay rates {#sol-6-2}
+
+1. The IC is *already* a finite sine series with $b_1 = 1$,
+   $b_3 = 0.5$, all other $b_n = 0$. So
+   $$u(x, t) = e^{-\alpha \pi^2 t}\sin(\pi x)
+             + 0.5\, e^{-9 \alpha \pi^2 t}\sin(3\pi x).$$
+   No integrals — orthogonality has done the work.
+2. Mode $n$ hits 1% of its initial amplitude when
+   $e^{-\alpha (n\pi)^2 t} = 0.01$, i.e.
+   $t = \ln(100) / (\alpha n^2 \pi^2)$. With $\alpha = 0.01$:
+   $t_3 = 4.605/(0.01 \cdot 9\pi^2) \approx 5.2$ and
+   $t_1 \approx 46.7$. The ratio is exactly $n^2 = 9$ — the
+   "high frequencies die first" slogan with a number on it. (At
+   $t = 5$, the profile is already visually a pure $\sin \pi x$.)
+3. FTCS check: swap the IC line for
+   `u = sin.(π .* x) .+ 0.5 .* sin.(3π .* x)` and the boundary
+   pinning for `u_new[1] = u_new[nx] = 0.0`, run to $T = 5$, and
+   compare with the closed form — the whole experiment:
+
+```{julia}
+let
+nx, α, T = 101, 0.01, 5.0
+dx = 1.0 / (nx - 1)
+dt = 0.4 * dx^2 / α
+nt = ceil(Int, T / dt)
+x  = range(0, 1; length = nx)
+
+u = sin.(π .* x) .+ 0.5 .* sin.(3π .* x)
+u[1] = u[nx] = 0.0
+u_new = similar(u)
+for n in 1:nt
+    for i in 2:nx-1
+        u_new[i] = u[i] + α * dt / dx^2 * (u[i+1] - 2u[i] + u[i-1])
+    end
+    u_new[1] = u_new[nx] = 0.0
+    u, u_new = u_new, u
+end
+
+exact = exp(-0.01 * π^2 * T) .* sin.(π .* x) .+
+        0.5 * exp(-0.01 * 9π^2 * T) .* sin.(3π .* x)
+println("max |FTCS − exact| at T = 5:  ", maximum(abs.(u .- exact)))
+end
+```
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.2](../unit_06/unit_06.qmd#ex-6-2)
+:::
+
+### Solution 6.3 — match the equation to the movie {#sol-6-3}
+
+| Movie | Equation | Mechanism |
+|---|---|---|
+| (1) bump splits into two frozen half-copies | wave | propagation (d'Alembert: $\tfrac12 u_0(x - ct) + \tfrac12 u_0(x + ct)$) |
+| (2) bump slides rigidly | advection | transport |
+| (3) bump spreads, centre fixed | heat | smoothing |
+| (4) front steepens from smooth data, then creeps | Burgers | shock formation (then viscous propagation) |
+
+The erfc check, by substitution: let
+$\eta = x / (2\sqrt{\alpha t})$, so $u = u_0\operatorname{erfc}(\eta)$
+and $\operatorname{erfc}'(\eta) = -\tfrac{2}{\sqrt{\pi}}e^{-\eta^2}$.
+Then
+$$u_t = u_0\operatorname{erfc}'(\eta)\cdot\Bigl(-\frac{\eta}{2t}\Bigr),
+\qquad
+u_x = u_0\operatorname{erfc}'(\eta)\cdot\frac{1}{2\sqrt{\alpha t}},
+\qquad
+u_{xx} = u_0\operatorname{erfc}''(\eta)\cdot\frac{1}{4\alpha t},$$
+and since $\operatorname{erfc}''(\eta) = -2\eta\operatorname{erfc}'(\eta)$,
+$$\alpha u_{xx}
+ = u_0 \operatorname{erfc}'(\eta) \cdot \Bigl(-\frac{\eta}{2t}\Bigr) = u_t.\;\checkmark$$
+
+Or let the machine do it at a few points:
+
+```julia
+using ForwardDiff, SpecialFunctions
+u(x, t) = erfc(x / (2sqrt(0.01t)))
+r(x, t) = ForwardDiff.derivative(τ -> u(x, τ), t) -
+          0.01 * ForwardDiff.derivative(
+              ξ -> ForwardDiff.derivative(η -> u(η, t), ξ), x)
+maximum(abs(r(x, t)) for x in 0.1:0.2:1.5, t in 0.5:0.5:3.0)  # ~1e-16
+```
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.3](../unit_06/unit_06.qmd#ex-6-3)
+:::
+
+### Solution 6.4 — cross the CFL line on purpose {#sol-6-4}
+
+```{julia}
+using Plots
+
+let
+nx, α = 101, 0.01
+dx = 1.0 / (nx - 1)
+x  = range(0, 1; length = nx)
+
+plt = plot(xlabel = "step", ylabel = "max |u|", yscale = :log10,
+           title = "FTCS at four Courant numbers", legend = :topleft)
+for r in (0.49, 0.50, 0.51, 0.60)
+    dt = r * dx^2 / α
+    u  = exp.(-200 .* (x .- 0.75).^2);  u[1] = u[nx] = 0.0
+    u_new = similar(u)
+    steps = Int[];  maxima = Float64[]
+    for n in 1:4000
+        for i in 2:nx-1
+            u_new[i] = u[i] + r * (u[i+1] - 2u[i] + u[i-1])
+        end
+        u_new[1] = u_new[nx] = 0.0
+        u, u_new = u_new, u
+        if n % 100 == 0
+            push!(steps, n); push!(maxima, maximum(abs.(u)))
+            maxima[end] > 1e6 && break
+        end
+    end
+    plot!(plt, steps, maxima, marker = :circle, ms = 2, label = "r = $r")
+    r > 0.5 && println("r = $r exceeds 1e6 by step ",
+                       isempty(steps) ? "?" : steps[end])
+end
+plt
+end
+```
+
+What you'll observe, and why von Neumann predicts it exactly: the
+FTCS amplification factor at wavenumber $k$ is
+$G(k) = 1 - 4r\sin^2(k\Delta x/2)$, worst at the grid-scale
+sawtooth $k\Delta x = \pi$ where $G = 1 - 4r$.
+
+- $r = 0.49$: $G = -0.96$ — stable, with a decaying odd-even
+  flicker if you look closely.
+- $r = 0.50$: $G = -1$ exactly — marginal; the sawtooth neither
+  grows nor decays, it flips sign each step. Roundoff-level
+  sawtooth persists indefinitely.
+- $r = 0.51$: $|G| = 1.04$. Starting from roundoff-scale sawtooth
+  content ($\sim 10^{-16}$ relative), reaching $10^6$ takes
+  $\ln(10^{22})/\ln(1.04) \approx 1\,300$ steps; starting from the
+  $\sim 10^{-2}$-scale sawtooth content of the actual profile near
+  its kinks, more like
+  $\ln(10^8)/\ln(1.04) \approx 470$ steps. Either way: the blow-up
+  appears first as a **two-cell-period zigzag** superimposed on the
+  smooth profile — measure the spatial period of the garbage and
+  it's exactly $2\Delta x$, as predicted.
+- $r = 0.60$: $|G| = 1.4$; NaN within ~100 steps.
+
+The deeper point for this course: instability is *selective in
+frequency*. The smooth part of the solution remains perfectly
+well-behaved while one Fourier mode silently exponentiates — which
+is why "it looks fine for the first 400 steps" is no defence, and
+why the same Fourier-mode lens reappears for PINN spectral bias.
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.4](../unit_06/unit_06.qmd#ex-6-4)
+:::
+
+### Solution 6.5 — watch upwind diffuse a step {#sol-6-5}
+
+```{julia}
+using Plots
+
+let
+nx = 100;  dx = 1.0 / nx;  c = 1.0
+x  = (0.5:nx) .* dx
+u0 = Float64.((x .> 0.1) .& (x .< 0.3))
+
+function advect(u0, cfl; T = 1.0)
+    dt = cfl * dx / c
+    u  = copy(u0)
+    for _ in 1:round(Int, T / dt)
+        u .= u .- cfl .* (u .- circshift(u, 1))    # upwind, periodic
+    end
+    u
+end
+
+plt = plot(x, u0, label = "exact (initial step)", lw = 2, c = :black,
+           xlabel = "x", ylabel = "u")
+for cfl in (0.3, 0.8, 0.99)
+    plot!(plt, x, advect(u0, cfl), label = "upwind, CFL = $cfl", lw = 1.5)
+end
+plt
+end
+```
+
+At CFL 0.99 the step comes back nearly intact; at 0.8 the face has
+smeared over ~5–8 cells; at 0.3 it's a sad mound. The resolution of
+the paradox is the **modified equation**: Taylor-expanding the
+upwind scheme shows it solves, to leading error,
+$$u_t + c\,u_x = \underbrace{\frac{c\,\Delta x}{2}\bigl(1 - \mathrm{CFL}\bigr)}_{\nu_{\text{num}}}\,u_{xx},$$
+an advection–diffusion equation with an artificial viscosity that
+**vanishes as CFL → 1**. At CFL exactly 1, upwind shifts the
+solution one whole cell per step — the discrete characteristics
+coincide with the physical ones and the scheme is *exact*. The
+diffusion comes from the interpolation implied by fractional-cell
+shifts, and a smaller time step means *more* steps, hence more
+interpolation events, hence more smearing. ("Run at the largest
+stable step" is, for upwind advection, also an accuracy
+prescription — a genuine numerics curiosity.)
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.5](../unit_06/unit_06.qmd#ex-6-5)
+:::
+
+### Solution 6.6 — assemble a stiffness matrix by hand {#sol-6-6}
+
+1. Each hat $\phi_i$ has slope $\pm 1/\Delta x$ on its two
+   supporting elements. So
+   $K_{ii} = \int (\phi_i')^2 = 2\Delta x \cdot (1/\Delta x)^2 = 2/\Delta x$,
+   and for neighbours the slopes are $+1/\Delta x$ and
+   $-1/\Delta x$ on the one shared element:
+   $K_{i,i\pm1} = -1/\Delta x$. Non-neighbours don't overlap → 0.
+   Load: $\int \phi_i = \Delta x$ (area of a unit-height triangle
+   of base $2\Delta x$... careful: $\tfrac12 \cdot 2\Delta x \cdot 1 = \Delta x$ ✓).
+2. With $\Delta x = 1/4$: $K = 4\,\mathrm{tridiag}(-1, 2, -1)$
+   (3×3) and $b = (1/4)(1, 1, 1)^\top$. Solving
+   $4(2u_1 - u_2) = 1/4$, etc., gives
+   $u = (3/32,\ 1/8,\ 3/32) = (0.09375, 0.125, 0.09375)$.
+3. The exact solution at the nodes:
+   $u(0.25) = 0.25 \cdot 0.75 / 2 = 0.09375$,
+   $u(0.5) = 0.125$ — **exact**, as promised. (Why: for
+   $-u'' = f$ in 1-D with linear elements, the FE solution is the
+   *interpolant* of the exact solution at the nodes — Galerkin
+   orthogonality plus the fact that the Green's function of the
+   1-D Laplacian is piecewise linear. This nodal-exactness is
+   special to 1-D second-order problems; don't expect it in 2-D.)
+
+```{julia}
+using LinearAlgebra
+
+let
+N  = 8;  h = 1 / N
+K  = (1/h) * SymTridiagonal(fill(2.0, N - 1), fill(-1.0, N - 2))
+b  = fill(h, N - 1)
+u  = K \ b
+nodes = h .* (1:N-1)
+println("FE nodal values:    ", round.(u; digits = 6))
+println("exact x(1-x)/2:     ", round.(nodes .* (1 .- nodes) ./ 2; digits = 6))
+println("interior maximum:   ", maximum(u), "  (= 1/8 at the midpoint)")
+end
+```
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.6](../unit_06/unit_06.qmd#ex-6-6)
+:::
+
+### Solution 6.7 — four problems, four methods {#sol-6-7}
+
+1. **FE.** Patient-specific curved geometry from segmentation is
+   the canonical unstructured-mesh problem; FE triangulates it
+   natively and its error theory supports refining near the wall.
+   (FV is defensible for the flow itself; FD is not.)
+2. **FV.** A dam-break is a hyperbolic conservation law with a
+   moving shock — exactly what FV-with-limiters was built for, and
+   "volume conserved to machine precision" is FV's by-construction
+   guarantee that no other method offers.
+3. **FD** (via `MethodOfLines.jl`, as the capstone does). Smooth
+   solution, 1-D interval, no geometry: the structured-grid method
+   is the simplest trustworthy thing, and "reference fast" rules
+   out anything with meshing overhead.
+4. **PINN** — workflow W2/W3. The unknown is a *function*
+   (spatially-varying diffusivity), the data are scattered and
+   noisy, and the optimiser needs gradients of the fit with
+   respect to the unknown — the differentiable-forward-map
+   property is the deciding feature. (A classical adjoint FD
+   inversion is the honourable runner-up if the geometry is
+   simple and an adjoint code exists — Unit 1's lesson.)
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.7](../unit_06/unit_06.qmd#ex-6-7)
+:::
+
+### Solution 6.8 — audit the Unit 1 solver {#sol-6-8}
+
+1. $c_{\max} = \sqrt{9.81 \times 50} = 22.1$ m/s →
+   $\Delta t \leq 500/22.1 = 22.6$ s ✓. The production run's
+   Courant number is $c\,\Delta t/\Delta x = 22.1 \times 12 / 500
+   = 0.53$ — a safety factor of ~1.9. Comfortable: deep enough
+   into the stable region that bathymetry tweaks (a deeper
+   hand-edited channel) won't silently cross the line.
+2. Pulse width in the channel:
+   $0.55\,\text{h} \times 3600 \times 15\,\text{m/s} \approx 30$ km
+   $\approx 60$ cells. A feature resolved by 60 cells suffers
+   negligible dispersion error in a second-order scheme —
+   supporting the claim. (The flip side, also claimed in §6.8: a
+   *sharp* impulse a few cells wide would disperse visibly.)
+3. $c_{\max} = \sqrt{9.81 \times 200} = 44.3$ m/s →
+   $\Delta t \leq 11.3$ s. The production 12 s step now
+   **violates** CFL and the run would blow up from the deep-shelf
+   corner outward. Fix: drop to $\Delta t = 10$ s (cost: +20%
+   runtime) — or coarsen $\Delta x$ over the deep shelf if
+   runtime mattered, since deep-water waves are long and smooth
+   anyway. The general habit: every time the bathymetry changes,
+   re-derive the CFL bound; it is not a constant of the code.
+
+::: {.exercise-solution-link}
+[← Back to Unit 6 §6.8](../unit_06/unit_06.qmd#ex-6-8)
+:::
+
+## Unit 7 — PINNs Meet PDEs
+
+### Solution 7.1 — grade the disk PINN against the exact harmonic {#sol-7-1}
+
+```julia
+# after `res = Optimization.solve(...)` in the §7.1 disk script:
+using Statistics
+
+phi   = discretization.phi
+ps_tr = res.u
+
+rs = range(r_min, R; length = 50)
+θs = range(0.0, 2π;  length = 100)
+u_pinn  = [first(phi([r, θ], ps_tr))    for r in rs, θ in θs]
+u_exact = [r^3 * sin(3θ)                for r in rs, θ in θs]
+
+rel_L2 = sqrt(sum(abs2, u_pinn .- u_exact) / sum(abs2, u_exact))
+worst  = findmax(abs.(u_pinn .- u_exact))
+println("relative L² error = $rel_L2")
+println("worst error $(worst[1]) at (r, θ) = ",
+        (rs[worst[2][1]], θs[worst[2][2]]))
+```
+
+Typical findings:
+
+(a) Relative $L^2$ error of $10^{-3}$–$10^{-2}$, with the
+**worst pointwise error near the outer boundary**, often close to
+the $\theta = 0 / 2\pi$ seam. Two collocation facts explain it: the
+solution $r^3\sin 3\theta$ has all its amplitude and gradient near
+$r = R$, while uniform-in-$(r,\theta)$ sampling spends most of its
+points at small $r$ where the solution is nearly zero (and, bonus
+subtlety, uniform $(r, \theta)$ sampling over-densifies small radii
+in *area* terms); and the boundary itself is only enforced at ~36
+soft points. The $r_{\min}$ cutoff is usually *not* the worst spot
+— the solution there is $\mathcal{O}(r_{\min}^3) \approx 10^{-4}$,
+so even large relative errors are absolutely tiny.
+
+(b) With $\sin(6\theta)$ (exact solution $r^6\sin 6\theta$), the
+error typically grows several-fold at the same budget: six lobes
+double the angular frequency the network must represent, and
+$r^6$ concentrates the action even harder against the rim. Same
+architecture, same optimiser, harder spectrum — the §7.2 spectral
+bias story arriving on schedule.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.1](../unit_07/unit_07.qmd#ex-7-1)
+:::
+
+### Solution 7.2 — reproduce the failure, then prove it {#sol-7-2}
+
+The d'Alembert reference is the cheapest honest check: for
+$\eta_t + H u_x = 0$, $u_t + g\eta_x = 0$ with $u(x,0) = 0$, the
+elevation splits exactly into
+$\eta(x, t) = \tfrac12\eta_0(x - ct) + \tfrac12\eta_0(x + ct)$ with
+$c = \sqrt{gH} \approx 9.9$ m/s. At the half-time snapshot
+$t = 0.025$ the two half-bumps are centred at
+$1.0 \pm 0.248$.
+
+```julia
+# residual-vs-time histogram for the trained two-network system
+phi = discretization.phi          # vector of two networks (η, u)
+p_η, p_u = res.u.depvar.η, res.u.depvar.u_vel   # per-network params
+
+using ForwardDiff, Statistics
+ηf(x, t) = first(phi[1]([x, t], p_η))
+uf(x, t) = first(phi[2]([x, t], p_u))
+r1(x, t) = ForwardDiff.derivative(τ -> ηf(x, τ), t) +
+           10.0 * ForwardDiff.derivative(ξ -> uf(ξ, t), x)
+r2(x, t) = ForwardDiff.derivative(τ -> uf(x, τ), t) +
+           9.81 * ForwardDiff.derivative(ξ -> ηf(ξ, t), x)
+
+xs = range(0, 2; length = 200)
+tbins = range(0, 0.05; length = 11)
+means = [mean(abs2(r1(x, t)) + abs2(r2(x, t))
+              for x in xs, t in range(tbins[i], tbins[i+1]; length = 20))
+         for i in 1:10]
+bar(midpoints(collect(tbins)), means, xlabel = "t bin",
+    ylabel = "mean residual", legend = false)
+```
+
+What each diagnostic exposes:
+
+- **Snapshot vs d'Alembert** → spectral bias (one over-smoothed
+  lump instead of two distinct bumps) *and* loss imbalance (the
+  visible drift at the $x = 0, 2$ boundaries).
+- **Residual histogram** → causal violation: the late bins sit at
+  or above the early ones; a causally-trained run would show a
+  clean decreasing staircase.
+
+The BC×100 experiment: the boundary drift improves (that *was*
+loss imbalance), but the single-lump oversmoothing and the
+non-decreasing histogram persist — they were never about the BC
+weight. One knob, one disease: empirical proof that the three
+failure modes are separate, each needing its own §7.3 fix.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.2](../unit_07/unit_07.qmd#ex-7-2)
+:::
+
+### Solution 7.3 — Fourier features in twenty lines {#sol-7-3}
+
+```{julia}
+using Lux, Random, Zygote, Optimisers, Statistics, Plots
+
+let
+rng = Random.MersenneTwister(0)
+xs  = rand(rng, Float32, 1, 200)
+ys  = sin.(25f0 .* xs)
+
+# (a) plain MLP
+mlp = Lux.Chain(Lux.Dense(1 => 64, tanh), Lux.Dense(64 => 64, tanh),
+                Lux.Dense(64 => 1))
+
+# (b) Fourier-feature front end: x ↦ [sin(Bx); cos(Bx)], 16 frequencies
+function ff_model(σB)
+    B = σB .* randn(rng, Float32, 16, 1)
+    embed = x -> vcat(sin.(B * x), cos.(B * x))
+    Lux.Chain(Lux.WrappedFunction(embed),
+              Lux.Dense(32 => 64, tanh), Lux.Dense(64 => 64, tanh),
+              Lux.Dense(64 => 1))
+end
+
+function fit(model; iters = 2000)
+    ps, st = Lux.setup(rng, model)
+    L(p) = mean(abs2, first(model(xs, p, st)) .- ys)
+    opt = Optimisers.setup(Optimisers.Adam(1f-3), ps)
+    hist = Float32[]
+    for _ in 1:iters
+        g = first(Zygote.gradient(L, ps))
+        opt, ps = Optimisers.update(opt, ps, g)
+        push!(hist, L(ps))
+    end
+    ps, st, hist
+end
+
+_, _, h_plain = fit(mlp)
+_, _, h_ff10  = fit(ff_model(10f0))
+plt = plot(h_plain, yscale = :log10, label = "plain MLP",
+           xlabel = "Adam iteration", ylabel = "MSE")
+plot!(plt, h_ff10, label = "Fourier features σ = 10")
+end
+```
+
+Expected: the plain MLP's loss plateaus high for most of the
+budget — at 2 000 iterations it has often barely begun to carve out
+the 25 rad/unit oscillation — while the $\sigma = 10$ FF model
+drops orders of magnitude within a few hundred iterations.
+
+The two failure directions: $\sigma = 1$ gives embeddings whose
+frequencies are all far below 25 — the bias is *not* broken and the
+curve looks like the plain MLP's. $\sigma = 100$ scatters most
+frequencies far above the target: the model can represent wild
+oscillations *between* the 200 samples, so the loss gets noisy,
+optimisation jitters, and the fit between samples is garbage —
+spectral bias replaced by spectral overshoot/overfitting. The
+one-sentence takeaway: **the embedding's frequency distribution
+must cover (roughly bracket) the target solution's spectrum** —
+$\sigma$ is a prior on content, not a free lunch.
+
+The hard-BC factor: $x(1-x)$ vanishes at $x = 0, 1$ identically,
+so $u_\theta = x(1-x)N_\theta$ satisfies the homogeneous Dirichlet
+pair for *any* $N_\theta$ — the BC is removed from the optimisation
+entirely. The IC analogue from the exercise:
+$$u_\theta(x, t) = g(x) + t\,N_\theta(x, t),$$
+which equals $g(x)$ at $t = 0$ regardless of the network (this is
+exactly the "hard IC" used in Task B, Unit 10 §10.3). Composing
+both: $u_\theta = g(x) + t\,x(1-x)\,N_\theta$ — at the price that
+the prefactors also rescale the network's gradients, which is why
+hard enforcement of *everything* sometimes trains worse than hard
+BC + soft flux.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.3](../unit_07/unit_07.qmd#ex-7-3)
+:::
+
+### Solution 7.4 — file these five papers {#sol-7-4}
+
+1. **W3** (with a defensible W1 reading — this is the arguable
+   one, see below).
+2. **W1** — forward solve, no data term, benchmark against a
+   classical solver.
+3. **W2** — the van-Genuchten parameters are a handful of scalars
+   optimised jointly with the field network. (That the *head
+   field* is also recovered doesn't change the classification:
+   the field network exists in every workflow; the column that
+   matters is what's *unknown in the PDE*.)
+4. **W4** — known dynamical core + learned closure from
+   high-resolution output: the textbook hybrid-simulator setup.
+5. **W3** — the course's running example: unknown
+   boundary-condition *function* ψ(t), data from gauges.
+
+The arguable case is **(1) Hidden Fluid Mechanics**. Reading A
+(W3): the unknowns are *functions* — entire velocity and pressure
+fields never measured anywhere — recovered from auxiliary
+observations; "recover an unknown function from indirect data" is
+W3's definition. Reading B (W1-plus-data): there is no unknown
+*in* the PDE — Navier–Stokes is fully specified — so this is "just"
+a forward solve where unusual data (concentration) replaces
+unknown BCs/ICs. The honest verdict: HFM shows the taxonomy's
+edges are about *what plays the role of the missing information*;
+the concentration data substitutes for unknown boundary and
+initial conditions, which are functions — so W3 by spirit, W1 by
+letter.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.4](../unit_07/unit_07.qmd#ex-7-4)
+:::
+
+### Solution 7.5 — recover a diffusivity (Workflow 2, end-to-end) {#sol-7-5}
+
+```julia
+using Lux, Random, Zygote, Optimisers, ComponentArrays, Statistics
+
+# --- synthetic truth and data --------------------------------------
+α_star = 0.07
+u_exact(x, t) = exp(-α_star * π^2 * t) * sin(π * x)
+
+rng = Random.MersenneTwister(0)
+Nd  = 50
+xd, td = rand(rng, Float32, Nd), rand(rng, Float32, Nd)
+ud  = Float32.(u_exact.(xd, td)) .* (1 .+ 0.01f0 .* randn(rng, Float32, Nd))
+
+# --- PINN with a trainable scalar α --------------------------------
+net = Lux.Chain(Lux.Dense(2 => 32, tanh), Lux.Dense(32 => 32, tanh),
+                Lux.Dense(32 => 1))
+ps0, st = Lux.setup(rng, net)
+θ = ComponentArray(net = ComponentArray(ps0), logα = Float32[log(0.02)])
+# (log-parameterise α so it stays positive; init deliberately wrong)
+
+# hard BC/IC ansatz: u = sin(πx)·(1 + t·N(x,t)) — satisfies the IC
+# u(x,0)=sin(πx) and the boundaries u(0,t)=u(1,t)=0 by construction.
+u_θ(x, t, θ) = sin(π * x) * (1 + t * first(net([x, t], θ.net, st))[1])
+
+# input derivatives by central differences (§5.3's robust pattern) so
+# Zygote's training gradient flows exactly through every term
+hfd = 1f-2
+function residual(x, t, θ)
+    α   = exp(θ.logα[1])
+    ut  = (u_θ(x, t + hfd, θ) - u_θ(x, t - hfd, θ)) / (2hfd)
+    uxx = (u_θ(x + hfd, t, θ) - 2u_θ(x, t, θ) + u_θ(x - hfd, t, θ)) / hfd^2
+    ut - α * uxx
+end
+
+xr, tr = rand(rng, Float32, 400), rand(rng, Float32, 400)
+function loss(θ)
+    Lr = mean(abs2, residual.(xr, tr, Ref(θ)))
+    Ld = mean(abs2, u_θ.(xd, td, Ref(θ)) .- ud)
+    Lr + 100f0 * Ld
+end
+
+opt = Optimisers.setup(Optimisers.Adam(1f-2), θ)
+for i in 1:3000
+    g = first(Zygote.gradient(loss, θ))
+    opt, θ = Optimisers.update(opt, θ, g)
+    i % 500 == 0 && println("iter $i  α̂ = $(exp(θ.logα[1]))")
+end
+```
+
+(Why central differences rather than ForwardDiff inside the
+training loss: Zygote cannot track parameter gradients *through*
+`ForwardDiff.derivative` of a parameter-closure — it warns and
+silently drops that contribution, which would leave the residual
+term untrainable. See the §5.3 listing comment; the JAX equivalent
+has no such trap.)
+
+Indicative results:
+
+| Data regime | recovered $\hat\alpha$ |
+|---|---|
+| 50 points, 1% noise | $0.070 \pm 0.001$ — clean |
+| 50 points, 5% noise | $\sim 0.066$–$0.074$, run-to-run scatter, mild bias |
+| 10 points, 1% noise | usually still within ~5% — the *physics* is doing the interpolation |
+
+The first "when it doesn't work" item you hit is **very noisy
+data**: with 5% noise and no noise model, the data term drags
+$u_\theta$ toward the noise realisations and $\alpha$ absorbs part
+of the error as a biased decay rate. Note what you *don't* hit:
+ill-posedness. A single global decay rate observed through 50
+points is massively over-determined — which is why W2 problems are
+the gentle on-ramp and the capstone's W3 (a whole unknown
+*function*) needs the extra regularisation machinery.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.5](../unit_07/unit_07.qmd#ex-7-5)
+:::
+
+### Solution 7.6 — pick the package {#sol-7-6}
+
+| Job | First pick | Cross-ecosystem runner-up |
+|---|---|---|
+| 1. FD reference from a symbolic `PDESystem` | `MethodOfLines.jl` | no direct Python analogue in the table — closest is hand-rolling in `numpy`/`scipy` (or `PhysicsNeMo-Sym`'s FD utilities) |
+| 2. Symbolic-PDE PINN in Julia | `NeuralPDE.jl` | `DeepXDE` (or `PhysicsNeMo-Sym` for the most symbolic Python workflow) |
+| 3. Backprop through an ODE solve in JAX | `Diffrax` | `SciMLSensitivity.jl` |
+| 4. Sparse symbolic equation discovery | `PySINDy` | the Unit 3 STLSQ script / `DataDrivenDiffEq.jl` in Julia |
+| 5. PyTorch team, industrial PINN + operator tooling | `NVIDIA PhysicsNeMo` (+`-Sym`) | `NeuralPDE.jl` + `NeuralOperators.jl` |
+| 6. KAN inside a Lux PINN | `KolmogorovArnold.jl` | `pykan` |
+
+Worth noticing while filling this in: rows 1–2 are where the Julia
+side's *symbolic* layer (`ModelingToolkit`) has no full Python
+counterpart, and row 5 is where the Python side's industrial
+weight has no Julia counterpart. The ecosystems are genuinely
+asymmetric, which is why the workshop teaches both.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.6](../unit_07/unit_07.qmd#ex-7-6)
+:::
+
+### Solution 7.7 — read one keystone paper properly {#sol-7-7}
+
+A filled-in example for *Hidden Fluid Mechanics*
+(Raissi, Yazdani & Karniadakis, Science 2020):
+
+1. **PDE enforced:** incompressible Navier–Stokes (momentum +
+   continuity) plus the passive-scalar transport equation for the
+   observed concentration.
+2. **Measured vs reconstructed:** measured — spatio-temporal
+   concentration fields (dye/smoke/contrast agent) and geometry;
+   reconstructed — full velocity field *and* pressure (pressure is
+   never measured anywhere, and is recovered only up to the
+   constant the equations leave free).
+3. **Workflow:** W3 in spirit (unknown *fields* recovered from
+   indirect data) — see Solution 7.4 for the W1-by-letter
+   argument.
+4. **Acknowledged limitation:** long training times; degradation
+   at high Reynolds number; fine-scale turbulence out of reach.
+5. **Pre-dated fixes:** causal training (2022) and modern adaptive
+   weighting both post-date it; the multi-scale/turbulence
+   limitation is exactly where Fourier features and causal
+   weighting would plausibly help — and where follow-up literature
+   went.
+
+Calibration verdict: the headline ("velocity and pressure from
+concentration visualisations alone") survives within its stated
+regime — laminar-to-moderate-Re, well-resolved scalar fields. The
+over-claim to watch for is in *citations of* the paper rather than
+the paper itself: it is routinely cited as if turbulent flows were
+demonstrated. Reading the limitations section of the original is
+the antidote — which was the point of this exercise.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.7](../unit_07/unit_07.qmd#ex-7-7)
+:::
+
+### Solution 7.8 — the marketing audit {#sol-7-8}
+
+| Claim | Bucket | The confirming question |
+|---|---|---|
+| 1. trained on 40 000 Fluent runs | **surrogate** | "Is any PDE residual evaluated during training, or only data misfit?" |
+| 2. minimises the NS residual at collocation points | **residual-loss PINN** | "At collocation points or only at sensor locations?" (the former is the PINN signature) |
+| 3. GNN on ERA5, 10-day forecast | **neural operator** (GraphCast-class) | "Does the loss contain the primitive equations, or only reanalysis targets?" |
+| 4. "respects conservation because the training data did" | **surrogate** (the trap) | "What enforces conservation at *inference* time on inputs unlike the training set?" |
+| 5. governing equations as soft constraints, 100× less data | **PINN** (residual-loss hybrid, W4-flavoured) | "Soft constraints on what — the full PDE, or a low-order proxy?" |
+
+Why claim 4 is hollow: a network trained on energy-conserving
+trajectories learns to *imitate* conservation **on the training
+distribution**. Conservation is a property of the data, not of the
+hypothesis class — nothing in the architecture or loss penalises a
+violating output, so the first out-of-distribution input (longer
+horizon, unseen forcing, extrapolated parameter) is free to leak
+energy, and typically does, compounding over rollout steps. The
+fixes are exactly the Unit 3 §3.2 inductive-bias menu: conservation
+as an architectural constraint (predict a flux and take its
+divergence; HNN-style potentials), or at minimum as a residual
+penalty evaluated on the *model's own outputs* — which is the
+line separating buckets 1 and 2 in the first place.
+
+::: {.exercise-solution-link}
+[← Back to Unit 7 §7.8](../unit_07/unit_07.qmd#ex-7-8)
+:::
+
+## Unit 8 — PDE Modelling in AIMS Domains
+
+### Solution 8.1 — write the turbidity model {#sol-8-1}
+
+Term by term from the temperature equation:
+
+$$
+\frac{\partial C}{\partial t}
+\;+\; w(z, t)\,\frac{\partial C}{\partial z}
+\;=\;
+\frac{\partial}{\partial z}\!\left(\kappa(z, t)\,\frac{\partial C}{\partial z}\right)
+\;+\;
+\underbrace{\frac{\partial}{\partial z}\bigl(w_s\, C\bigr)}_{\text{settling}},
+$$
+
+- **Unchanged:** vertical advection by $w$ and turbulent diffusion
+  by $\kappa$ — turbulence stirs sediment exactly as it stirs heat
+  (same Reynolds-closure argument, same eddy diffusivity to leading
+  order).
+- **The body source is gone** — sunlight heats water but doesn't
+  create sediment. Its place is taken by the **settling term**:
+  particles fall at $w_s > 0$ relative to the water, a *downward*
+  flux $-w_s C$ whose divergence adds $+\partial_z(w_s C)$ to the
+  right-hand side (with $z$ up). Equivalently: sediment is advected
+  at the *composite* velocity $w - w_s$.
+- **Top BC** ($z = 0$): no sediment crosses the sea surface — total
+  flux zero: $\kappa\,\partial_z C + w_s C = 0$. Note this is a
+  Robin condition, not Neumann: the settling flux must be cancelled
+  by a diffusive flux at the surface.
+- **Bottom BC** ($z = -H$): the bed exchanges in both directions —
+  deposition $w_s C|_{-H}$ out, erosion $E(\tau_b)$ in, with $E$ an
+  increasing function of bed shear stress (this is where a
+  resuspension *event* enters the model). A minimal version:
+  $\kappa\,\partial_z C|_{-H} = E(t) - w_s C(-H, t)$.
+
+Light for the corals: Beer–Lambert again, but with an attenuation
+coefficient that *depends on your solution* —
+$I(z, t) = I_0(t)\exp\bigl(\int_z^0 -k_d(C(z', t))\,dz'\bigr)$
+with $k_d$ increasing in $C$. (Note the pleasant symmetry: in the
+thermal problem light was a *source* in the PDE; in the turbidity
+problem the PDE's solution feeds back into the light. Couple the
+two and you have a genuinely interesting — and AIMS-relevant —
+multiphysics column.)
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.1](../unit_08/unit_08.qmd#ex-8-1)
+:::
+
+### Solution 8.2 — units police {#sol-8-2}
+
+1. $[\partial_t T] = \text{K/s}$.
+   $[w\,\partial_z T] = (\text{m/s})(\text{K/m}) = \text{K/s}$ ✓.
+   $[\partial_z(\kappa\,\partial_z T)] = \frac{1}{\text{m}}\cdot
+   (\text{m}^2/\text{s})(\text{K/m}) = \text{K/s}$ ✓. So
+   $[\mathcal{S}]$ must also be K/s ✓.
+2. $Q_{\text{SW}}$ is W/m² $= \text{J s}^{-1}\text{m}^{-2}$.
+   Dividing by $\rho c_p$
+   ($\text{kg m}^{-3} \cdot \text{J kg}^{-1}\text{K}^{-1}
+   = \text{J m}^{-3}\text{K}^{-1}$) gives
+   $\text{K·m/s}$ — a *flux* of temperature. The Beer–Lambert
+   factor $k\,e^{kz}$ carries units $\text{m}^{-1}$, turning the
+   flux into the volumetric heating rate K/s. Watts in, kelvin per
+   second out, with $\rho c_p \approx 4.09 \times 10^6\,
+   \text{J m}^{-3}\text{K}^{-1}$ as the exchange rate.
+3. Left side: $(\text{m}^2/\text{s})(\text{K/m}) = \text{K·m/s}$;
+   right side: $(\text{W/m}^2)/(\text{J m}^{-3}\text{K}^{-1}) =
+   \text{K·m/s}$ ✓. Equilibrium gradient:
+   $$\partial_z T = \frac{Q_{\text{np}}}{\rho c_p \kappa}
+     = \frac{-200}{1025 \times 3990 \times 10^{-3}}
+     \approx -0.049\ \text{K/m}.$$
+   **Small** — about a sixth of a typical thermocline gradient.
+   That's worth internalising: even a hefty 200 W/m² surface flux
+   sustains only a gentle gradient through a well-mixed layer,
+   because mixed-layer turbulence is so efficient. Sharp gradients
+   in the ocean live where $\kappa$ is small, not where $Q$ is
+   large.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.2](../unit_08/unit_08.qmd#ex-8-2)
+:::
+
+### Solution 8.3 — which mechanism does your sensor see? {#sol-8-3}
+
+1. Advective cooling rate:
+   $w\,\partial_z T = 2\times10^{-5} \times 0.3
+   = 6\times10^{-6}\ \text{K/s} \approx 0.52\ \text{K/day}$.
+2. To match it, diffusion needs
+   $\kappa\,\partial_{zz}T = 6\times10^{-6}$, i.e.
+   $\partial_{zz}T = 0.06\ \text{K/m}^2$ at
+   $\kappa = 10^{-4}$. A smooth thermocline's curvature is more
+   like $0.3/10 = 0.03\ \text{K/m}^2$ — a factor of two short even
+   with this *generous* $\kappa$; with the background interior
+   value $\kappa_b = 10^{-5}$ (§8.5) diffusion delivers only
+   ~0.026 K/day, twenty times short. And there's a sign
+   subtlety the careful reader catches: near the *top* of the
+   thermocline the curvature is negative, so diffusion there
+   actually warms the sensor's depth.
+3. So a sustained ~0.5 K/day cooling at $-20$ m **must be
+   advective** under quiet-ocean parameters — *unless* the storm
+   has boosted $\kappa$ by an order of magnitude or more, which is
+   precisely hypothesis 2 (storm-enhanced mixing). The competition
+   between "upwelling at quiet-$\kappa$" and "quiet-$w$ with
+   storm-$\kappa$" can't be settled by one sensor's cooling rate
+   alone — it needs the *vertical pattern* across sensors (warming
+   below the thermocline indicts mixing; uniform deep cooling
+   indicts upwelling). Which is the capstone's whole premise.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.3](../unit_08/unit_08.qmd#ex-8-3)
+:::
+
+### Solution 8.4 — where does the sunlight actually go? {#sol-8-4}
+
+The fraction still travelling downward past depth $z$ is
+$F(z) = R\,e^{k_1 z} + (1 - R)\,e^{k_2 z}$ (with $z \le 0$), so the
+fraction absorbed above $z$ is $1 - F(z)$.
+
+| Depth | two-band absorbed above | single-band ($\zeta = 10$ m) |
+|---|---|---|
+| 1 m | $1 - (0.58\,e^{-0.5} + 0.42\,e^{-1/14}) \approx 26\%$ | $1 - e^{-0.1} \approx 9.5\%$ |
+| 10 m | $1 - (0.58\,e^{-5} + 0.42\,e^{-10/14}) \approx 79\%$ | $1 - e^{-1} \approx 63\%$ |
+| past 30 m | $0.42\,e^{-30/14} \approx 4.9\%$ reaches | $e^{-3} \approx 5.0\%$ reaches |
+
+```{julia}
+using Plots
+
+let
+R, k1, k2 = 0.58, 0.5, 1/14
+F2(z) = R * exp(k1 * z) + (1 - R) * exp(k2 * z)
+F1(z) = exp(z / 10)
+z = range(-50, 0; length = 500)
+plt = plot(F2.(z), z, xscale = :log10, label = "two-band", lw = 2,
+           xlabel = "fraction of Q_SW remaining", ylabel = "z (m)")
+plot!(plt, F1.(z), z, label = "single band ζ = 10 m", lw = 2)
+end
+```
+
+The striking coincidence: **below 30 m the two models agree almost
+exactly** (4.9% vs 5.0%) — the capstone's single-band $\zeta = 10$ m
+was evidently chosen to get the thermocline-depth energy right.
+Where they part company is the top metre or two: the two-band model
+dumps a quarter of the noon flux into the top metre (the red band),
+the single-band model spreads it over ~10 m. So the **diurnal
+warm layer** is the casualty of the simplification — too thick and
+too cool in the single-band model — while a thermistor at $-40$ m
+(receiving ~2% of surface flux either way) genuinely doesn't care.
+Right model complexity depends on which sensor you're trying to
+explain; for the storm-at-depth question, single-band is fine.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.4](../unit_08/unit_08.qmd#ex-8-4)
+:::
+
+### Solution 8.5 — find the mixing barrier {#sol-8-5}
+
+1. $\partial_z T_0(z) = \frac{T_{\text{surface}} - T_{\text{deep}}}{2\,\delta_t}\,
+   \mathrm{sech}^2\!\bigl((z - z_t)/\delta_t\bigr)
+   = \frac{10}{10}\,\mathrm{sech}^2\!\bigl((z + 30)/5\bigr)$
+   — peaking at **1 K/m** at $z = -30$ m. So
+   $N^2_{\max} = \alpha g\,\partial_z T = 2\times10^{-4} \times 9.81
+   \times 1 \approx 2.0\times10^{-3}\ \text{s}^{-2}$
+   (buoyancy period $2\pi/N \approx 2.3$ min — a briskly
+   stratified thermocline).
+2. $\mathrm{Ri}(z) = N^2 / (0.01)^2$ peaks at
+   $\mathrm{Ri}_{\max} \approx 20$. The $\mathrm{Ri} > 1/4$ band:
+   solve $\mathrm{sech}^2((z+30)/5) > 0.25/19.6$, giving
+   $|z + 30| \lesssim 14$ m — stability from roughly $-16$ m down
+   to $-44$ m.
+3. With $\kappa = \kappa_b + \kappa_0/(1 + 5\mathrm{Ri})^2$,
+   $\kappa_0 = 10^{-3}$, $\kappa_b = 10^{-5}$: near the surface
+   $\mathrm{Ri} \approx 0$ so $\kappa \approx 1.0\times10^{-3}$;
+   at the thermocline
+   $\kappa \approx 10^{-5} + 10^{-3}/(1+98)^2 \approx 1.01\times10^{-5}$
+   — a suppression factor of **~100**, with the closure pinned
+   essentially at its background floor.
+
+```{julia}
+using Plots
+
+let
+dTdz(z) = (10 / (2 * 5)) * sech((z + 30) / 5)^2
+Ri(z)   = 2e-4 * 9.81 * dTdz(z) / 0.01^2
+κ(z)    = 1e-5 + 1e-3 / (1 + 5 * Ri(z))^2
+z = range(-60, 0; length = 600)
+plot(κ.(z), z, xscale = :log10, lw = 2, legend = false,
+     xlabel = "κ (m²/s)", ylabel = "z (m)",
+     title = "Ri-dependent closure through the initial thermocline")
+end
+```
+
+The consequence: the thermocline is a **mixing barrier**. A surface
+heat anomaly diffuses through the upper mixed layer in hours
+($T \sim h_m^2/\kappa_m \approx 20^2/10^{-3}\,\text{s} \approx 4.6$ days
+for the full 20 m, much less for the top few metres) but crossing
+the ~30 m-wide suppressed band at $\kappa \approx 10^{-5}$ takes
+$\sim 30^2/10^{-5}\,\text{s} \approx 1\,000$ days. Deep sensors
+simply *cannot* be reached diffusively on storm timescales unless
+the storm smashes the barrier — i.e. raises $\mathrm{Ri}$'s
+denominator via shear until the closure reopens. That's hypothesis
+2 in dimensionless clothing.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.5](../unit_08/unit_08.qmd#ex-8-5)
+:::
+
+### Solution 8.6 — three sites, three regimes, by the numbers {#sol-8-6}
+
+With $\kappa_m = 10^{-3}$ m²/s and $w_0 = 10^{-5}$ m/s:
+
+| Site | $H$ | $\mathrm{Pe} = w_0H/\kappa_m$ | $T_\kappa = H^2/\kappa_m$ | $\sqrt{\kappa_m \cdot 3\,\text{d}}$ |
+|---|---|---|---|---|
+| A — Cleveland Bay | 15 m | **0.15** | 2.6 days | 16 m (> H!) |
+| B — Davies Reef | 60 m | **0.6** | 42 days | 16 m |
+| C — Myrmidon | 100 m | **1.0** | 116 days | 16 m |
+
+Site A: $\mathrm{Pe} \ll 1$ ✓ and $T_\kappa < $ the 30-day window —
+diffusion wins *and* has time to act on the whole column; a 3-day
+storm's diffusive reach exceeds the full depth. Site B:
+$\mathrm{Pe} \sim 1$ ✓. Site C: the computed Pe is **1.0, not
+$\gg 1$** — the label fails *if you use the mixed-layer
+$\kappa_m$ for the whole column*. The label is rescued by the
+§8.5 structure: below the mixed layer the relevant diffusivity is
+$\kappa_b = 10^{-5}$, giving an interior
+$\mathrm{Pe} = 10^{-5} \times 100 / 10^{-5} = 100 \gg 1$. So the
+honest statement is "advection-dominated *in the interior*,
+where four of the five sensors sit" — the regime label depends on
+which $\kappa$ governs the depths you care about. And the hinted
+caveat doubles it: $T_\kappa = 116$ days $\gg 30$ days means a
+30-day run mixes only the top fraction of Myrmidon's column, so
+whatever happens at its deep sensors over the storm window is
+advection's doing almost by default.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.6](../unit_08/unit_08.qmd#ex-8-6)
+:::
+
+### Solution 8.7 — place the capstone in the literature {#sol-8-7}
+
+1. **Mixed-layer $\kappa$ profile shape** → Large, McWilliams &
+   Doney 1994 (KPP): the capstone's "large in a surface layer,
+   decaying with depth" profile is a frozen snapshot of what KPP
+   computes prognostically. Shortcoming addressed: running a full
+   closure adds state, cost, and tuning that would bury the
+   inverse-problem pedagogy.
+2. **Diurnal warm layer forming and eroding** → Price, Weller &
+   Pinkel 1986 — the canonical observational + model account of
+   the diurnal cycle the toy tasks reproduce.
+3. **Column instead of SST + DHW** → Liu et al. 2014 / NOAA Coral
+   Reef Watch: DHW is the operational standard, and its
+   acknowledged blind spot — no vertical structure — is exactly
+   what a thermistor-chain column model fixes. This is the
+   capstone's "why does AIMS care" row.
+4. **Recovering an unknown driver from one mooring** → Kunze 1985
+   (the classic single-mooring inverse) and, at modern scale,
+   coastal 4D-Var. Shortcoming addressed: variational assimilation
+   at GCM cost vs a laptop-scale PINN.
+5. **Closest method** → the PINN-flavoured mixed-layer line
+   (Bolton & Zanna 2019 onward, and the CSIRO AI4DA work). What
+   the capstone simplifies away relative to it: prescribed (not
+   learned) $\kappa$ closure, prescribed $w$ from an offline SWE
+   driver, synthetic data with known truth, and a single scalar
+   driver $\tau(t)$ instead of a full forcing field.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.7](../unit_08/unit_08.qmd#ex-8-7)
+:::
+
+### Solution 8.8 — reconstruct the spec from memory {#sol-8-8}
+
+The answer key, compactly (grade yourself against Unit 9
+§§9.3–9.5 for the full forms):
+
+- **PDE:** $\partial_t T + w\,\partial_z T =
+  \partial_z(\kappa\,\partial_z T) + \mathcal{S}$ on
+  $z \in [-H, 0]$ — (a) storage, (b) vertical advection,
+  (c) turbulent diffusion, (d) penetrating-shortwave body source.
+- **BCs:** **Neumann at the top** —
+  $\kappa\,\partial_z T|_{0} = Q_{\text{np}}/(\rho_0 c_p)$, the
+  non-penetrative flux only; **Dirichlet at the bottom** —
+  $T(-H) = T_{\text{deep}}$.
+- **IC:** the $\tanh$ thermocline profile
+  ($T_{\text{surface}} = 28$, $T_{\text{deep}} = 18$,
+  $z_t = -30$ m, $\delta_t = 5$ m).
+- **Forcings (all prescribed):** $w(z, t)$ from the offline SWE
+  driver via $w = -(z+H)\nabla_h\!\cdot\!\mathbf{u}_h$;
+  $\kappa(z, t)$ from one of the three closures;
+  $Q_{\text{np}}(t)$ (longwave + sensible + latent, the BC);
+  $Q_{\text{SW}}(t)$ (diurnal half-cosine, entering through
+  $\mathcal{S}$ via Beer–Lambert — **not** through the BC).
+
+The two load-bearing distinctions, as advertised: shortwave is a
+*body source* (it heats the interior where it is absorbed), and the
+BC types differ top vs bottom (flux known at the surface, value
+known at the deep reservoir). Get either wrong in a PINN and the
+loss will happily minimise the wrong physics — there is no error
+message for a mis-specified problem.
+
+::: {.exercise-solution-link}
+[← Back to Unit 8 §8.8](../unit_08/unit_08.qmd#ex-8-8)
+:::
+
+## Unit 9 — Project Specification
+
+### Solution 9.1 — read the mooring CSVs before modelling them {#sol-9-1}
+
+```{julia}
+using CSV, DataFrames, Statistics, Plots
+
+let
+# paths are relative to this page; from the repo root use
+# units/unit_10/data/mooring_$site.csv
+panels = []
+for site in ("A", "B", "C")
+    df = CSV.read("../unit_10/data/mooring_$site.csv", DataFrame)
+    tday = df.time_hours ./ 24
+    cols = names(df)[2:end]                       # the five depth columns
+    p = plot(title = "Site $site", xlabel = "day", ylabel = "T (°C)",
+             legend = :outerright)
+    for c in cols
+        plot!(p, tday, df[!, c], label = c)
+    end
+    vline!(p, [10], c = :gray, ls = :dash, label = "")
+    push!(panels, p)
+end
+plot(panels..., layout = (3, 1), size = (800, 900))
+end
+```
+
+2. What the raw traces should tell you (the spec's regime table,
+   recovered by eye): **Site A** — all five traces move nearly
+   together (well-mixed 15 m column), modest storm dip, fast
+   recovery within days. **Site B** — clear thermocline
+   separation; the 25–45 m sensors show the largest storm cooling
+   with the deep sensor lagging the surface by several hours to a
+   day; partial recovery by day 30. **Site C** — surface nearly
+   untouched; the deep sensors (40–95 m) cool first and most, with
+   the slowest recovery (its $T_\kappa \gg$ window — Solution
+   8.6's arithmetic in the flesh).
+3. One-hour increments of a slowly-varying signal are dominated by
+   noise: $\mathrm{Var}(\Delta X) = 2\sigma^2 +
+   (\text{signal increment})^2$, so
+   $\hat\sigma \approx \mathrm{SD}(\Delta X)/\sqrt{2}$, *minus*
+   whatever real signal moves within an hour. In the calm window
+   the deep sensors give $\hat\sigma \approx 0.05\,°$C cleanly;
+   the top sensor over-estimates because the diurnal cycle
+   contributes genuine hourly increments — divide by $\sqrt 2$ and
+   you'll still sit slightly high there. (This "difference twice,
+   divide by $\sqrt2$" trick is worth keeping: it estimates sensor
+   noise without de-trending.)
+
+::: {.exercise-solution-link}
+[← Back to Unit 9 §9.1](../unit_09/unit_09.qmd#ex-9-1)
+:::
+
+### Solution 9.2 — build $w(z,t)$ from a divergence trace {#sol-9-2}
+
+```{julia}
+using Plots
+
+let
+H = 100.0
+div_h(t_d) = -2e-7 * exp(-((t_d - 10) / 1)^2)     # s⁻¹, t in days
+w(z, t_d)  = -(z + H) * div_h(t_d)
+
+td = range(0, 30; length = 601)
+plt = plot(td, [w(-10, t) * 86400 for t in td], label = "z = -10 m",
+           xlabel = "day", ylabel = "w (m/day)")
+plot!(plt, td, [w(-50, t) * 86400 for t in td], label = "z = -50 m")
+plot!(plt, td, [w(-90, t) * 86400 for t in td], label = "z = -90 m")
+end
+```
+
+- $w(-H, t) = -((-H) + H)\cdot(\ldots) = 0$ ✓ for all $t$ — the
+  rigid bottom can't pump water through itself.
+- **Sign:** the trace is a negative divergence — *convergence*.
+  Continuity says $\partial_z w = -\nabla_h\!\cdot\!\mathbf{u}_h > 0$;
+  integrating up from $w(-H) = 0$ makes $w > 0$ everywhere above
+  the bottom: horizontally converging water has nowhere to go but
+  **up**. So this storm trace drives upwelling — peak
+  $w(-10) = 90 \times 2\times10^{-7} = 1.8\times10^{-5}$ m/s
+  ≈ **1.6 m/day** near the surface, ~0.9 m/day at mid-column —
+  right on the reference $w_0 \sim 1$ m/day scale.
+- **What linear-in-$z$ assumes:** that
+  $\nabla_h\!\cdot\!\mathbf{u}_h$ is independent of depth, i.e. the
+  horizontal flow is **barotropic** (depth-uniform) — which is what
+  a shallow-water model produces by construction. A real stratified
+  shelf has baroclinic structure and $w(z)$ bends accordingly;
+  that's a known modelling debt the capstone carries knowingly.
+
+::: {.exercise-solution-link}
+[← Back to Unit 9 §9.2](../unit_09/unit_09.qmd#ex-9-2)
+:::
+
+### Solution 9.3 — get the signs right, once and forever {#sol-9-3}
+
+1. With $\partial_z T > 0$ (warm above) and $w > 0$ (upwelling),
+   the advective tendency is
+   $\partial_t T = -w\,\partial_z T < 0$: every fixed depth
+   **cools**, because the water now occupying it came from below,
+   where it was colder. (All four sign conventions consistently
+   applied: $z$ up, $w = \dot z$, stable stratification.)
+2. The check:
+
+```{julia}
+using Plots
+
+let
+H, nz = 60.0, 241
+dz = H / (nz - 1)
+z  = range(-H, 0; length = nz)
+T  = collect(23 .+ 5 .* tanh.((z .+ 30) ./ 5))   # the §9.4 profile
+w0 = 1e-4                                        # exaggerated, m/s
+dt = 0.4 * dz / abs(w0)                          # advective CFL
+T2 = similar(T)
+for n in 1:round(Int, 2 * 86400 / dt)
+    for i in 2:nz-1
+        # upwind: for w > 0 information comes from below (i-1)
+        T2[i] = T[i] - dt * w0 * (T[i] - T[i-1]) / dz
+    end
+    T2[1] = T[1]                              # bottom value held
+    T2[end] = T2[end-1]                       # crude open top
+    T, T2 = T2, T
+end
+plt = plot(23 .+ 5 .* tanh.((z .+ 30) ./ 5), z, label = "initial", lw = 2,
+           xlabel = "T (°C)", ylabel = "z (m)")
+plot!(plt, T, z, label = "after 2 days, w > 0", lw = 2)
+end
+```
+
+   After two days at $10^{-4}$ m/s the profile has translated
+   upward by $\approx 17$ m — the thermocline now sits near
+   $-13$ m, and every interior depth reads colder. Flip
+   `w0 = -1e-4` (and the upwind direction: information now comes
+   from above, `T[i+1] - T[i]`) and the profile translates
+   downward, warming the interior. If your production code ever
+   disagrees with this two-minute experiment, the production code
+   is wrong — keep the script as a regression test for the
+   capstone solver.
+
+::: {.exercise-solution-link}
+[← Back to Unit 9 §9.3](../unit_09/unit_09.qmd#ex-9-3)
+:::
+
+### Solution 9.4 — what does the bottom BC actually cost? {#sol-9-4}
+
+1. **Dirichlet:** steady state exists — the linear profile of
+   Solution 10.1, with the deep reservoir silently *supplying* the
+   200 W/m² that the surface extracts (heat conducts up the
+   gradient from the fixed-temperature bottom). **Zero-flux:** no
+   steady state. Integrate the PDE over the column: the
+   total heat content obeys
+   $\frac{d}{dt}\int T\,dz = \text{(flux in at top)} +
+   \text{(flux in at bottom)} = -Q_{\text{cool}}/(\rho_0 c_p) + 0 < 0$,
+   so the column cools *forever*, linearly in time
+   (~0.04 K/day for $H = 100$ m) — an insulating floor has no heat
+   to give. The "steady" profile shape is approached, but it
+   translates downward in temperature indefinitely.
+2. The bottom BC's influence reaches
+   $\sqrt{\kappa_b \times 30\,\text{d}} =
+   \sqrt{10^{-5} \times 2.59\times10^6} \approx 5$ m up from the
+   floor over the run (interior diffusivity is what matters down
+   there). Of Site B's sensors at 2, 10, 25, 45, 58 m depth —
+   i.e. 58, 50, 35, 15, **2** m above the bottom — only the 58 m
+   sensor sits inside that 5 m zone.
+3. So: **low risk, one caveat.** The recovered $\hat\tau(t)$ leans
+   on the mid-column sensors where the two BCs are
+   indistinguishable over 30 days; only the deepest sensor could
+   smell the difference, and (sensibly) the capstone treats the
+   deep reservoir as the *known* part of the problem. The honest
+   sentence for your write-up: "results are insensitive to the
+   bottom-BC choice except within ~5 m of the floor, which
+   affects one of fifteen sensors."
+
+::: {.exercise-solution-link}
+[← Back to Unit 9 §9.4](../unit_09/unit_09.qmd#ex-9-4)
+:::
+
+### Solution 9.5 — plot every forcing before you trust it {#sol-9-5}
+
+```{julia}
+using Plots
+
+let
+ρcp = 1025 * 3990
+Qsw(t) = 800 * max(0, cos(2π * t / 86400))         # t in seconds
+S(z)   = (800 / ρcp) * (1 / 10) * exp(z / 10)      # noon, ζ = 10 m  → K/s
+w_site(z, H) = 1e-5 * sin(π * (z + H) / H)
+dTdz(z) = (10 / (2 * 5)) * sech((z + 30) / 5)^2    # §9.4 IC gradient
+Ri(z)   = 2e-4 * 9.81 * dTdz(z) / 0.01^2
+κ1(z)   = 1e-3
+κ2(z)   = 1e-5 + (1e-3 - 1e-5) * exp(z / 20)
+κ3(z)   = 1e-5 + 1e-3 / (1 + 5 * Ri(z))^2
+
+t = range(0, 3 * 86400; length = 1000)
+z = range(-60, 0; length = 400)
+p1 = plot(t ./ 86400, Qsw.(t), xlabel = "day", ylabel = "Q_SW (W/m²)",
+          legend = false)
+p2 = plot(ρcp .* S.(z), z, xlabel = "ρcₚS (W/m³)", ylabel = "z (m)",
+          legend = false)
+p3 = plot(w_site.(z, 60) .* 86400, z, xlabel = "w (m/day)", ylabel = "z",
+          legend = false)
+p4 = plot(κ1.(z), z, xscale = :log10, label = "constant",
+          xlabel = "κ (m²/s)", ylabel = "z", legend = :bottomright)
+plot!(p4, κ2.(z), z, label = "profile")
+plot!(p4, κ3.(z), z, label = "Ri-dependent")
+plot(p1, p2, p3, p4, layout = (2, 2), size = (900, 700))
+end
+```
+
+The three read-off numbers:
+
+- **10% source depth:** $e^{z/\zeta} = 0.1$ at
+  $z = -\zeta\ln 10 \approx -23$ m.
+- **$w$ at Site B's thermocline:** with $H = 60$,
+  $z = -30$ is the exact **mid-column**, so
+  $\sin(\pi(z+H)/H) = \sin(\pi/2) = 1$ — the sine profile *peaks*
+  there: $w = w_0$, ~1 m/day. This is the surprise worth noticing:
+  the prescribed upwelling is strongest precisely at Site B's
+  thermocline, which is part of why Davies Reef gives the cleanest
+  storm fingerprint of the three sites.
+- **Closure 2, surface vs $-60$ m:**
+  $\kappa(0) \approx 10^{-3}$ vs
+  $\kappa(-60) = 10^{-5} + 9.9\times10^{-4}e^{-3}
+  \approx 5.9\times10^{-5}$ — a factor of **~17** (not the ~100 of
+  the Ri closure; the exponential profile never reaches its
+  background floor in 60 m, another small surprise the plot
+  surfaces).
+
+::: {.exercise-solution-link}
+[← Back to Unit 9 §9.5](../unit_09/unit_09.qmd#ex-9-5)
+:::
+
+### Solution 9.6 — the daily heat budget, by hand {#sol-9-6}
+
+1. The positive half of a cosine integrates to
+   $\int = Q_{\text{SW}}^{\max}\,\tau_d/\pi
+   = 800 \times 86400/\pi \approx 2.20\times10^{7}\ \text{J/m}^2$
+   per day.
+2. Cooling: $200 \times 86400 = 1.73\times10^{7}\ \text{J/m}^2$.
+3. Net: $+4.72\times10^{6}\ \text{J/m}^2$/day. Spread over a 20 m
+   mixed layer:
+   $\Delta T = 4.72\times10^6/(1025 \times 3990 \times 20)
+   \approx 0.058$ K/day — about **1.7 K over 30 days** if every
+   joule stayed in the mixed layer.
+
+Reconciling with "the bulk profile barely changes": 1.7 K is not
+nothing against the 10 K surface-deep contrast — but toy-task 2's
+claim survives because the net heat does *not* all stay in the
+mixed layer: the penetrating fraction below $h_m$ heats the
+interior imperceptibly (spread over tens of metres), and in the
+fuller scenarios upwelling and thermocline leakage export part of
+the rest. The back-of-envelope correctly predicts the *sign and
+scale* of the slow background warming visible in the scenario-2
+heatmap. And the cloud threshold: the budget crosses zero when
+$Q_{\text{SW}}^{\max} = \pi\,Q_{\text{cool}} \approx 628$ W/m², a
+**~21% reduction** — so the capstone's storm (×0.5 cloud factor)
+flips the column decisively into net cooling. Both storm knobs —
+upwelling *and* radiation — push temperatures the same way, which
+is exactly why disentangling them needs the partition machinery
+rather than a glance at SST.
+
+::: {.exercise-solution-link}
+[← Back to Unit 9 §9.6](../unit_09/unit_09.qmd#ex-9-6)
+:::
+
+## Unit 10 — Project Solution
+
+### Solution 10.1 — predict scenario 1's steady state exactly {#sol-10-1}
+
+1. At steady state with no advection and no source,
+   $\partial_z(\kappa\,\partial_z T) = 0$ with constant $\kappa$
+   means $\partial_z T$ is constant — a straight line. The surface
+   Neumann condition fixes the slope:
+   $\partial_z T = Q_{\text{np}}/(\rho_0 c_p \kappa)$; the bottom
+   Dirichlet condition fixes the intercept:
+   $$T(z) = T_{\text{deep}} +
+     \frac{Q_{\text{np}}}{\rho_0\,c_p\,\kappa}\,(z + H).$$
+   With $Q_{\text{np}} = -200$ W/m²:
+   slope $= -200/(1025 \times 3990 \times 10^{-3}) \approx
+   -0.0489$ K/m, so
+   $T(0) = 18 - 0.0489 \times 100 \approx \mathbf{13.1\,°C}$ —
+   nearly 5 K *colder* than the deep reservoir. Why that's right
+   and not a sign error: the surface continuously loses 200 W/m²,
+   and at steady state that heat must be resupplied by upward
+   diffusion from the fixed-temperature bottom. Diffusion only
+   moves heat *down* a gradient, so the column must tilt cold-side-up.
+   (Physically this is a winter-cooling profile; the full model's
+   daytime shortwave is what keeps real reef columns warm on top.)
+2. $T_\kappa = H^2/\kappa = 10^4/10^{-3}\,\text{s} \approx
+   116$ days. A 365-day run is ~3 diffusive time constants —
+   the transient decays like $e^{-t/T_\kappa}$ to within a few
+   percent, hence the caption's "near-steady state after ~365
+   days". Running the FD solver for only 30 days (the capstone
+   window) leaves the column far from this steady state — which is
+   fine, because the capstone never claims otherwise.
+3. `scenario_1()` should land on your line to
+   $\approx 4\times10^{-3}$ °C, per the §10.1 caption — if you get
+   agreement at the surface but a kink near the bottom, your ghost
+   cell for the Neumann BC is at the wrong end.
+
+::: {.exercise-solution-link}
+[← Back to Unit 10 §10.1](../unit_10/unit_10.qmd#ex-10-1)
+:::
+
+### Solution 10.2 — make the DeepXDE column feel the sun {#sol-10-2}
+
+The diff, conceptually three lines — and each hides a trap:
+
+```python
+import deepxde as dde
+from deepxde.backend import torch as bkd   # backend tensor ops
+
+tau_d  = 86400.0
+Q_max  = 800.0
+rho_cp = 1025.0 * 3990.0
+zeta   = 10.0
+
+def Q_sw(t):
+    # half-cosine in backend ops — np.maximum would break the graph
+    return Q_max * bkd.clamp(bkd.cos(2 * 3.141592653589793 * t / tau_d),
+                             min=0.0)
+
+def pde(zt, T):
+    z, t = zt[:, 0:1], zt[:, 1:2]
+    dT_dt   = dde.grad.jacobian(T, zt, j=1)
+    dT_dz   = dde.grad.jacobian(T, zt, j=0)
+    d2T_dz2 = dde.grad.hessian(T, zt, component=0, i=0, j=0)
+    S = Q_sw(t) / rho_cp / zeta * bkd.exp(z / zeta)   # body source, K/s
+    return dT_dt - kappa_z(z) * d2T_dz2 - S
+    # Q_np stays at -200 W/m² in the (unchanged) surface OperatorBC
+
+```
+
+Trap (a), as predicted: the original `S_z` used `np.exp` on what
+was effectively a constant — once the source depends on `t`, every
+op inside `pde` must be a backend tensor op (`torch.clamp`,
+`torch.cos`, `torch.exp` via `dde.backend`), or autograd silently
+detaches and the residual trains against a frozen source.
+(`kappa_z` gets the same treatment if it wasn't already
+tensor-safe.)
+
+Trap (b): the domain is $2.6\times10^6$ s long and the forcing
+period is $8.6\times10^4$ s — thirty oscillations across the time
+axis. The plain 4×32 tanh MLP, fed raw $t$, fits the slow trend
+and **flattens most of the diurnal wiggle** (compare the trained
+surface trace $T(0, t)$ over days 5–8 against an FD reference, or
+just FFT it: the 1 cpd line is far too weak). This is spectral
+bias at capstone scale, and the fix is the Task B Fourier-feature
+bank with a $\sim 1/\tau_d$ frequency component — DeepXDE supports
+it via a feature transform: `net.apply_feature_transform(...)`.
+Rescaling $t$ to $[0, 1]$ helps optimisation but does *not* fix
+the frequency-content problem.
+
+Porting to `NeuralPDE.jl`: the source edit is a one-line change in
+the *symbolic* equation —
+`eq = Dₜ(T(z,t)) ~ κ(z)*Dzz(T(z,t)) + Q_sw(t)/ρcp/ζ*exp(z/ζ)` with
+`Q_sw(t) = Q_max * max(0, cos(2π*t/τ_d))` registered symbolically —
+and the symbolic layer differentiates it for you; there is no trap
+(a) at all, because there's no backend-tensor boundary to fall
+over. Trap (b) is ecosystem-independent: spectral bias doesn't
+care which language you suffer in. Fair scorecard: the *edit* is
+easier in `NeuralPDE.jl`; the *training pathology* is identical;
+the Fourier-feature remedy is a few lines in either.
+
+::: {.exercise-solution-link}
+[← Back to Unit 10 §10.4](../unit_10/unit_10.qmd#ex-10-2)
+:::

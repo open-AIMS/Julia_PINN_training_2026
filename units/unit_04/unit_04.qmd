@@ -115,6 +115,34 @@ for u0 in ([1.0, 1.0], [1.5, 1.0], [2.0, 1.0]):
 Available at
 [`scripts/lotka_volterra_python.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/lotka_volterra_python.py){target="_blank"}.
 
+::: {#ex-4-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — test the invariant
+
+The text claims
+$V(x, y) = \delta x - \gamma \log x + \beta y - \alpha \log y$ is
+conserved along Lotka–Volterra trajectories. Verify it numerically:
+solve from $(x_0, y_0) = (1, 1)$ with the parameters above and plot
+$V(x(t), y(t)) - V(x_0, y_0)$ over $t \in [0, 50]$ at solver
+tolerances `reltol = 1e-3` and `reltol = 1e-10`. Then answer two
+questions: (a) is the drift you see *physics* or *numerics*, and
+how do the two tolerance runs prove it? (b) If you fit a neural
+network to this trajectory and integrated it for 500 time units,
+what would you expect $V$ to do, and why is that the motivation for
+§3.3's Hamiltonian architectures?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Solve the *same* `ODEProblem` twice, changing only `reltol`/`abstol`, and plot `V.(sol.u) .- V(u0...)` for both. The logic: structural non-conservation wouldn't care about solver tolerance. For part (b), recall what Solution 3.3's perturbed field did to the energy — same mechanism, different invariant.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-4-1)
+:::
+:::
+
 ## 4.2 From ResNets to Neural ODEs
 
 This section walks the *bridge* between the discrete-layer MLPs of
@@ -245,6 +273,35 @@ loop in [Unit 2 §2.6](../unit_02/unit_02.qmd):
 We'll see this pattern again in [Unit 9](../unit_09/unit_09.qmd) —
 inverse problems with the column model use exactly the same loop,
 just with PDE residuals instead of trajectory data.
+
+::: {#ex-4-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — train a tiny Neural ODE on a spiral
+
+Make the §4.2 skeleton run end-to-end on the classic toy: data from
+the linear spiral
+$\dot{\mathbf{u}} = A\mathbf{u}$,
+$A = \begin{pmatrix} -0.1 & 2 \\ -2 & -0.1\end{pmatrix}$, sampled at
+30 points over $t \in [0, 6]$ from $\mathbf{u}_0 = (2, 0)$. Fit the
+2 → 16 → 2 `tanh` network with the adjoint-backed training loop
+(`SciMLSensitivity` + Adam, ~1 000 iterations), then **extrapolate**
+the trained model to $t = 12$ and plot it against the true spiral.
+Where does the learned dynamics stay faithful, and where does it
+drift? Bonus: repeat with only the *first half* of the spiral as
+training data and watch the extrapolation get worse — the
+data-efficiency argument for UDEs in one picture.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+You'll need two packages not in the workshop `Project.toml`: `SciMLSensitivity` (adjoints) and `ComponentArrays` (flat parameter vector Zygote can differentiate). Pass `sensealg = InterpolatingAdjoint()` to `solve` and train on `sum(abs2, pred .- data)`. For extrapolation, re-solve with the trained `ps` over the longer `tspan` — don't retrain.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-4-2)
+:::
+:::
 
 ## 4.3 Universal Differential Equations
 
@@ -449,6 +506,35 @@ The functional inverse is where neural-network capacity pays off:
 classical parameter estimation can't recover an unknown functional
 shape, but a UDE with a 2-layer MLP can. *Code placeholder —
 `units/unit_04/scripts/ude_lv.jl` (TODO).*
+
+::: {#ex-4-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — the functional inverse, in miniature
+
+Fill in the `ude_lv.jl` placeholder yourself. Generate
+Lotka–Volterra data ($\alpha, \beta, \gamma, \delta$ as in §4.1,
+$t \in [0, 8]$, 60 samples, 2% noise), then build the UDE that keeps
+$\dot x = \alpha x - \beta x y$ and $\dot y = -\gamma y + N_\theta(x, y)$
+— i.e. drop the $+\delta x y$ predator-growth term and learn it with
+a 2 → 8 → 1 network. Train (Adam → a few hundred iterations is
+enough), then plot the learned $N_\theta(x, y)$ against the true
+surface $\delta x y$ over the visited region of the phase plane.
+Two checks: does $N_\theta$ match $\delta x y$ *inside* the training
+orbit's range, and what does it do *outside* it? That contrast — good
+interpolation, unconstrained extrapolation — is the honest summary
+of every UDE result you'll ever publish.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Write the UDE rhs with the known LV terms inline and `first(nn([x, y], p, st))[1]` in place of the dropped term. Training is identical to ex-4-2's loop. For the comparison, evaluate `N_θ` and `δ·x·y` on a grid with two comprehensions and `heatmap` both — then overlay the training orbit with `plot!` to see exactly where the agreement ends.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-4-3)
+:::
+:::
 
 ## 4.4 What comes next
 

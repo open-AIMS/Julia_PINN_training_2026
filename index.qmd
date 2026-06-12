@@ -198,6 +198,10 @@ cross-ecosystem story.
 
 ## Appendices
 
+- [**Exercise Solutions**](units/exercise_solutions/exercise_solutions.qmd)
+  — worked solutions to the hands-on "section exercise" boxes that
+  close most sections of Units 1–10. Julia throughout, with JAX /
+  Python variants where the comparison is instructive.
 - [**References**](units/references/references.qmd) — the
   consolidated bibliography. In-text citations across all units
   link here.

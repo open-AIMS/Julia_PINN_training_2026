@@ -162,6 +162,39 @@ graduate course in itself. But the distinction is worth knowing
 about every time someone tells you "this PDE has a solution":
 *in what sense?*
 
+::: {#ex-6-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — classify, then prescribe
+
+Pencil-and-paper drill. For each PDE below, compute the discriminant
+$b^2 - ac$, classify it (elliptic / parabolic / hyperbolic), and
+state which conditions a well-posed problem needs (IC? BC? both?):
+
+1. $u_{xx} + 4\,u_{yy} = 0$
+2. $u_{xx} - 4\,u_{tt} = 0$ (treat $t$ as the second variable)
+3. $u_t = 3\,u_{xx}$
+4. $u_{xx} + 2\,u_{xy} + u_{yy} = 0$
+5. $y\,u_{xx} + u_{yy} = 0$ (the Tricomi equation — careful, the
+   answer depends on where you are in the plane)
+
+Finish with the well-posedness traps: why does prescribing both $u$
+and $\partial_n u$ on the same boundary of a Laplace problem
+generally fail, and why is the *backward* heat equation
+($u_t = -\alpha u_{xx}$ forward in time) hopeless even with perfect
+data?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Careful with the cross-term convention: the general form has $2b\,u_{xy}$, so equation 4's coefficient 2 means $b = 1$. For Tricomi, the discriminant inherits the sign of $-y$. The two traps both reduce to Hadamard's third criterion — perturb the data at spatial frequency $k$ and watch what the solution does.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-1)
+:::
+:::
+
 ## 6.2 Explicit Solution Techniques
 
 Before we approximate a PDE numerically (let alone with a neural
@@ -346,6 +379,36 @@ solution; the SWE PINN in [Unit 7](../unit_07/unit_07.qmd) is
 benchmarked against a high-resolution FD reference; the column
 PINN in [Unit 9](../unit_09/unit_09.qmd) starts its sanity-checks
 on a constant-$\alpha$ problem with a known erfc solution.
+
+::: {#ex-6-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — two modes, two decay rates
+
+Take the heat equation on $[0, 1]$ ($\alpha = 0.01$, homogeneous
+Dirichlet BCs) with the two-mode initial condition
+$u(x, 0) = \sin(\pi x) + 0.5\,\sin(3\pi x)$.
+
+1. Write the exact solution directly from the separation-of-variables
+   formula — no integral needed, the $b_n$ can be read off.
+2. At what time has the $n = 3$ mode decayed to 1% of its initial
+   amplitude? And the $n = 1$ mode? (The ratio of those two times is
+   the "high frequencies die first" claim made quantitative.)
+3. Verify numerically: evaluate your closed form at $t = 5$ and
+   compare with the FTCS code of §6.4 run with this IC (a two-line
+   edit). The agreement should be $10^{-3}$ or better — this IC is
+   smooth, so the scheme does noticeably better than its worst case.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+The IC is already a two-term sine series, so $b_1$ and $b_3$ can be read off without integrating — orthogonality does the work. The 1% times come from solving $e^{-\alpha(n\pi)^2 t} = 0.01$ for $t$. For step 3, only the IC line and the BC values change in the FTCS script.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-2)
+:::
+:::
 
 ## 6.3 The Five Canonical PDEs
 
@@ -550,6 +613,36 @@ constants to estimate. That's the choice the capstone column
 PDE [Unit 8 §8.2](../unit_08/unit_08.qmd) makes for the
 oceanographic setting.
 
+::: {#ex-6-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — match the equation to the movie
+
+A colleague shows you four short animations of a field $u(x, t)$
+evolving, but lost track of which PDE generated which. The
+behaviours: (1) a bump splits into two half-height copies moving
+apart at constant speed, shapes frozen; (2) a bump slides rightward
+unchanged; (3) a bump spreads and flattens, never moving its centre;
+(4) a steep front forms from smooth initial data and then creeps
+forward. Match each to one of: advection, wave, heat, Burgers — and
+name the *one-word mechanism* (transport / propagation / smoothing /
+shock formation) that gives it away. Then a sanity check on the
+erfc solution: verify by direct differentiation that
+$u(x, t) = u_0\,\operatorname{erfc}\!\bigl(x / (2\sqrt{\alpha t})\bigr)$
+satisfies $u_t = \alpha u_{xx}$ (a five-line computation — or let
+`ForwardDiff` do it at a few sample points).
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Each movie is one mechanism: ask whether the feature *moves*, *splits*, *spreads*, or *steepens*. For the erfc check, substitute $\eta = x/(2\sqrt{\alpha t})$ and use $\operatorname{erfc}''(\eta) = -2\eta\,\operatorname{erfc}'(\eta)$ — three lines of chain rule. Or cheat honestly: `SpecialFunctions.erfc` plus nested `ForwardDiff` at a few points.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-3)
+:::
+:::
+
 ## 6.4 Finite Differences and Stability Analysis
 
 The classical workhorse — and the method actually used by Unit 1's
@@ -641,6 +734,33 @@ $\sim 10^{-3}$ over $t \in [0, 5]$ — better than the rounded
 plot you'd see by eye. The script in §6.4 above is one line away
 from this benchmark (swap the IC).
 
+::: {#ex-6-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — cross the CFL line on purpose
+
+Take the FTCS script above, which runs at
+$\alpha\,\Delta t/\Delta x^2 = 0.4$, and deliberately break it.
+Re-run with the CFL number set to $0.49, 0.50, 0.51$, and $0.6$
+(adjust `dt` accordingly). For each run, record the maximum $|u|$
+every 100 steps. At $0.51$, how many steps does it take before the
+solution exceeds $10^6$? Where in the profile does the instability
+first appear, and what is its spatial wavelength? (Von Neumann
+analysis predicts the answer: the fastest-growing mode at the
+stability boundary is the grid-scale sawtooth, $k\Delta x = \pi$.)
+Confirm your observation matches.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Only the `dt` line changes between runs; log `maximum(abs.(u))` every 100 steps. Von Neumann gives the per-step growth factor at the grid-scale mode as $|1 - 4r|$ — from it you can *predict* the steps-to-blow-up before running anything. To see the sawtooth, plot the profile a few hundred steps into the $r=0.51$ run.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-4)
+:::
+:::
+
 ## 6.5 Finite Volumes
 
 Finite differences (§6.4) discretise the *equation* — replace
@@ -694,6 +814,33 @@ equation literally is "flux in minus flux out").
 Star-CCM+, ClimateMachine.jl, the
 [Trixi.jl](https://github.com/trixi-framework/Trixi.jl){target="_blank"}
 Julia stack.
+
+::: {#ex-6-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — watch upwind diffuse a step
+
+Implement first-order upwind FV for the advection equation
+$u_t + c\,u_x = 0$ ($c = 1$, periodic domain $[0, 1]$,
+$\Delta x = 0.01$, CFL number 0.8) with a step initial condition
+($u = 1$ on $[0.1, 0.3]$, else 0). Advect for exactly one domain
+traversal ($t = 1$) — the exact solution is the initial step,
+unmoved. Plot both. Measure how far the step face has smeared, then
+re-run at CFL 0.99 and CFL 0.3. Counterintuitive result to explain:
+*upwind gets less diffusive as the CFL number approaches 1, not
+more.* Why? (Hint: at CFL exactly 1, the scheme shifts the solution
+by exactly one cell per step — zero error.)
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Periodic upwind is one line: `u .-= cfl .* (u .- circshift(u, 1))`. For the paradox, Taylor-expand the scheme (or trust the modified equation) to find the artificial viscosity $\nu_{num} = c\Delta x(1-\mathrm{CFL})/2$ — then ask what happens to it as CFL → 1, and what the scheme does at CFL = 1 exactly.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-5)
+:::
+:::
 
 ## 6.6 Finite Elements
 
@@ -762,6 +909,38 @@ Mapdl, Abaqus, FEniCS, deal.II,
 [Gridap.jl](https://github.com/gridap/Gridap.jl){target="_blank"},
 [Ferrite.jl](https://github.com/Ferrite-FEM/Ferrite.jl){target="_blank"}.
 
+::: {#ex-6-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — assemble a stiffness matrix by hand
+
+The smallest possible FE computation, end-to-end. Solve
+$-u'' = 1$ on $[0, 1]$ with $u(0) = u(1) = 0$ (exact solution
+$u(x) = x(1-x)/2$) using piecewise-linear hat functions on $N = 4$
+equal elements:
+
+1. Show that for hat functions on a uniform mesh,
+   $K_{ij} = \int \phi_i' \phi_j'\,dx$ gives the tridiagonal
+   $\frac{1}{\Delta x}\,\mathrm{tridiag}(-1, 2, -1)$, and
+   $b_i = \int \phi_i \, dx = \Delta x$.
+2. Assemble the $3 \times 3$ interior system and solve it (by hand
+   or with `\`).
+3. Compare your three nodal values against the exact solution —
+   you should find they're exact *at the nodes* (a special property
+   of this problem). Then redo with $N = 8$ in five lines of Julia
+   and check the interior-maximum value converges to $1/8$.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Hat-function slopes are constant $\pm 1/\Delta x$ on each element, so every stiffness integral is a product of constants times element length — no quadrature. Assemble with `SymTridiagonal` from `LinearAlgebra` and solve with `\`. The exact solution to grade against is $x(1-x)/2$.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-6)
+:::
+:::
+
 ## 6.7 FD vs FV vs FE — when to reach for which
 
 A quick comparison table. **None of these is "best"** — they pay
@@ -790,6 +969,36 @@ differentiable forward map (the key enabler for
 yet competitive with FV for shocks (smooth-MLP ansatz rounds them
 off) or with FE for complex elliptic problems (no provable error
 bounds), so the classical methods aren't going anywhere.
+
+::: {#ex-6-7 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — four problems, four methods
+
+You're the numerical-methods consultant. For each problem, pick FD,
+FV, FE, or PINN — and justify the choice in one sentence using the
+comparison table:
+
+1. Blood flow through a patient-specific aortic-arch geometry
+   segmented from a CT scan; accuracy near the curved wall matters.
+2. A dam-break flood wave down a river channel — sharp moving front,
+   and total water volume must be conserved to machine precision.
+3. The 1-D capstone column equation on $z \in [-H, 0]$ — smooth
+   solution, trivial geometry, need a trustworthy reference fast.
+4. An inverse problem: recover an unknown spatially-varying
+   diffusivity from 30 scattered, noisy interior measurements, with
+   gradients required for the optimiser.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Lead with each problem's *binding constraint*: irregular geometry → FE, conservation/shocks → FV, smooth + simple + fast reference → FD, inverse problem needing gradients → PINN. One sentence each; the comparison table's 'Best for' row is the answer key wearing a thin disguise.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-7)
+:::
+:::
 
 ## 6.8 Revisiting Unit 1: the shallow-water solver in detail {#sec-revisiting-unit-1}
 
@@ -903,3 +1112,35 @@ more accurate" — for the Unit 1 forward problem they're neither.
 They're: PINNs offer a different kind of access to the solution.
 [Unit 7](../unit_07/unit_07.qmd) makes that access actually work
 in practice.
+
+::: {#ex-6-8 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — audit the Unit 1 solver
+
+Three quantitative checks on the claims of this section, using only
+numbers already given in Unit 1 and here:
+
+1. **CFL margin.** With $\Delta x = 500$ m and maximum depth 50 m,
+   verify the $\Delta t \lesssim 22.7$ s bound, and compute the
+   actual Courant number of the production run
+   ($\Delta t = 12$ s). How much slack is there?
+2. **Resolution.** The deep-channel wave speed is ~15 m/s and the
+   surge pulse width is ~0.55 h. How many grid cells span one
+   pulse width in the channel — and does that support the claim
+   that numerical dispersion is "invisible" for this surge?
+3. **What if the bay were deeper?** Suppose the eastern shelf were
+   200 m deep instead of 50 m. Recompute the CFL bound. Would the
+   production $\Delta t = 12$ s still be stable, and what would you
+   change?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+All three parts are arithmetic on $\Delta t \le \Delta x / \sqrt{gH}$ — no simulation. For part 2, convert the pulse to metres (duration × wave speed) and divide by $\Delta x$. Part 3: recompute the bound with $H = 200$ m and compare to the production 12 s.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-6-8)
+:::
+:::

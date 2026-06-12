@@ -179,6 +179,43 @@ The driver is in
 its output `data/w_drivers.csv` has columns `t, w_A, w_B, w_C` at
 hourly cadence.
 
+::: {#ex-10-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — predict scenario 1's steady state exactly
+
+Scenario 1 has an analytic answer; derive it before peeking at the
+plot. With $w = 0$, $\mathcal{S} = 0$, constant $\kappa$, constant
+$Q_{\text{np}} = -Q_{\text{cool}}$, and the two BCs
+($\kappa\,\partial_z T|_0 = Q_{\text{np}}/(\rho_0 c_p)$,
+$T(-H) = T_{\text{deep}}$):
+
+1. Show the steady solution is the straight line
+   $T(z) = T_{\text{deep}} + \frac{Q_{\text{np}}}{\rho_0\, c_p\, \kappa}\,(z + H)$,
+   and compute the surface temperature for $H = 100$ m,
+   $\kappa = 10^{-3}\,\text{m}^2/\text{s}$,
+   $Q_{\text{cool}} = 200\,\text{W/m}^2$,
+   $T_{\text{deep}} = 18\,°\mathrm{C}$. (You should get a surface
+   *colder* than the deep reservoir — make sure you can explain
+   why steady cooling does that.)
+2. Estimate how long the column takes to *reach* that steady state
+   ($T_\kappa = H^2/\kappa$) and reconcile it with the "~365 days"
+   in the scenario-1 caption.
+3. If you have the repo cloned, run `scenario_1()` from
+   `units/unit_10/scripts/column_fd.jl` and check the FD endpoint
+   against your line.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Steady + no advection + no source + constant κ means $\partial_z(\kappa\,\partial_z T) = 0$ — a straight line. The Neumann BC hands you the slope directly; the Dirichlet BC pins the intercept at $z=-H$. If your surface comes out *warmer* than the deep, check the sign of $Q_{np}$.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-10-1)
+:::
+:::
+
 ## 10.2 Solution to Task A
 
 ```{=html}
@@ -688,6 +725,38 @@ Strengths and weaknesses, honestly:
 
 Neither is strictly better. Pick by who's using it and what they
 already know.
+
+::: {#ex-10-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — make the DeepXDE column feel the sun
+
+The DeepXDE sketch above runs with a *constant* net cooling and no
+wind. Bring it one step closer to the real spec: replace
+`Q_np(t)` with the diurnal model from
+[Unit 9 §9.5](../unit_09/unit_09.qmd)
+($Q_{\text{SW}}$ half-cosine entering through the body source
+`S_z`, $Q_{\text{cool}} = 200\,\text{W/m}^2$ steady) and retrain.
+Two implementation traps to find and report: (a) the body source
+must now depend on $t$, which changes the `pde` closure — make
+sure the half-cosine is written with backend-friendly ops; (b) the
+time scale of the diurnal forcing vs the 30-day domain creates
+exactly the multi-scale problem Fourier features exist for —
+compare the trained network's surface trace against the expected
+daily wiggle and say whether the plain MLP caught it. Then port
+the same change to the `NeuralPDE.jl` version and note which
+framework made the edit easier and why.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Two rules keep you out of the traps: every op inside DeepXDE's `pde()` must be a backend tensor op (`torch.clamp`/`cos`/`exp` via `dde.backend`, never `np.maximum`), and a 30-oscillation forcing on a smooth MLP is a spectral-bias problem — check the surface trace's FFT at 1 cpd before trusting the fit. In `NeuralPDE.jl` the same change is a symbolic one-liner in `eq`.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-10-2)
+:::
+:::
 
 ## 10.5 Where to go from here
 

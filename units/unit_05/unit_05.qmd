@@ -10,7 +10,7 @@ Our first hands-on PINN, in the simplest possible settings. We do
 it **twice**:
 
 1. **From first principles** — a one-page implementation in
-   `Lux` + `Zygote` + `ForwardDiff` that you can read end-to-end.
+   `Lux` + `Zygote` that you can read end-to-end.
    No PINN library, no symbolic machinery; just a network, a
    residual, and an optimiser. This is the inline code in §5.3.
 2. **With `NeuralPDE.jl`** — the same problem written declaratively
@@ -68,6 +68,34 @@ Where do you put the $\{t_i\}$? Options:
 
 For a first pass on a smooth ODE, a uniform grid of a few hundred
 points is plenty.
+
+::: {#ex-5-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — count the solutions
+
+Two short pencil-and-paper checks of the §5.1 picture:
+
+1. For $\dot x = -x$ *without* any IC term in the loss, write down
+   three different functions that drive
+   $\mathcal{L}_{\text{ODE}}$ to exactly zero. What is the full
+   family of zero-residual solutions, and which single member does
+   adding $\mathcal{L}_{\text{IC}} = |x_\theta(0) - 1|^2$ select?
+2. Suppose you set $\lambda_{\text{IC}} = 10^{-6}$ and train to a
+   total loss of $10^{-8}$. Roughly how far can $x_\theta(0)$ sit
+   from 1 while still "succeeding"? What does this tell you about
+   reading a small total loss as evidence of a correct solution?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+For part 1, the zero-residual set is exactly the ODE's solution family — write its general solution and you're done. For part 2, bound the single term: $\lambda_{IC}\,|x_\theta(0)-1|^2 \le \mathcal{L}_{total}$, then solve for $|x_\theta(0)-1|$. No code required for either part.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-5-1)
+:::
+:::
 
 ## 5.2 Autodiff for PINNs: forward, reverse, and second derivatives
 
@@ -263,6 +291,37 @@ autodiff-exact, easily-differentiable surrogate in return. The
 rest of [Units 5–7](../unit_05/unit_05.qmd) is mostly about how to
 realise that trade in practice.
 
+::: {#ex-5-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — trust, then verify, the autodiff stack
+
+Take a function whose derivatives you know exactly:
+$u(x, t) = \sin(3x)\,e^{-2t}$, so
+$\partial_x u = 3\cos(3x)e^{-2t}$,
+$\partial_{xx} u = -9\sin(3x)e^{-2t}$, and
+$\partial_t u = -2\sin(3x)e^{-2t}$. Implement $u$ as plain Julia
+code and compute all three derivatives at $(x, t) = (0.7, 0.4)$
+with nested `ForwardDiff.derivative`, exactly as the section does
+for the network. Verify each against the closed form to machine
+precision. Then confirm the residual of the heat equation
+$\partial_t u - \alpha\,\partial_{xx} u$ vanishes when
+$\alpha = 2/9$ — i.e. your $u$ *is* a heat-equation solution for
+that diffusivity. If you have a Python environment handy, repeat
+the whole check in JAX with `jax.jacfwd` and confirm the same
+numbers come out.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Define `u(x, t) = sin(3x) * exp(-2t)` as an ordinary function — the point is to validate the derivative *pipeline* before any network is involved. Nest `ForwardDiff.derivative` for $\partial_{xx}$, and find α from the eigenmode decay rate $\alpha k^2$ with $k = 3$. In JAX, `jax.jacfwd` composes the same way.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-5-2)
+:::
+:::
+
 ## 5.3 A PINN from first principles
 
 We solve $\dot{x}(t) = -x(t)$ with $x(0) = 1$ — the simplest
@@ -271,11 +330,12 @@ will be a 1 → 16 → 1 MLP with $\tanh$ activations. The three pieces
 of machinery are exactly what §5.2 motivated:
 
 - `Lux` for the model and its parameter container;
-- `ForwardDiff.derivative` to compute $\dot{x}_\theta(t)$ at
-  collocation points (scalar input → forward mode);
+- a symmetric **central difference** to compute
+  $\dot{x}_\theta(t)$ at collocation points — see the comment in
+  the listing for why the demo prefers it over AD-inside-AD with
+  current package versions;
 - `Zygote.gradient` to differentiate the *loss* with respect to
-  $\theta$ (many-input scalar-output → reverse mode). The
-  composition is forward-over-reverse.
+  $\theta$ (many-input scalar-output → reverse mode).
 
 ```{julia}
 using Lux, Random, Zygote, Optimisers, Plots
@@ -298,18 +358,21 @@ function x_θ(t::F, ps, st)
     y[1]
 end
 
-# Autodiff time derivative through the network.
-# Use Zygote for the INNER derivative too (reverse-over-reverse for a
-# scalar-input scalar-output composition is well-supported in current
-# Lux/Zygote). Composing ForwardDiff inside Zygote breaks here because
-# Lux's matmul rrule returns a Tangent{Any, ...} wrapping
-# ForwardDiff.Partials that ChainRules.OneElement can't construct an
-# indexing pullback for — a known Lux+Zygote+ForwardDiff compatibility
-# gap as of mid-2026.
-function dxdt(t::F, ps, st)
-    g = Zygote.gradient(τ -> x_θ(τ, ps, st), t)[1]
-    g === nothing ? zero(F) : g
-end
+# Time derivative of the network at a collocation point, by a symmetric
+# central difference. Why not AD-inside-AD? Both pure compositions are
+# version-sensitive in the current Lux/Zygote/ForwardDiff stack:
+# nesting Zygote inside Zygote (reverse-over-reverse) hits Zygote's
+# array-mutation limitation in Lux's pullbacks, and ForwardDiff inside
+# Zygote silently DROPS the parameter gradient of the derivative term
+# (Zygote warns it "cannot track gradients with respect to f" for a
+# parameter-closure). The central difference sidesteps both: Zygote
+# differentiates straight through two plain network evaluations, so the
+# training gradient is exact for the discretised residual — at the cost
+# of an O(h²) bias in ẋ_θ that is far below the training error here.
+# §5.2's clean AD compositions remain the right mental model; this is
+# the robust portable implementation as of mid-2026.
+const h = F(1e-2)
+dxdt(t::F, ps, st) = (x_θ(t + h, ps, st) - x_θ(t - h, ps, st)) / (2h)
 
 ts = collect(range(F(0), F(4); length = 64))   # collocation points
 
@@ -341,14 +404,43 @@ Notice what this is, and what it isn't:
   time; it fits a function on the whole interval at once.
 - There is **no training data** — only the equation and the IC. The
   collocation points are *unlabelled*.
-- The loss is **differentiable** because $\dot{x}_\theta$ is
-  computed by AD; if you could write the residual you can train.
+- The loss is **differentiable end-to-end**: $\dot{x}_\theta$ here
+  is a central difference of two network evaluations, so
+  `Zygote.gradient` flows through the whole residual exactly. If
+  you can write the residual, you can train.
 
 That last point is the whole game. Whatever differential equation
 you can encode as a residual `r(t, ps)`, the same loop trains a PINN
 for it. The difficulty in §§5.3-5.4 is *scaling* the bookkeeping:
 multiple BCs, multiple spatial dimensions, multiple loss terms.
 That's what `NeuralPDE.jl` automates.
+
+::: {#ex-5-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — your second PINN: the oscillator
+
+Upgrade the §5.3 script from first-order to second-order physics.
+Solve $\ddot x + \omega^2 x = 0$ with $\omega = 2$, $x(0) = 1$,
+$\dot x(0) = 0$ on $t \in [0, 4]$ (exact solution
+$\cos(2t)$ — about 1¼ periods). You'll need three changes: a
+*second* time derivative of the network in the residual, a second
+IC term for $\dot x_\theta(0)$, and probably a wider network
+(1 → 32 → 32 → 1) with more Adam iterations. Plot the PINN against
+$\cos(2t)$. Then stretch the domain to $t \in [0, 12]$, retrain,
+and describe what happens to the late-time fit — your first
+encounter with the failure mode that §5.6 names.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Three local changes to the §5.3 script: a second derivative via the central second difference `d2(t) = (x_θ(t+h) - 2x_θ(t) + x_θ(t-h)) / h^2` (same trick as §5.3's `dxdt`, one order up), an extra IC penalty on `dxdt(0)`, and a 1 → 32 → 32 → 1 network. Why two ICs? Count the parameters of the general solution $A\cos\omega t + B\sin\omega t$. Expect to need ~4 000 Adam iterations.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-5-3)
+:::
+:::
 
 ## 5.4 The same ODE with `NeuralPDE.jl`
 
@@ -372,6 +464,33 @@ adapter in the SciML stack. What you pay: heavier precompile and a
 *lot* of symbolic machinery between your problem and the gradient
 that ends up training the network.
 
+::: {#ex-5-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — change the equation, not the plumbing
+
+The declarative payoff of `NeuralPDE.jl` is that a different ODE is
+a one-line edit. Swap the equation in the sidecar script for the
+**logistic equation** $\dot x = x(1 - x)$ with $x(0) = 0.1$ on
+$t \in [0, 8]$ (exact solution
+$x(t) = 1 / (1 + 9e^{-t})$), re-discretise, and re-solve. Compare
+the PINN to the closed form. Then look at what you did *not* have
+to touch — no hand-rolled `dxdt`, no loss assembly — and note the
+one thing you *did* have to reconsider (hint: the solution now
+saturates near 1; does the default network/strategy still fit it
+well at the plateau?).
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Only three lines of the sidecar script change: `eq`, `bcs`, and `domains` — the symbolic layer regenerates everything downstream. The exact solution for grading is the logistic curve $1/(1+9e^{-t})$. For the 'reconsider' question, think about where on $[0, 8]$ the solution actually *does* anything.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-5-4)
+:::
+:::
+
 ## 5.5 The simplest PDE: 1D diffusion
 
 The 1D heat equation
@@ -392,6 +511,33 @@ Captured output from `./build.sh execute 5`:
 {{< include output/pinn_neuralpde_heat.md >}}
 
 ![PINN solution at three times vs. a finite-difference reference. The PINN matches the smoothing trend; the residual at the Gaussian peak is the visible discrepancy.](output/pinn_neuralpde_heat.png)
+
+::: {#ex-5-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — sharpen the bump until it breaks
+
+The heat-equation PINN above fits a Gaussian initial bump of width
+parameter 200. Make the problem harder one notch at a time: rerun
+the script with the IC sharpness at $200, 800, 3200$ (the bump's
+width halves each step), keeping everything else fixed. For each
+run record the final loss and plot the PINN against the FD
+reference at $t = 0$ — the IC is where the damage shows. At what
+sharpness does the PINN visibly fail to represent the initial
+condition, and does throwing 4× more collocation points at it fix
+the problem? Keep your three loss numbers; §5.6 explains the trend
+and [Unit 7](../unit_07/unit_07.qmd) sells the cure.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+The sharpness is the `200` inside the IC line of the `bcs` vector — sweep it, record `res.objective` (or the final printed loss), and compare the $t=0$ slice against `exp.(-S .* (x .- 0.5).^2)`. For the collocation test, shrink the `GridTraining` spacings by 2× in each dimension (4× the points).
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-5-5)
+:::
+:::
 
 ## 5.6 Failure modes already visible
 
@@ -417,3 +563,36 @@ adaptive loss weighting, Fourier feature embeddings, hard BC
 enforcement, and causal training. With those tools we can train
 PINNs on the capstone column in [Unit 9 / Unit 10](../unit_09/unit_09.qmd);
 without them we can't.
+
+::: {#ex-5-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — diagnose before you medicate
+
+Match symptom to disease. For each observation below — all from
+real PINN training logs — name which of the three §5.6 pathologies
+(spectral bias, loss imbalance, causal violation) is the prime
+suspect, and which [Unit 7](../unit_07/unit_07.qmd) fix you'd reach
+for first:
+
+1. The total loss is $10^{-6}$ but the solution at the domain
+   boundary is visibly wrong; the BC term contributes $10^{-9}$ of
+   the total with $\lambda_b = 1$.
+2. A wave-equation PINN reproduces the first quarter-period
+   beautifully, then the predicted field "freezes" — late times look
+   like a smeared copy of early times.
+3. A PINN fits $\sin(2\pi x)$ initial data in 500 iterations but
+   needs 50 000 for $\sin(16\pi x)$, with the same network.
+4. Doubling $\lambda_{\text{IC}}$ fixes the initial condition but
+   the interior residual gets 100× worse.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Three diagnostics separate the three diseases: per-term loss magnitudes (imbalance), residual-binned-by-$t$ (causality), and whether difficulty scales with the target's frequency (spectral bias). Each numbered symptom answers exactly one of those probes — start by deciding which probe the symptom is reporting.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-5-6)
+:::
+:::

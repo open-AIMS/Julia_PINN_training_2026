@@ -58,6 +58,34 @@ sensor near a reef, over a few weeks) but the same ideas transfer
 directly to nutrients and tracers — same equation, different
 source term and boundary conditions.
 
+::: {#ex-8-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — write the turbidity model
+
+The section claims sediment transport is "identical in form to the
+heat equation". Earn that claim: write down the 1-D column PDE for
+suspended-sediment concentration $C(z, t)$ near a reef after a
+resuspension event. Start from the temperature equation and decide,
+term by term, what changes: which transport terms survive
+unchanged, what plays the role of the body source, what new
+*sinking* term appears (sediment falls at a settling velocity
+$w_s$), and what the natural top and bottom boundary conditions
+become (no flux through the surface; erosion/deposition at the
+bed). Then say in one sentence how light attenuation for the corals
+would be computed from your $C(z, t)$.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Settling is just advection at velocity $w_s$ *relative to the water* — so it enters exactly like $w$, with a sign. The top BC is the subtle part: 'no flux' means the *total* flux (diffusive + settling) vanishes, which makes it a Robin condition. For the light question, Beer–Lambert with a $C$-dependent attenuation coefficient.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-1)
+:::
+:::
+
 ## 8.2 The column idealisation
 
 Reef waters are three-dimensional, with tides, wind-driven currents,
@@ -147,6 +175,37 @@ system in $(x, y, z, t)$. The cost is that you have to *prescribe*
 or *derive* the vertical velocity rather than solve for it; the
 horizontal flow that drives it lives in a separate, lower-cost 2D
 model (the shallow water solver in [Unit 9](../unit_09/unit_09.qmd)).
+
+::: {#ex-8-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — units police
+
+Check every term of @eq-column and @eq-column-bcs dimensionally —
+the fastest way to internalise what each symbol is:
+
+1. Confirm all four terms of @eq-column have units of K/s, given
+   $[w] = \text{m/s}$, $[\kappa] = \text{m}^2/\text{s}$.
+2. What must the units of $\mathcal{S}(z, t)$ be, and how does
+   dividing $Q_{\text{SW}}$ (W/m²) by $\rho c_p$ deliver them?
+   (Track the watts: $\text{W} = \text{J/s}$.)
+3. In the surface BC, show both sides have units K·m/s, and compute
+   the *equilibrium surface gradient* $\partial_z T$ implied by a
+   net cooling $Q_{\text{np}} = -200\,\text{W/m}^2$ through a
+   mixed-layer $\kappa = 10^{-3}\,\text{m}^2/\text{s}$. Is the
+   answer (in K per metre) big or small compared to a typical
+   thermocline gradient of ~0.3 K/m?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Track the watt: $\text{W} = \text{J/s}$, and $\rho c_p \approx 4.09\times10^6$ J m⁻³ K⁻¹ is the conversion factor between heat flux and 'temperature flux'. Part 3 is one division: $\partial_z T = Q/(\rho c_p \kappa)$ — then compare the number against 0.3 K/m.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-2)
+:::
+:::
 
 ## 8.3 Advection and diffusion in fluids
 
@@ -254,6 +313,38 @@ gravitational sinking for sediment, photochemical decay for dyes —
 and the boundary conditions. The capstone focuses on the thermal
 case; the nutrient case has the same machinery throughout.
 
+::: {#ex-8-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — which mechanism does your sensor see?
+
+A thought experiment with numbers. A sensor sits at $z = -20$ m in
+a 60 m column with $\kappa = 10^{-4}\,\text{m}^2/\text{s}$ below
+the mixed layer and a thermocline gradient
+$\partial_z T \approx 0.3$ K/m at the sensor.
+
+1. Steady upwelling switches on at $w = 2 \times 10^{-5}$ m/s
+   (about 1.7 m/day). What cooling rate (K/day) does the advection
+   term produce at the sensor?
+2. How large would the *curvature* $\partial_{zz} T$ have to be for
+   the diffusion term to match that cooling rate? Is that a
+   plausible number for a smooth thermocline (where
+   $\partial_{zz}T \sim 0.3\,\text{K/m} / 10\,\text{m}$)?
+3. Conclude: at this depth and these parameters, which mechanism
+   *must* a days-long cooling of ~0.5 K/day be attributed to — and
+   what would have to change for diffusion to compete?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Each rate is a single multiplication: $w\cdot\partial_z T$ for advection, $\kappa\cdot\partial_{zz}T$ for diffusion — convert to K/day with ×86 400 so the numbers mean something. For part 3, remember §8.5: the κ *below* the mixed layer is closer to $10^{-5}$ than the $10^{-4}$ given — does that strengthen or weaken the conclusion?
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-3)
+:::
+:::
+
 ## 8.4 Surface energy budget
 
 Heat enters and leaves the column through the air–sea interface, and
@@ -322,6 +413,37 @@ depth* because the diffusive penetration depth scales as
 $\sqrt{\kappa\, \tau}$.
 :::
 
+::: {#ex-8-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — where does the sunlight actually go?
+
+Plot the Paulson–Simpson body source. With
+$Q_{\text{SW}} = 800\,\text{W/m}^2$ (noon sun), $R = 0.58$,
+$k_1 = 0.5\,\text{m}^{-1}$, $k_2 = 1/14\,\text{m}^{-1}$, plot
+$\rho c_p\,\mathcal{S}(z)$ over $z \in [-50, 0]$ m on a log
+$x$-axis. Then integrate (analytically — the integrals are
+elementary exponentials) to answer:
+
+1. What fraction of the incoming shortwave is absorbed in the top
+   1 m? The top 10 m?
+2. What fraction passes below 30 m — the typical thermocline depth?
+3. The capstone's single-band simplification uses
+   $\zeta = 10$ m. Compare its below-30 m fraction with the
+   two-band model's. In which depth range do the two models
+   disagree most, and would a thermistor at $-40$ m care?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+No numerical integration needed: the fraction of light still travelling downward past depth $z$ is $F(z) = R\,e^{k_1 z} + (1-R)\,e^{k_2 z}$, so 'absorbed above $z$' is $1 - F(z)$. Compare the two models at $z = -1, -10, -30$ m and the answer to the design question falls out.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-4)
+:::
+:::
+
 ## 8.5 Stratification, mixing, and the deep boundary
 
 Ocean temperature usually decreases with depth — warm sun-heated
@@ -345,6 +467,40 @@ a much larger volume of cold deep water whose temperature responds
 on timescales irrelevant to ours. Dirichlet is a fair model;
 zero-flux (an insulating floor) is an alternative if the deep ocean
 beneath you is essentially a wall.
+
+::: {#ex-8-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — find the mixing barrier
+
+Compute the stratification profile the capstone's initial condition
+implies. Using $T_0(z)$ from
+[Unit 9 §9.4](../unit_09/unit_09.qmd) (the $\tanh$ thermocline:
+$T_{\text{surface}} = 28$, $T_{\text{deep}} = 18$, $z_t = -30$ m,
+$\delta_t = 5$ m) and the buoyancy frequency
+$N^2 = \alpha g\,\partial_z T$ with $\alpha = 2\times10^{-4}$/K:
+
+1. Derive $\partial_z T_0(z)$ in closed form and find where $N^2$
+   peaks and its peak value.
+2. With a background shear $\partial_z U = 0.01\,\text{s}^{-1}$,
+   plot the Richardson number $\mathrm{Ri}(z)$ and mark the region
+   where $\mathrm{Ri} > 1/4$.
+3. Plot closure 3 from [Unit 9 §9.5](../unit_09/unit_09.qmd),
+   $\kappa = \kappa_b + \kappa_0/(1 + 5\mathrm{Ri})^2$, through the
+   column. By what factor is mixing suppressed at the thermocline
+   relative to the surface — and what does that mean for how fast a
+   surface heat anomaly can reach the deep sensors?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Differentiate the tanh profile: $\partial_z \tanh((z-z_t)/\delta) = \mathrm{sech}^2(\cdot)/\delta$. The Ri > 1/4 boundary solves $\mathrm{sech}^2(x) = $ threshold, i.e. $x = \operatorname{acosh}(1/\sqrt{\text{thr}})$. For the consequence, compare crossing times $L^2/\kappa$ through the suppressed band vs the mixed layer.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-5)
+:::
+:::
 
 ## 8.6 Dimensionless regimes
 
@@ -376,6 +532,35 @@ why the diurnal warm layer is thin, why a 3-day storm leaves a
 fingerprint deeper than naive cooling would suggest, why SST cools
 slowly under upwelling, and why the steady state is reached only
 over many months.
+
+::: {#ex-8-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — three sites, three regimes, by the numbers
+
+Do the §8.6 arithmetic for all three capstone sites
+([Unit 9 §9.1](../unit_09/unit_09.qmd)). Using each site's depth
+($H_A = 15$ m, $H_B = 60$ m, $H_C = 100$ m), with
+$\kappa_m = 10^{-3}\,\text{m}^2/\text{s}$ and
+$w_0 = 10^{-5}\,\text{m/s}$ for all three, compute per site:
+$\mathrm{Pe} = w_0 H / \kappa_m$, the diffusive time
+$T_\kappa = H^2/\kappa_m$ in days, and the diffusive penetration
+depth $\sqrt{\kappa_m \tau}$ for a 3-day storm. Check your numbers
+against the regime labels in the Unit 9 site table — do you
+reproduce "$\mathrm{Pe} \ll 1$ / $\sim 1$ / $\gg 1$"? One of the
+three labels deserves a caveat; identify which and explain (hint:
+how much of Site C's column does a 30-day run actually mix?).
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Three formulas, three sites: $\mathrm{Pe} = w_0H/\kappa$, $T_\kappa = H^2/\kappa$, $\sqrt{\kappa\tau}$ — a six-entry table you can fill in two minutes. The caveat hides in *which κ* you use: redo Site C's Pe with the interior $\kappa_b = 10^{-5}$ and watch the label change.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-6)
+:::
+:::
 
 ## 8.7 Where this kind of column modelling appears in the literature
 
@@ -430,6 +615,39 @@ prescribed $\kappa(z, t)$ and replace prescribed $w(z, t)$ with a
 coupled regional ocean model (ROMS / SHOC / SLIM /
 MITgcm-Coastal).
 
+::: {#ex-8-7 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — place the capstone in the literature
+
+A matching drill that doubles as a reading list. For each capstone
+design choice below, name the literature entry above that justifies
+it (paper or product), and the *operational shortcoming* the
+capstone's approach addresses:
+
+1. The shape of the prescribed mixed-layer $\kappa(z, t)$ profile.
+2. The claim that a diurnal warm layer forms and erodes daily in
+   the top few metres.
+3. Using a *vertical column* of temperatures instead of satellite
+   SST + Degree-Heating-Weeks for bleaching risk.
+4. The whole enterprise of recovering an unknown driver from a
+   single mooring's record.
+
+Then the honest-framing question: which item in the §8.7 list is
+*closest* to the capstone's actual method, and what does the
+capstone simplify away relative to it?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Match by *mechanism*, not author: closure shape → the KPP paper; diurnal layer → the 1986 observational classic; bleaching proxies → the Coral Reef Watch line; mooring inversion → the 1985 'what does this mooring tell me' paper. The last question wants the §8.7 bullet that mentions PINN-flavoured tooling.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-7)
+:::
+:::
+
 ## 8.8 From concepts to the capstone column
 
 The capstone in [Unit 9](../unit_09/unit_09.qmd) is the column
@@ -449,3 +667,30 @@ Everything else — the toy tasks, the storm scenario, the inverse
 problem — is choosing which parts of that setup to perturb. The
 "science" sits in §§8.2–8.6 above; the implementation sits in
 [Unit 10](../unit_10/unit_10.qmd).
+
+::: {#ex-8-8 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — reconstruct the spec from memory
+
+Close this page (really). On a blank sheet, write down the complete
+capstone column problem: the PDE with all four terms, both boundary
+conditions, the initial condition, and the four prescribed
+forcings with their roles. Then reopen
+[Unit 9](../unit_09/unit_09.qmd) and grade yourself against
+§§9.3–9.5. The two items most commonly forgotten: where the
+penetrating shortwave enters (body source, *not* the surface BC),
+and which BC type sits at which end of the column. If you dropped
+either, reread §8.4 — that distinction is load-bearing for the
+whole inverse problem.
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Structure your sheet as: 4 PDE terms, 2 BCs (different *types* at the two ends), 1 IC, 4 forcings. The two classic mistakes are advertised in the exercise itself — so make sure your sheet takes an explicit position on where $Q_{SW}$ enters and which BC type sits where.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-8-8)
+:::
+:::

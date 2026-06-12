@@ -74,6 +74,31 @@ network architecture, "complexity" is roughly the parameter count,
 and the test set is replaced by held-out collocation points in the
 PDE domain.
 
+::: {#ex-2-1 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — watch the U-shape appear
+
+Make the bias–variance trade-off concrete. Generate 60 noisy
+samples of $y = \sin(2\pi x) + \varepsilon$,
+$\varepsilon \sim \mathcal{N}(0, 0.2^2)$, on $x \in [0, 1]$. Fit
+polynomials of degree $1, 2, \ldots, 15$ by least squares, and for
+each degree compute (a) the training RMSE and (b) the
+**5-fold cross-validated** RMSE — implementing the fold rotation
+yourself, no library. Plot both curves against degree. Where is the
+minimum of the CV curve, and what happens to the two curves past it?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Build the polynomial design matrix with `hcat((x .^ p for p in 0:d)...)` and fit with `\`. For the folds, interleaved index sets `[i:5:N for i in 1:5]` are the least code; train on `.!mask`, score on `mask`. Expect numerical warnings at high degree — that's part of the story.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-1)
+:::
+:::
+
 ## 2.2 Random forests on MNIST: a cross-language cameo
 
 Before deep learning takes over, one quick stop on the
@@ -200,6 +225,31 @@ models) still beat neural networks when:
 Deep learning's edge sharpens with high-dimensional unstructured
 inputs (images, text, audio), large datasets, and — as we'll see in
 [Unit 5](../unit_05/unit_05.qmd) onwards — *PDE residuals*.
+
+::: {#ex-2-2 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — how many trees is enough?
+
+Take the `DecisionTree.jl` MNIST script above and sweep the forest
+size: $n_{\text{trees}} \in \{1, 5, 20, 50, 100, 200\}$ (use a
+10 000-image training subset to keep each fit under ~20 s). Plot
+test accuracy against tree count. Then hold 100 trees fixed and
+sweep `n_subfeatures` over $\{5, 28, 100, 784\}$. Two questions:
+where does the accuracy curve flatten, and why does
+`n_subfeatures = 784` (every split sees every feature) *hurt* the
+ensemble even though each individual tree gets stronger?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Reuse the `build_forest` call from the section verbatim — the third positional argument is `n_subfeatures` and the fourth is `n_trees`. Subset with `X[1:10_000, :]` to keep each fit fast; the *shape* of the curves is robust to the subset. For the conceptual part, think about what averaging does to correlated vs uncorrelated errors.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-2)
+:::
+:::
 
 ## 2.3 From logistic regression to a neural network
 
@@ -339,6 +389,32 @@ optimiser we'll use for the fine-tuning stage of every PINN in
 converges so cleanly here; in deeper networks the loss surface
 isn't convex and we'll need Adam.
 
+::: {#ex-2-3 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — logistic regression from scratch
+
+Strip the framework away entirely. Using only plain Julia arrays
+(no `Lux`, no `Zygote`), implement binary logistic regression for
+the digits **0 vs 1** of MNIST: write the sigmoid, the binary
+cross-entropy, derive the gradient
+$\nabla_w \mathcal{L} = \frac{1}{N} X (\hat p - y)$ by hand, and run
+500 steps of plain gradient descent. You should clear 99% test
+accuracy on this easy pair. Then swap in the digits **4 vs 9** and
+watch the same model struggle — why is that pair so much harder for
+a *linear* decision boundary?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+No autodiff needed: for sigmoid + binary cross-entropy the gradient collapses to `X * (p̂ .- y) ./ N` — derive it by chaining $\partial L/\partial \hat p$ and $\partial \hat p/\partial z$ and watch the $\sigma'$ cancel. Select the two digits with a boolean mask like `(y .== 0) .| (y .== 1)`. Twenty lines total.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-3)
+:::
+:::
+
 ## 2.4 Feedforward networks
 
 ### MLPs: depth $\times$ width
@@ -383,6 +459,31 @@ PDE residual). ReLU's second derivative is zero almost everywhere
 — useless for diffusion-type PDEs. Smooth activations (tanh, Swish,
 GELU) are the safe default; we use Swish throughout
 [Units 5–7](../unit_05/unit_05.qmd).
+
+::: {#ex-2-4 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — universal approximation, and the ReLU trap
+
+Fit a one-hidden-layer `Lux` MLP to
+$f(x) = \sin(4\pi x) \cdot e^{-x}$ on $[0, 1]$ at widths
+$5, 20, 100$, and plot the three fits over the target. Then — the
+PINN-relevant part — take the width-20 network in two flavours,
+`tanh` and `relu`, and use nested `ForwardDiff.derivative` to plot
+the *second* derivative $f_\theta''(x)$ of each. The `tanh` network
+gives a smooth curve; what does the ReLU network give, and why does
+that disqualify it from any diffusion-type PDE residual?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+`Lux.Chain(Lux.Dense(1 => w, act), Lux.Dense(w => 1))` with `act = tanh` or `relu`, trained with the standard `Zygote.gradient` + `Optimisers.Adam` loop from the section. For the second derivative, wrap the network in a scalar closure `u(x) = first(model([x], ps, st))[1]` and nest `ForwardDiff.derivative` twice — exactly the §5.2 pattern, used here a unit early.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-4)
+:::
+:::
 
 ## 2.5 Optimisation and autodiff {#sec-optimisation-and-autodiff}
 
@@ -600,6 +701,31 @@ makes training 100× slower. `Lux.jl` + `Zygote.jl` + `ForwardDiff.jl`
 handle this composition cleanly, which is why the workshop uses
 that stack.
 
+::: {#ex-2-5 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — race the optimisers down a ravine
+
+Implement gradient descent, momentum ($\mu = 0.9$), and Adam *by
+hand* — each is under ten lines — and race them on the Rosenbrock
+function $f(x, y) = (1 - x)^2 + 100\,(y - x^2)^2$ from
+$(-1.5, 2)$. Plot the three trajectories over the loss contours and
+the loss-vs-iteration curves (log scale, 5 000 iterations, tune
+each learning rate to the largest stable value). Which method
+zig-zags across the valley, which one tracks the valley floor, and
+where does Adam's per-parameter scaling visibly help?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Each optimiser is under ten lines if you mutate the iterate in place and keep state in a NamedTuple. The hard part is fair tuning: push each learning rate up until the method just diverges, then back off (GD lands near `1e-3`, Adam near `1e-2`). Plot `log10 ∘ f` for the contours or the colour scale saturates.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-5)
+:::
+:::
+
 ## 2.6 Training a model in practice
 
 The previous sections set up everything we need — a function class
@@ -736,6 +862,33 @@ terms* in the loss rather than weight penalties or dropout — the
 PDE residual itself is a powerful regulariser, as we'll see from
 [Unit 5](../unit_05/unit_05.qmd) onward.
 
+::: {#ex-2-6 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — close the MNIST gap in Lux
+
+The unit has now shown you MNIST three ways: random forest (~97%),
+softmax regression (~92%), and an MLP in two Python frameworks
+(~98%). Close the loop in Julia: extend `mnist_linear_lux.jl` from
+§2.3 with two hidden layers (784 → 256 → 128 → 10, ReLU), keep the
+same Adam mini-batch loop, and train for 10 epochs. Verify you beat
+the forest. Then re-run with the Adam → **L-BFGS-style** trick in
+miniature: after the Adam epochs, do 5 epochs at a 10× smaller
+learning rate and note the effect on the final accuracy. Roughly
+how many parameters does your network have, and how does that
+compare to the softmax baseline?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Copy `mnist_linear_lux.jl` and change only the `model` definition and epoch count — the data pipeline and mini-batch loop are already right. `Lux.parameterlength(model)` gives the parameter count without hand-arithmetic. For the fine-tune, rebuild `opt_state` with the smaller learning rate but keep the trained `ps`.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-6)
+:::
+:::
+
 ## 2.7 Kolmogorov-Arnold networks (KANs)
 
 A recent alternative to the MLP that's been picking up traction in
@@ -853,6 +1006,31 @@ We won't return to KANs in the worked examples — Units 5–9 stick
 with MLP-PINNs — but they belong in the working vocabulary of any
 practitioner reading the 2024–26 PINN literature.
 
+::: {#ex-2-7 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — KAN vs MLP on a sharp feature
+
+Sharp features are where KANs claim an edge. Fit both a 2-layer
+KAN (`KolmogorovArnold.jl`, as in the script above) and a
+parameter-matched `tanh` MLP to the 1-D function
+$f(x) = |x| + 0.2\sin(5x)$ on $[-1, 1]$ — smooth everywhere except
+the kink at zero. Train both with Adam for the same number of
+iterations, compare final MSE, and plot both fits near $x = 0$.
+Which model captures the kink better at equal parameter count, and
+what happens to the MLP if you give it 10× the training iterations?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+`KolmogorovArnold.jl` needs a one-off `Pkg.add`; `KDense(1 => 6; basis_func = rbf, normalizer = softsign)` mirrors the section's script. Match parameter counts with `Lux.parameterlength` before comparing — an unmatched comparison is meaningless. Zoom the comparison plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the action is.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-7)
+:::
+:::
+
 ## 2.8 What carries over to PINNs
 
 Three ideas from this unit survive the journey to physics-informed
@@ -872,3 +1050,26 @@ With those in hand, [Unit 3](../unit_03/unit_03.qmd) lifts the
 function-approximation idea into a SciML landscape, and
 [Unit 4](../unit_04/unit_04.qmd) introduces the ODE side that PINNs
 will meet head-on in [Unit 5](../unit_05/unit_05.qmd).
+
+::: {#ex-2-8 .callout-note .section-exercise icon="false"}
+## ✏️ Section exercise — translate the vocabulary
+
+A quick dictionary drill before moving on. For each supervised-learning
+concept on the left, write down its PINN counterpart and one
+sentence on what changes: (a) a labelled training example; (b) the
+test set; (c) overfitting; (d) the $L_2$ weight penalty; (e) the
+mini-batch. Then answer: in what sense does a PINN have "infinite
+training data", and what is the catch?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+For each concept, ask: what supplies the supervision signal in a PINN (the equation), and what plays the role of unseen data (points you didn't sample)? The §2.1 ERM picture maps over almost mechanically — the one genuinely new idea is that the regulariser *is* the physics.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-8)
+:::
+:::
