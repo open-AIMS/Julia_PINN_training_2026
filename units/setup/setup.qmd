@@ -1,0 +1,73 @@
+---
+title: "Running it on your laptop"
+toc-title: "Run locally"
+date: today
+date-format: "DD/MM/YYYY"
+number-sections: false
+---
+
+::: {.callout-warning title="🚧 Under construction"}
+This page is being finalised. The Docker image and instructions below are still
+being verified — treat them as provisional until this notice is removed.
+:::
+
+During the workshop you use the cloud JupyterHub — your instructors give you the
+link and your login. This page is for running the **same environment on your own
+computer**: as a backup during the workshop, or (mainly) afterwards, to keep
+working on your projects once the cloud servers are switched off.
+
+Everything is bundled into a single **Docker image** — the same Julia 1.12 + PINN
+stack, the same Python (PyTorch / JAX) stack, and the course materials as on the
+cloud hub. One command and you have the whole course running locally.
+
+## Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/){target="_blank"}
+  (Windows / macOS) or Docker Engine (Linux).
+- x86-64 machine. Apple-Silicon Macs run it under Docker Desktop's emulation —
+  it works, just slower.
+- ~8 GB of free disk for the image.
+
+## Run it
+
+```bash
+docker run --rm -p 8888:8888 ghcr.io/accumulationpoint/pinns-course-core
+```
+
+The first run downloads the image (a few GB — once only). When it starts it prints
+a `http://127.0.0.1:8888/lab` link; open that in your browser. You get JupyterLab
+with **Julia 1.12** and **Python 3** kernels, ready to go — `using NeuralPDE` and
+`import torch` work immediately, with no installation.
+
+Inside you'll find:
+
+- `~/course-materials` — a snapshot of the course site (the same notebooks and code).
+- `~/welcome_julia.ipynb`, `~/welcome_python.ipynb` — the same short intros as on the hub.
+
+## Keeping your work
+
+The `--rm` flag means the container is disposable: when you stop it, anything saved
+*inside* it is discarded. To keep your work, mount a folder from your computer:
+
+```bash
+docker run --rm -p 8888:8888 -v "$PWD/work:/home/jovyan/work" \
+  ghcr.io/accumulationpoint/pinns-course-core
+```
+
+Now anything you save under `~/work` in JupyterLab is written to a `work/` folder
+next to where you ran the command, and stays there after the container stops.
+
+## What about the GPU?
+
+This laptop image is **CPU-only** (the PyTorch / JAX / Julia stacks are CPU builds).
+That is fine for every exercise in the course — only slower on the larger training
+runs. GPU acceleration is what the **cloud GPU hub** is for during the workshop; any
+notebook cell marked as GPU code is meant to be run there, on a machine with an
+NVIDIA GPU.
+
+::: {.callout-note}
+The image lives on the GitHub Container Registry as
+`ghcr.io/accumulationpoint/pinns-course-core`. It is rebuilt automatically whenever
+the course software stack changes, so `docker pull ghcr.io/accumulationpoint/pinns-course-core`
+always fetches the current version.
+:::

@@ -36,6 +36,8 @@ website:
     contents:
       - text: Course index
         href: index.qmd
+      - text: Running it on your laptop
+        href: units/setup/setup.qmd
       - section: Curriculum
         contents:
           - units/unit_01/unit_01.qmd
