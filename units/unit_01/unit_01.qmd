@@ -663,6 +663,38 @@ enforcement, adaptive loss weighting — that close the gap, so that
 by Unit 9 the PINN can do what the adjoint does here without the
 luxury of precomputing $G$.
 
+### The same solve, on a GPU {#sec-swe-gpu}
+
+The forward solve above runs in a second or two at the bay's native
+$100\times190$ resolution. But the moment you want *finer* structure — sharper
+features around the islands, or a higher-resolution surge front — the cell count
+and the number of time steps both climb (the CFL condition ties the time step to
+the grid spacing), and the CPU solve slows to minutes.
+
+This is the canonical case for a GPU. The shallow-water update is a *stencil*:
+every water cell's new surface height depends only on its immediate neighbours,
+so thousands of cells can update at once. The script below is the **same
+linearised SWE model**, rewritten so every step is a whole-array broadcast
+instead of a scalar loop — which means the identical code runs on the CPU
+(`Array`) or the GPU (`CuArray`). It refines the real Moreton Bay bathymetry by
+an integer factor and races the two:
+
+```{.julia filename="units/unit_01/scripts/surge_gpu.jl" code-fold="true" code-summary="Show the GPU shallow-water solver"}
+{{< include scripts/surge_gpu.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/surge_gpu.md >}}
+
+At the bay's native grid the GPU barely helps — the problem is too small to fill
+the card. But each refinement multiplies the work, and by a $760\times400$ grid
+the GPU is **>20× faster** while the CPU solve has crossed $30\,\text{s}$. The
+two never disagree by more than a centimetre: it is genuinely the same physics,
+just spread across thousands of cores. The surge at the finest resolution:
+
+![Surface elevation $\eta$ three hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. The land mask (islands, mainland coast) appears as the pale cut-outs; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png)
+
 ### What you have just seen
 
 In one worked example we have touched, at an introductory depth,

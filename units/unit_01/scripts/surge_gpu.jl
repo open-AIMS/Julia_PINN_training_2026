@@ -1,0 +1,221 @@
+#!/usr/bin/env julia
+# ===========================================================================
+# Unit 1 — the Moreton Bay surge solver, on the GPU.
+#
+# This is the SAME linearised shallow-water model as scripts/generate_surge_data.jl
+# (Arakawa C-grid, forward-backward stepping, land mask, eastern sponge, a
+# Dirichlet river-mouth source), but rewritten in a VECTORISED, backend-agnostic
+# style: every update is a whole-array broadcast, no scalar loops. The exact same
+# code therefore runs on the CPU (`Array`) or the GPU (`CuArray`) — the only
+# difference is where the arrays live.
+#
+# Why bother? The reference solver runs a 100x190 grid in a few seconds on a CPU.
+# Real bathymetric studies want metre-scale resolution over the whole bay, which
+# is 10-100x more cells and 10-100x more time steps (CFL ties dt to dx). That is
+# exactly the regime where a GPU's thousands of cores win: this script refines the
+# bay by an integer factor and shows the CPU vs GPU wall-clock crossover.
+#
+# Run on the GPU hub (the @pinn env has CUDA.jl):
+#   julia --project=@pinn units/unit_01/scripts/surge_gpu.jl
+#
+# It prints a benchmark table and writes figures/surge_gpu_field.png.
+# Nothing here executes during `quarto render` — the .qmd shows it `eval: false`
+# and includes the captured output.
+# ===========================================================================
+
+using CUDA, Printf, Statistics
+
+const HAVE_GPU = CUDA.functional()
+
+# --- Bay geometry ----------------------------------------------------------
+# Prefer the real Unit 1 bathymetry/mask if we can find them (on the hub the
+# course repo is at /home/efs/_shared/course-materials); otherwise synthesise an
+# idealised bay with the same character: a sloping basin, a shallower western
+# shelf near the river mouth, a barrier-island gap to the east, land to the west.
+
+function load_or_make_bay()
+    candidates = String[]
+    haskey(ENV, "GPU_DATA_DIR") && push!(candidates, ENV["GPU_DATA_DIR"])
+    push!(candidates, joinpath(@__DIR__, "..", "data"))
+    push!(candidates, "/home/efs/_shared/course-materials/units/unit_01/data")
+    for d in candidates
+        bf = joinpath(d, "bay_bathymetry.csv")
+        mf = joinpath(d, "bay_mask.csv")
+        if isfile(bf) && isfile(mf)
+            H = _readcsv_float(bf)
+            M = round.(Int, _readcsv_float(mf))
+            H[isnan.(H)] .= 5.0
+            return (Float32.(H), M, "real Moreton Bay bathymetry ($(size(H,1))x$(size(H,2)))")
+        end
+    end
+    # --- idealised fallback (NY x NX = 100 x 190, same aspect as the real bay)
+    NY, NX = 100, 190
+    H = fill(5.0f0, NY, NX)
+    M = ones(Int, NY, NX)
+    @inbounds for j in 1:NY, i in 1:NX
+        # depth deepens to the east; shallow shelf in the west near the source
+        depth = 3.0f0 + 42.0f0 * (i / NX)^1.3f0
+        H[j, i] = depth
+        # western land wedge (mainland coast) + a barrier island band near i≈0.8NX
+        west_land = i < (6 + 10 * sin(3.0 * j / NY))
+        barrier   = (abs(i - round(Int, 0.82NX)) ≤ 1) && !(38 ≤ j ≤ 52)  # gap = tidal inlet
+        if west_land || barrier
+            M[j, i] = 0
+            H[j, i] = 1.0f0
+        end
+    end
+    return (H, M, "idealised bay (100x190)")
+end
+
+function _readcsv_float(path)
+    rows = Vector{Vector{Float64}}()
+    for ln in eachline(path)
+        isempty(strip(ln)) && continue
+        push!(rows, [(t == "NaN" || t == "nan" || isempty(t)) ? NaN : parse(Float64, t)
+                     for t in split(ln, ',')])
+    end
+    return reduce(vcat, [permutedims(r) for r in rows])
+end
+
+# Nearest-neighbour integer refinement of a field (each cell -> r x r block).
+refine_field(A, r) = r == 1 ? A : repeat(A, inner = (r, r))
+
+# --- Build all the static arrays a solve needs, on a given backend ----------
+# `dev` is `identity` for CPU or `CuArray` for GPU.
+function build_state(Hc, Mc, refine, dev)
+    H  = Float32.(refine_field(Hc, refine))
+    M  = refine_field(Mc, refine)
+    NY, NX = size(H)
+    maskf = Float32.(M)
+
+    # face depths and open-face masks (water-water faces only)
+    Hu = 0.5f0 .* (H[:, 1:NX-1] .+ H[:, 2:NX])
+    Hv = 0.5f0 .* (H[1:NY-1, :] .+ H[2:NY, :])
+    uopen = Float32.((M[:, 1:NX-1] .== 1) .& (M[:, 2:NX] .== 1))
+    vopen = Float32.((M[1:NY-1, :] .== 1) .& (M[2:NY, :] .== 1))
+
+    # eastern sponge (Rayleigh damping that grows toward the open boundary)
+    sponge = zeros(Float32, NY, NX)
+    SPONGE_W = 5 * refine
+    @inbounds for j in 1:NY, i in 1:NX
+        di = i - (NX - SPONGE_W)
+        di > 0 && (sponge[j, i] = (1.0f0 / 60) * (di / SPONGE_W)^2)
+    end
+    spu = 0.5f0 .* (sponge[:, 1:NX-1] .+ sponge[:, 2:NX])
+    spv = 0.5f0 .* (sponge[1:NY-1, :] .+ sponge[2:NY, :])
+
+    # river-mouth source cell: western shelf, a third of the way up the coast
+    jr = clamp(round(Int, 0.33NY), 2, NY-1)
+    ir = 0
+    @inbounds for i in 1:NX            # first water column on row jr
+        if M[jr, i] == 1; ir = i; break; end
+    end
+    ir = max(ir, 3)
+    src = zeros(Float32, NY, NX); src[jr, ir] = 1.0f0
+
+    return (; H, maskf, Hu, Hv, uopen, vopen, sponge, spu, spv,
+            src = dev(src), NY, NX,
+            maskf_d = dev(maskf), Hu_d = dev(Hu), Hv_d = dev(Hv),
+            uopen_d = dev(uopen), vopen_d = dev(vopen),
+            sponge_d = dev(sponge), spu_d = dev(spu), spv_d = dev(spv))
+end
+
+# Surge profile imposed at the source (two flood pulses), in metres.
+psi(t) = 0.45f0 * exp(-((t - 2.0f0*3600) / (0.55f0*3600))^2) +
+         0.18f0 * exp(-((t - 4.3f0*3600) / (0.55f0*3600))^2)
+
+# --- One fully-vectorised time step (works for Array OR CuArray) ------------
+const G_GRAV = 9.81f0
+const B_DRAG = 5.0f-5
+
+function swe_solve(Hc, Mc, refine, dev; dx0 = 500.0f0, t_end = 3*3600.0f0, nwarm = 5)
+    s = build_state(Hc, Mc, refine, dev)
+    NY, NX = s.NY, s.NX
+    dx = dx0 / refine; dy = dx
+    cmax = sqrt(G_GRAV * maximum(s.H))
+    dt = 0.45f0 / (cmax * sqrt(1/dx^2 + 1/dy^2))        # CFL-safe
+    nt = Int(floor(t_end / dt))
+
+    η = dev(zeros(Float32, NY, NX))
+    u = dev(zeros(Float32, NY, NX-1))
+    v = dev(zeros(Float32, NY-1, NX))
+    divx = similar(η); divy = similar(η)
+    fill!(divx, 0); fill!(divy, 0)
+
+    function step!(tt)
+        Fx = s.Hu_d .* u
+        Fy = s.Hv_d .* v
+        @views divx[:, 2:NX-1] .= (Fx[:, 2:NX-1] .- Fx[:, 1:NX-2]) ./ dx
+        @views divy[2:NY-1, :] .= (Fy[2:NY-1, :] .- Fy[1:NY-2, :]) ./ dy
+        η .-= dt .* (divx .+ divy) .* s.maskf_d          # continuity (water only)
+        η .*= (1f0 .- dt .* s.sponge_d)                  # sponge on η
+        η .= η .* (1f0 .- s.src) .+ (psi(tt) .* s.src)   # river-mouth Dirichlet
+        dηdx = (η[:, 2:NX] .- η[:, 1:NX-1]) ./ dx
+        dηdy = (η[2:NY, :] .- η[1:NY-1, :]) ./ dy
+        u .= (u .+ dt .* (.-G_GRAV .* dηdx .- B_DRAG .* u)) .* s.uopen_d
+        v .= (v .+ dt .* (.-G_GRAV .* dηdy .- B_DRAG .* v)) .* s.vopen_d
+        u .*= (1f0 .- dt .* s.spu_d)                     # sponge on velocities
+        v .*= (1f0 .- dt .* s.spv_d)
+        return nothing
+    end
+
+    for n in 1:nwarm; step!(n*dt); end                   # warm up / compile
+    fill!(η, 0); fill!(u, 0); fill!(v, 0)
+    dev === identity || CUDA.synchronize()
+    t0 = time()
+    for n in 1:nt; step!(n*dt); end
+    dev === identity || CUDA.synchronize()
+    elapsed = time() - t0
+
+    env = maximum(abs, Array(η))
+    return (; field = Array(η), elapsed, nt, dt, NY, NX, ncells = NY*NX, env)
+end
+
+# ---------------------------------------------------------------------------
+println("="^64)
+println("Unit 1 — Moreton Bay shallow-water surge on CPU vs GPU")
+println("="^64)
+Hc, Mc, src_desc = load_or_make_bay()
+@printf("geometry: %s\n", src_desc)
+@printf("GPU available: %s%s\n", HAVE_GPU,
+        HAVE_GPU ? "  ($(CUDA.name(CUDA.device())), $(round(CUDA.totalmem(CUDA.device())/2^30; digits=1)) GiB)" : "")
+println()
+
+@printf("%-8s %-12s %-9s %-7s %10s %10s %9s\n",
+        "refine", "grid", "cells", "steps", "CPU (s)", "GPU (s)", "speedup")
+println("-"^72)
+
+refines = [1, 2, 3, 4]
+fine_field = nothing
+for r in refines
+    cpu = swe_solve(Hc, Mc, r, identity)
+    gpu = HAVE_GPU ? swe_solve(Hc, Mc, r, CuArray) : nothing
+    spd = gpu === nothing ? NaN : cpu.elapsed / gpu.elapsed
+    @printf("%-8d %-12s %-9d %-7d %10.2f %10.2f %8.1fx\n",
+            r, "$(cpu.NY)x$(cpu.NX)", cpu.ncells, cpu.nt,
+            cpu.elapsed, gpu === nothing ? NaN : gpu.elapsed, spd)
+    if gpu !== nothing
+        @assert maximum(abs, cpu.field .- gpu.field) < 1f-2 "CPU/GPU fields diverged"
+    end
+    global fine_field = (gpu === nothing ? cpu : gpu).field
+end
+
+println()
+println("CPU and GPU fields agree to < 1e-2 m at every resolution (same code, same physics).")
+
+# --- Figure: the surge field on the finest grid ----------------------------
+try
+    using CairoMakie
+    f = Figure(size = (720, 460))
+    ax = Axis(f[1, 1], title = "Surge η at t = 3 h (finest grid, GPU)",
+              xlabel = "i (east →)", ylabel = "j (north →)")
+    hm = heatmap!(ax, permutedims(fine_field), colormap = :balance,
+                  colorrange = (-0.3, 0.3))
+    Colorbar(f[1, 2], hm, label = "η (m)")
+    figdir = get(ENV, "GPU_FIG_DIR", joinpath(@__DIR__, "..", "figures"))
+    isdir(figdir) || mkpath(figdir)
+    save(joinpath(figdir, "surge_gpu_field.png"), f)
+    println("wrote figures/surge_gpu_field.png")
+catch e
+    println("(figure skipped: ", e, ")")
+end

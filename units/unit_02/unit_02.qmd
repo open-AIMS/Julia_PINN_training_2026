@@ -862,6 +862,35 @@ terms* in the loss rather than weight penalties or dropout — the
 PDE residual itself is a powerful regulariser, as we'll see from
 [Unit 5](../unit_05/unit_05.qmd) onward.
 
+### Training on the GPU (Julia, Lux + CUDA) {#sec-mnist-gpu}
+
+The PyTorch listing above quietly did the thing that matters for scale —
+`X, y = X.to(device), y.to(device)` — and trained on a GPU if one was present.
+Here is the *Julia* side of that story: the **same MLP**, trained on the CPU and
+on the GPU, where the only change is pushing the parameters and the data to the
+device with `|> gpu_device()`. Everything else — the model, the loss, the Adam
+update — is byte-for-byte identical. MNIST is fetched directly and parsed in a
+few lines, so there is no extra dataset dependency.
+
+```{.julia filename="units/unit_02/scripts/mnist_gpu_lux.jl" code-fold="true" code-summary="Show the GPU MNIST trainer"}
+{{< include scripts/mnist_gpu_lux.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/mnist_gpu_lux.md >}}
+
+Two things to take away. First, the GPU is about **3× faster per epoch** here —
+real, but not dramatic, because a 784-wide MLP on 28×28 images is *small*: the
+batched matmuls don't fully occupy the card and the CPU is no slouch. The GPU
+advantage grows with model and image size — wider networks, convolutions on
+larger images, bigger batches — and, as you'll see from [Unit
+5](../unit_05/unit_05.qmd), with the collocation-point counts that PINNs demand.
+Second, the move itself is trivial: one `gpu_device()` and the same code trains
+on either processor. The full 10-epoch run reaches **97.96%** test accuracy:
+
+![MNIST test accuracy over 10 training epochs of the Lux MLP, trained on the GPU.](figures/mnist_gpu_accuracy.png)
+
 ::: {#ex-2-6 .callout-note .section-exercise icon="false"}
 ## ✏️ Section exercise — close the MNIST gap in Lux
 

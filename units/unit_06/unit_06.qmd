@@ -761,6 +761,38 @@ Only the `dt` line changes between runs; log `maximum(abs.(u))` every 100 steps.
 :::
 :::
 
+### The 2-D version, on a GPU {#sec-heat2d-gpu}
+
+The FTCS scheme above is one-dimensional, but nothing about it is essentially
+1-D: the two-dimensional heat equation uses the **five-point Laplacian**
+$u_{i+1,j}+u_{i-1,j}+u_{i,j+1}+u_{i,j-1}-4u_{i,j}$ stepped forward in exactly the
+same explicit way. And it is the textbook example of a workload a GPU was built
+for — every interior cell updates independently from its four neighbours, so the
+whole grid advances in parallel.
+
+As before, the update is written as a single whole-array broadcast, so the
+identical code runs on the CPU (`Array`) or the GPU (`CuArray`); only where the
+grid lives changes. Sweeping the grid size shows the crossover:
+
+```{.julia filename="units/unit_06/scripts/heat2d_gpu.jl" code-fold="true" code-summary="Show the 2-D heat GPU solver"}
+{{< include scripts/heat2d_gpu.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/heat2d_gpu.md >}}
+
+At $128\times128$ the GPU is only twice as quick — kernel-launch overhead
+dominates a grid that small. But the stencil is perfectly parallel, so as the
+grid grows the GPU pulls away hard: by $1024\times1024$ it is **>60× faster**,
+and it solves a $4096\times4096$ grid (16 million cells) in under two seconds — a
+size where the explicit CPU solve becomes impractical. The CPU and GPU fields
+never differ by more than $10^{-3}$. This is the same lever Unit 1's GPU solver
+pulled for the shallow-water equations, and the same one PINNs lean on for
+collocation ([Unit 7](../unit_07/unit_07.qmd#sec-gpu)).
+
+![The diffused temperature field on the finest grid, computed on the GPU — a hot central Gaussian spreading under the heat equation with zero-temperature (Dirichlet) boundaries.](figures/heat2d_gpu_field.png)
+
 ## 6.5 Finite Volumes
 
 Finite differences (§6.4) discretise the *equation* — replace
