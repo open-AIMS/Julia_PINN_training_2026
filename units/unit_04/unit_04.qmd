@@ -115,7 +115,7 @@ for u0 in ([1.0, 1.0], [1.5, 1.0], [2.0, 1.0]):
 Available at
 [`scripts/lotka_volterra_python.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/lotka_volterra_python.py){target="_blank"}.
 
-::: {#ex-4-1 .callout-note .section-exercise icon="false"}
+::: {#ex-4-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — test the invariant
 
 The text claims
@@ -274,7 +274,7 @@ We'll see this pattern again in [Unit 9](../unit_09/unit_09.qmd) —
 inverse problems with the column model use exactly the same loop,
 just with PDE residuals instead of trajectory data.
 
-::: {#ex-4-2 .callout-note .section-exercise icon="false"}
+::: {#ex-4-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — train a tiny Neural ODE on a spiral
 
 Make the §4.2 skeleton run end-to-end on the classic toy: data from
@@ -507,7 +507,7 @@ classical parameter estimation can't recover an unknown functional
 shape, but a UDE with a 2-layer MLP can. *Code placeholder —
 `units/unit_04/scripts/ude_lv.jl` (TODO).*
 
-::: {#ex-4-3 .callout-note .section-exercise icon="false"}
+::: {#ex-4-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the functional inverse, in miniature
 
 Fill in the `ude_lv.jl` placeholder yourself. Generate

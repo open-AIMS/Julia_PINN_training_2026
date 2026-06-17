@@ -113,7 +113,7 @@ for the workshop — the decoupled version is the baseline; the
 joint version is a stretch goal documented as a closing exercise.
 :::
 
-::: {#ex-9-1 .callout-note .section-exercise icon="false"}
+::: {#ex-9-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — read the mooring CSVs before modelling them
 
 Load `units/unit_10/data/mooring_{A,B,C}.csv` and do the
@@ -181,7 +181,7 @@ $$w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t).$$
 A simple linear-in-$z$ vertical velocity profile, computed offline
 from the SWE run and fed as a time series into the column model.
 
-::: {#ex-9-2 .callout-note .section-exercise icon="false"}
+::: {#ex-9-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — build $w(z,t)$ from a divergence trace
 
 Implement the coupling formula. Take a synthetic divergence
@@ -238,7 +238,7 @@ corresponds to $w > 0$. The advection term $w \, \partial_z T$ then
 has the right physical sign.
 :::
 
-::: {#ex-9-3 .callout-note .section-exercise icon="false"}
+::: {#ex-9-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — get the signs right, once and forever
 
 Sign errors in the advection term are the single most common bug in
@@ -321,7 +321,7 @@ $$
 with $z_t \approx -30\,\text{m}$ sitting the thermocline at 30 m
 depth and $\delta_t \approx 5\,\text{m}$ setting its sharpness.
 
-::: {#ex-9-4 .callout-note .section-exercise icon="false"}
+::: {#ex-9-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — what does the bottom BC actually cost?
 
 The spec offers two bottom boundary conditions: Dirichlet
@@ -413,7 +413,7 @@ Three closures in increasing realism (pick one per experiment):
    prescribed shear $\partial_z U$. Mixing is suppressed in stably
    stratified water (see [Unit 8](../unit_08/unit_08.qmd) §8.5).
 
-::: {#ex-9-5 .callout-note .section-exercise icon="false"}
+::: {#ex-9-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — plot every forcing before you trust it
 
 One figure, four panels, using the reference values of §9.6: (a)
@@ -468,7 +468,7 @@ $T_\kappa = H^2/\kappa_m \approx 116$ days,
 $\tau_d / T_\kappa \sim 10^{-2}$ — are tabulated and interpreted in
 [Unit 8](../unit_08/unit_08.qmd) §8.6.
 
-::: {#ex-9-6 .callout-note .section-exercise icon="false"}
+::: {#ex-9-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the daily heat budget, by hand
 
 Does the reference parameter set heat or cool the column on an

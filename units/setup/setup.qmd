@@ -6,11 +6,6 @@ date-format: "DD/MM/YYYY"
 number-sections: false
 ---
 
-::: {.callout-warning title="🚧 Under construction"}
-This page is being finalised. The Docker image and instructions below are still
-being verified — treat them as provisional until this notice is removed.
-:::
-
 During the workshop you use the cloud JupyterHub — your instructors give you the
 link and your login. This page is for running the **same environment on your own
 computer**: as a backup during the workshop, or (mainly) afterwards, to keep

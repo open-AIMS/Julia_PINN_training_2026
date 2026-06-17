@@ -58,7 +58,7 @@ sensor near a reef, over a few weeks) but the same ideas transfer
 directly to nutrients and tracers — same equation, different
 source term and boundary conditions.
 
-::: {#ex-8-1 .callout-note .section-exercise icon="false"}
+::: {#ex-8-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — write the turbidity model
 
 The section claims sediment transport is "identical in form to the
@@ -176,7 +176,7 @@ or *derive* the vertical velocity rather than solve for it; the
 horizontal flow that drives it lives in a separate, lower-cost 2D
 model (the shallow water solver in [Unit 9](../unit_09/unit_09.qmd)).
 
-::: {#ex-8-2 .callout-note .section-exercise icon="false"}
+::: {#ex-8-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — units police
 
 Check every term of @eq-column and @eq-column-bcs dimensionally —
@@ -313,7 +313,7 @@ gravitational sinking for sediment, photochemical decay for dyes —
 and the boundary conditions. The capstone focuses on the thermal
 case; the nutrient case has the same machinery throughout.
 
-::: {#ex-8-3 .callout-note .section-exercise icon="false"}
+::: {#ex-8-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — which mechanism does your sensor see?
 
 A thought experiment with numbers. A sensor sits at $z = -20$ m in
@@ -413,7 +413,7 @@ depth* because the diffusive penetration depth scales as
 $\sqrt{\kappa\, \tau}$.
 :::
 
-::: {#ex-8-4 .callout-note .section-exercise icon="false"}
+::: {#ex-8-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — where does the sunlight actually go?
 
 Plot the Paulson–Simpson body source. With
@@ -468,7 +468,7 @@ on timescales irrelevant to ours. Dirichlet is a fair model;
 zero-flux (an insulating floor) is an alternative if the deep ocean
 beneath you is essentially a wall.
 
-::: {#ex-8-5 .callout-note .section-exercise icon="false"}
+::: {#ex-8-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — find the mixing barrier
 
 Compute the stratification profile the capstone's initial condition
@@ -533,7 +533,7 @@ fingerprint deeper than naive cooling would suggest, why SST cools
 slowly under upwelling, and why the steady state is reached only
 over many months.
 
-::: {#ex-8-6 .callout-note .section-exercise icon="false"}
+::: {#ex-8-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — three sites, three regimes, by the numbers
 
 Do the §8.6 arithmetic for all three capstone sites
@@ -615,7 +615,7 @@ prescribed $\kappa(z, t)$ and replace prescribed $w(z, t)$ with a
 coupled regional ocean model (ROMS / SHOC / SLIM /
 MITgcm-Coastal).
 
-::: {#ex-8-7 .callout-note .section-exercise icon="false"}
+::: {#ex-8-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — place the capstone in the literature
 
 A matching drill that doubles as a reading list. For each capstone
@@ -668,7 +668,7 @@ problem — is choosing which parts of that setup to perturb. The
 "science" sits in §§8.2–8.6 above; the implementation sits in
 [Unit 10](../unit_10/unit_10.qmd).
 
-::: {#ex-8-8 .callout-note .section-exercise icon="false"}
+::: {#ex-8-8 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — reconstruct the spec from memory
 
 Close this page (really). On a blank sheet, write down the complete

@@ -179,7 +179,7 @@ The driver is in
 its output `data/w_drivers.csv` has columns `t, w_A, w_B, w_C` at
 hourly cadence.
 
-::: {#ex-10-1 .callout-note .section-exercise icon="false"}
+::: {#ex-10-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — predict scenario 1's steady state exactly
 
 Scenario 1 has an analytic answer; derive it before peeking at the
@@ -726,7 +726,7 @@ Strengths and weaknesses, honestly:
 Neither is strictly better. Pick by who's using it and what they
 already know.
 
-::: {#ex-10-2 .callout-note .section-exercise icon="false"}
+::: {#ex-10-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — make the DeepXDE column feel the sun
 
 The DeepXDE sketch above runs with a *constant* net cooling and no

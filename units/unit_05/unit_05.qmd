@@ -69,7 +69,7 @@ Where do you put the $\{t_i\}$? Options:
 For a first pass on a smooth ODE, a uniform grid of a few hundred
 points is plenty.
 
-::: {#ex-5-1 .callout-note .section-exercise icon="false"}
+::: {#ex-5-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — count the solutions
 
 Two short pencil-and-paper checks of the §5.1 picture:
@@ -291,7 +291,7 @@ autodiff-exact, easily-differentiable surrogate in return. The
 rest of [Units 5–7](../unit_05/unit_05.qmd) is mostly about how to
 realise that trade in practice.
 
-::: {#ex-5-2 .callout-note .section-exercise icon="false"}
+::: {#ex-5-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — trust, then verify, the autodiff stack
 
 Take a function whose derivatives you know exactly:
@@ -415,7 +415,7 @@ for it. The difficulty in §§5.3-5.4 is *scaling* the bookkeeping:
 multiple BCs, multiple spatial dimensions, multiple loss terms.
 That's what `NeuralPDE.jl` automates.
 
-::: {#ex-5-3 .callout-note .section-exercise icon="false"}
+::: {#ex-5-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — your second PINN: the oscillator
 
 Upgrade the §5.3 script from first-order to second-order physics.
@@ -464,7 +464,7 @@ adapter in the SciML stack. What you pay: heavier precompile and a
 *lot* of symbolic machinery between your problem and the gradient
 that ends up training the network.
 
-::: {#ex-5-4 .callout-note .section-exercise icon="false"}
+::: {#ex-5-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — change the equation, not the plumbing
 
 The declarative payoff of `NeuralPDE.jl` is that a different ODE is
@@ -512,7 +512,7 @@ Captured output from `./build.sh execute 5`:
 
 ![PINN solution at three times vs. a finite-difference reference. The PINN matches the smoothing trend; the residual at the Gaussian peak is the visible discrepancy.](output/pinn_neuralpde_heat.png)
 
-::: {#ex-5-5 .callout-note .section-exercise icon="false"}
+::: {#ex-5-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — sharpen the bump until it breaks
 
 The heat-equation PINN above fits a Gaussian initial bump of width
@@ -564,7 +564,7 @@ enforcement, and causal training. With those tools we can train
 PINNs on the capstone column in [Unit 9 / Unit 10](../unit_09/unit_09.qmd);
 without them we can't.
 
-::: {#ex-5-6 .callout-note .section-exercise icon="false"}
+::: {#ex-5-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — diagnose before you medicate
 
 Match symptom to disease. For each observation below — all from

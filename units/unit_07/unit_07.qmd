@@ -122,7 +122,7 @@ prob = discretize(pde_system, discretization)
 res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
-::: {#ex-7-1 .callout-note .section-exercise icon="false"}
+::: {#ex-7-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — grade the disk PINN against the exact harmonic
 
 The Laplace-on-a-disk example has a closed-form answer,
@@ -296,7 +296,7 @@ because of spectral bias; the predicted $\eta(x, t)$ at late times
 doesn't propagate the IC correctly because of causal violation.
 This is the **target failure** that §7.3 dismantles.
 
-::: {#ex-7-2 .callout-note .section-exercise icon="false"}
+::: {#ex-7-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — reproduce the failure, then prove it
 
 Run the 1-D linearised-SWE script above (it trains in seconds) and
@@ -381,7 +381,7 @@ stay roughly balanced. Three families of approaches:
 All beat hand-tuning. With these, the modern PINN is ready for the
 problems §7.4 catalogues.
 
-::: {#ex-7-3 .callout-note .section-exercise icon="false"}
+::: {#ex-7-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — Fourier features in twenty lines
 
 Isolate the spectral-bias cure from all PINN machinery. Fit
@@ -600,7 +600,7 @@ these four. The Unit 1 worked example, the capstone, and the
 modern fixes from §7.3 are all aimed at making **W3** practical
 on real problems; that's the through-line of the workshop.
 
-::: {#ex-7-4 .callout-note .section-exercise icon="false"}
+::: {#ex-7-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — file these five papers
 
 Classify each published setup into W1–W4 using the quick-reference
@@ -695,7 +695,7 @@ ecosystem around all of this: the software you'd build a PINN with
 the published literature (§7.7), and the commercial / industrial
 deployments worth knowing about (§7.8).
 
-::: {#ex-7-5 .callout-note .section-exercise icon="false"}
+::: {#ex-7-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — recover a diffusivity (Workflow 2, end-to-end)
 
 The smallest honest inverse problem. Generate synthetic data from
@@ -796,7 +796,7 @@ hybrid case — Ansys' semiconductor signoff toolchain
 (RedHawk-SC, Totem-SC, PathFinder-SC) now embeds PhysicsNeMo for
 power-integrity surrogates.
 
-::: {#ex-7-6 .callout-note .section-exercise icon="false"}
+::: {#ex-7-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — pick the package
 
 For each job below, name the *one* package from the §7.6 tables
@@ -824,6 +824,42 @@ Rows 1–2 reward the symbolic Julia stack (`ModelingToolkit`-based); row 3 is t
 [Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-7-6)
 :::
 :::
+
+### Why a GPU changes which PINNs you can afford {#sec-gpu}
+
+Everything in §7.2–§7.3 — causal training, adaptive resampling, curriculum
+schedules, high-frequency problems — ultimately spends the same currency:
+**collocation points**. Each residual point is one forward pass through the
+network (plus a few more for the derivative stencil) and one reverse-mode pass
+for the parameter gradient. So the practical ceiling on a PINN is blunt: *how
+many collocation points can you push through a training step per second?* That
+is a batched-matmul throughput question — exactly the workload a GPU rewrites.
+
+The script below measures one full training step of a Poisson PINN
+($\Delta u = f$, with the Laplacian taken by the finite-difference-in-input
+stencil from §5.3 and the parameter gradient by Zygote — the same Lux path used
+throughout the course), sweeping the collocation batch from $10^3$ to
+$5\times10^5$ on the CPU and the GPU:
+
+```{.julia filename="units/unit_07/scripts/pinn_throughput_gpu.jl" code-fold="true" code-summary="Show the PINN throughput benchmark"}
+{{< include scripts/pinn_throughput_gpu.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/pinn_throughput_gpu.md >}}
+
+At a thousand points the GPU is barely ahead — the batch is too small to hide
+kernel-launch latency. But the CPU's throughput is roughly **flat** (it is
+already saturated at $N=1000$), while the GPU keeps filling: by $N=10^4$ it is
+~60× faster per step, and across the useful range it sustains **1–2 million
+collocation points per second** against the CPU's ~50 000. That is the
+difference between a PINN you resample aggressively every few hundred iterations
+and one you cannot afford to. It is the same lever Unit 6's heat solver pulled
+([§6.4](../unit_06/unit_06.qmd#sec-heat2d-gpu)) — a perfectly parallel,
+matmul-bound workload — applied to the residual loss instead of a stencil step.
+
+![PINN collocation throughput, CPU vs GPU (log–log). The CPU plateaus near $5\times10^4$ points/s; the GPU climbs to ~$2.4\times10^6$ — roughly a step that costs **2.3 s on the CPU runs in 42 ms on the GPU** at $N=10^5$.](figures/pinn_throughput_gpu.png)
 
 ## 7.7 Where PINNs have shown success — a survey of the literature
 
@@ -965,7 +1001,7 @@ have eaten that lunch; whether PINNs ever return to it depends
 on whether the §7.3 modern fixes scale further than they
 currently do.
 
-::: {#ex-7-7 .callout-note .section-exercise icon="false"}
+::: {#ex-7-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — read one keystone paper properly
 
 Pick **one** of the seven application areas above, open its keystone
@@ -1089,7 +1125,7 @@ hand, the modern PINN is ready for the
 [Unit 10](../unit_10/unit_10.qmd) walks Workflow 3 end-to-end on
 the AIMS thermistor column.
 
-::: {#ex-7-8 .callout-note .section-exercise icon="false"}
+::: {#ex-7-8 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the marketing audit
 
 You receive five vendor claims. Sort each into the section's three

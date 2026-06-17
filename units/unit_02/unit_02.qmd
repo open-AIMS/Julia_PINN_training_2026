@@ -74,7 +74,7 @@ network architecture, "complexity" is roughly the parameter count,
 and the test set is replaced by held-out collocation points in the
 PDE domain.
 
-::: {#ex-2-1 .callout-note .section-exercise icon="false"}
+::: {#ex-2-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — watch the U-shape appear
 
 Make the bias–variance trade-off concrete. Generate 60 noisy
@@ -226,7 +226,7 @@ Deep learning's edge sharpens with high-dimensional unstructured
 inputs (images, text, audio), large datasets, and — as we'll see in
 [Unit 5](../unit_05/unit_05.qmd) onwards — *PDE residuals*.
 
-::: {#ex-2-2 .callout-note .section-exercise icon="false"}
+::: {#ex-2-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — how many trees is enough?
 
 Take the `DecisionTree.jl` MNIST script above and sweep the forest
@@ -389,7 +389,7 @@ optimiser we'll use for the fine-tuning stage of every PINN in
 converges so cleanly here; in deeper networks the loss surface
 isn't convex and we'll need Adam.
 
-::: {#ex-2-3 .callout-note .section-exercise icon="false"}
+::: {#ex-2-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — logistic regression from scratch
 
 Strip the framework away entirely. Using only plain Julia arrays
@@ -460,7 +460,7 @@ PDE residual). ReLU's second derivative is zero almost everywhere
 GELU) are the safe default; we use Swish throughout
 [Units 5–7](../unit_05/unit_05.qmd).
 
-::: {#ex-2-4 .callout-note .section-exercise icon="false"}
+::: {#ex-2-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — universal approximation, and the ReLU trap
 
 Fit a one-hidden-layer `Lux` MLP to
@@ -701,7 +701,7 @@ makes training 100× slower. `Lux.jl` + `Zygote.jl` + `ForwardDiff.jl`
 handle this composition cleanly, which is why the workshop uses
 that stack.
 
-::: {#ex-2-5 .callout-note .section-exercise icon="false"}
+::: {#ex-2-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — race the optimisers down a ravine
 
 Implement gradient descent, momentum ($\mu = 0.9$), and Adam *by
@@ -891,7 +891,7 @@ on either processor. The full 10-epoch run reaches **97.96%** test accuracy:
 
 ![MNIST test accuracy over 10 training epochs of the Lux MLP, trained on the GPU.](figures/mnist_gpu_accuracy.png)
 
-::: {#ex-2-6 .callout-note .section-exercise icon="false"}
+::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — close the MNIST gap in Lux
 
 The unit has now shown you MNIST three ways: random forest (~97%),
@@ -1035,7 +1035,7 @@ We won't return to KANs in the worked examples — Units 5–9 stick
 with MLP-PINNs — but they belong in the working vocabulary of any
 practitioner reading the 2024–26 PINN literature.
 
-::: {#ex-2-7 .callout-note .section-exercise icon="false"}
+::: {#ex-2-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — KAN vs MLP on a sharp feature
 
 Sharp features are where KANs claim an edge. Fit both a 2-layer
@@ -1080,7 +1080,7 @@ function-approximation idea into a SciML landscape, and
 [Unit 4](../unit_04/unit_04.qmd) introduces the ODE side that PINNs
 will meet head-on in [Unit 5](../unit_05/unit_05.qmd).
 
-::: {#ex-2-8 .callout-note .section-exercise icon="false"}
+::: {#ex-2-8 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — translate the vocabulary
 
 A quick dictionary drill before moving on. For each supervised-learning

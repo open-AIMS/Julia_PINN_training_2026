@@ -162,7 +162,7 @@ graduate course in itself. But the distinction is worth knowing
 about every time someone tells you "this PDE has a solution":
 *in what sense?*
 
-::: {#ex-6-1 .callout-note .section-exercise icon="false"}
+::: {#ex-6-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — classify, then prescribe
 
 Pencil-and-paper drill. For each PDE below, compute the discriminant
@@ -380,7 +380,7 @@ benchmarked against a high-resolution FD reference; the column
 PINN in [Unit 9](../unit_09/unit_09.qmd) starts its sanity-checks
 on a constant-$\alpha$ problem with a known erfc solution.
 
-::: {#ex-6-2 .callout-note .section-exercise icon="false"}
+::: {#ex-6-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — two modes, two decay rates
 
 Take the heat equation on $[0, 1]$ ($\alpha = 0.01$, homogeneous
@@ -613,7 +613,7 @@ constants to estimate. That's the choice the capstone column
 PDE [Unit 8 §8.2](../unit_08/unit_08.qmd) makes for the
 oceanographic setting.
 
-::: {#ex-6-3 .callout-note .section-exercise icon="false"}
+::: {#ex-6-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — match the equation to the movie
 
 A colleague shows you four short animations of a field $u(x, t)$
@@ -734,7 +734,7 @@ $\sim 10^{-3}$ over $t \in [0, 5]$ — better than the rounded
 plot you'd see by eye. The script in §6.4 above is one line away
 from this benchmark (swap the IC).
 
-::: {#ex-6-4 .callout-note .section-exercise icon="false"}
+::: {#ex-6-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — cross the CFL line on purpose
 
 Take the FTCS script above, which runs at
@@ -847,7 +847,7 @@ Star-CCM+, ClimateMachine.jl, the
 [Trixi.jl](https://github.com/trixi-framework/Trixi.jl){target="_blank"}
 Julia stack.
 
-::: {#ex-6-5 .callout-note .section-exercise icon="false"}
+::: {#ex-6-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — watch upwind diffuse a step
 
 Implement first-order upwind FV for the advection equation
@@ -941,7 +941,7 @@ Mapdl, Abaqus, FEniCS, deal.II,
 [Gridap.jl](https://github.com/gridap/Gridap.jl){target="_blank"},
 [Ferrite.jl](https://github.com/Ferrite-FEM/Ferrite.jl){target="_blank"}.
 
-::: {#ex-6-6 .callout-note .section-exercise icon="false"}
+::: {#ex-6-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — assemble a stiffness matrix by hand
 
 The smallest possible FE computation, end-to-end. Solve
@@ -1002,7 +1002,7 @@ yet competitive with FV for shocks (smooth-MLP ansatz rounds them
 off) or with FE for complex elliptic problems (no provable error
 bounds), so the classical methods aren't going anywhere.
 
-::: {#ex-6-7 .callout-note .section-exercise icon="false"}
+::: {#ex-6-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — four problems, four methods
 
 You're the numerical-methods consultant. For each problem, pick FD,
@@ -1145,7 +1145,7 @@ They're: PINNs offer a different kind of access to the solution.
 [Unit 7](../unit_07/unit_07.qmd) makes that access actually work
 in practice.
 
-::: {#ex-6-8 .callout-note .section-exercise icon="false"}
+::: {#ex-6-8 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — audit the Unit 1 solver
 
 Three quantitative checks on the claims of this section, using only

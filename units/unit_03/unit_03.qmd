@@ -229,7 +229,7 @@ Every Sci-ML idea in §§3.2–3.5 starts from an ODE picture:
 Keep the picture $\dot{\mathbf{x}} = f(\mathbf{x}, t)$ in mind as we
 go through each.
 
-::: {#ex-3-1 .callout-note .section-exercise icon="false"}
+::: {#ex-3-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — find the fastest landing
 
 The text claims $\zeta = 1$ minimises the time to "land" near zero.
@@ -302,7 +302,7 @@ conservation:
 The pattern recurs throughout the unit: *the more physics we bake
 in, the less data we need*.
 
-::: {#ex-3-2 .callout-note .section-exercise icon="false"}
+::: {#ex-3-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — pick the right tool
 
 For each scenario below, decide which SciML pattern fits best —
@@ -369,7 +369,7 @@ extrapolation horizons.
 
 *Code placeholder — `units/unit_03/scripts/hnn_pendulum.jl` (TODO).*
 
-::: {#ex-3-3 .callout-note .section-exercise icon="false"}
+::: {#ex-3-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — energy conservation by construction
 
 Verify the HNN's core claim without training anything. Take the
@@ -533,7 +533,7 @@ It loses when the dynamics are intrinsically high-dimensional, the
 right basis isn't in your library, or the noise drowns the
 derivatives.
 
-::: {#ex-3-4 .callout-note .section-exercise icon="false"}
+::: {#ex-3-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — SINDy on the damped oscillator
 
 Run the full SINDy recipe yourself on a system where you know the
@@ -712,7 +712,7 @@ low-dimensional manifold, then evolve there. We won't go deep into
 them in the workshop, but the POD picture is the right mental
 starting point.
 
-::: {#ex-3-5 .callout-note .section-exercise icon="false"}
+::: {#ex-3-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — POD on a diffusing field
 
 The chain example showed slow singular-value decay for an
@@ -787,7 +787,7 @@ and how the modern fixes close the gap.
 [Units 8–10](../unit_08/unit_08.qmd) assemble the AIMS capstone —
 forward (Part I) and inverse (Part II).
 
-::: {#ex-3-6 .callout-note .section-exercise icon="false"}
+::: {#ex-3-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — evaluate a residual by hand
 
 No training yet — just the residual. For the oscillator

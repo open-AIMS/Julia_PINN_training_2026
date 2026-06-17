@@ -9,7 +9,7 @@ date-format: "DD/MM/YYYY"
 ::: {.callout-tip}
 ## What this unit is for
 This unit is **motivation, not curriculum**. We solve a real-looking
-coastal-oceanography problem end-to-end on day one so that
+coastal-oceanography problem end-to-end up front so that
 *everything that follows has a destination*: the PDE theory in Unit 6,
 the deep-learning toolkit in Unit 2, the SciML stack in Units 3–4,
 the PINN machinery in Units 5 and 7, and the AIMS thermistor-chain
@@ -142,7 +142,7 @@ it twice in this unit so the ill-posedness is *visible* before we
 spend Units 5–9 learning the modern (PINN-based) tools that
 disambiguate it.
 
-::: {#ex-1-1 .callout-note .section-exercise icon="false"}
+::: {#ex-1-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — de-tide a synthetic gauge record
 
 Build your own miniature de-tiding pipeline. Generate a synthetic
@@ -730,7 +730,7 @@ The whole pipeline is offline-reproducible on a single laptop CPU.
 Everything is written so it ports cleanly to a GPU once the rest of
 the course has motivated why we'd want one.
 
-::: {#ex-1-2 .callout-note .section-exercise icon="false"}
+::: {#ex-1-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — travel-time forensics on the slider
 
 The shallow-water wave speed is $c = \sqrt{g\,H}$. Using the gauge
@@ -790,7 +790,7 @@ Same intellectual shape as today's worked example — *physics +
 sparse data → unknown driver* — but with a different geometry,
 different physics, and a richer inverse-problem story.
 
-::: {#ex-1-3 .callout-note .section-exercise icon="false"}
+::: {#ex-1-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — sketch the three fingerprints
 
 Before reading any of the capstone units, commit to a prediction.
