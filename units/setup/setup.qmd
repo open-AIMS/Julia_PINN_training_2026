@@ -4,6 +4,7 @@ toc-title: "Run locally"
 date: today
 date-format: "DD/MM/YYYY"
 number-sections: false
+page-navigation: false
 ---
 
 During the workshop you use the cloud JupyterHub — your instructors give you the

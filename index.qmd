@@ -36,17 +36,6 @@ SciML stack at a slower pace; this PINNs workshop assumes
 that level of comfort with Julia.
 :::
 
-::: {.callout-tip}
-## Running the code yourself
-
-During the workshop you use the cloud JupyterHub (your instructors give you the
-link and login). To run the **same environment on your own computer** — as a
-backup during the workshop, or to keep working on your project after the cloud
-servers are switched off — see
-[**Running it on your laptop**](units/setup/setup.qmd), which walks through the
-take-home Docker image.
-:::
-
 ## [Unit 1: Introduction](units/unit_01/unit_01.qmd)
 
 A worked end-to-end PINN inverse problem — recover the
@@ -231,6 +220,10 @@ spoil the other.
 
 ## Appendices
 
+- [**Running it on your laptop**](units/setup/setup.qmd) — how to run the same
+  environment on your own computer with the take-home Docker image: as a backup
+  during the workshop, or to keep working on your project after the cloud servers
+  are switched off.
 - [**Exercise Solutions**](units/exercise_solutions/exercise_solutions.qmd)
   — worked solutions to the hands-on "section exercise" boxes that
   close most sections of Units 1–10. Julia throughout, with JAX /
