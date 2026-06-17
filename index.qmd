@@ -62,7 +62,7 @@ on the MNIST 60k/10k benchmark throughout.
   PyTorch and sklearn MLP parallels.
 - Optimisation deep-dive derives gradient descent, mini-batch
   SGD, momentum, Adam (with explicit bias correction), and L-BFGS at
-  Goodfellow Ch. 8 depth.
+  the depth of *Mathematical Engineering of Deep Learning* Ch. 4.
 - Closes with an introduction to Kolmogorov-Arnold Networks
   (KANs) with `KolmogorovArnold.jl` and `pykan` examples.
 

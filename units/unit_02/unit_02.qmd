@@ -133,11 +133,10 @@ each $28 \times 28$ pixels (so 784 features when flattened to a
 vector). 60 000 are reserved for training, 10 000 for test. It is
 the canonical "easy classification benchmark" in deep learning —
 small enough to fit in memory, hard enough that a naive baseline
-isn't perfect, and used in [Goodfellow, Bengio &
-Courville](../references/references.qmd#ref-goodfellow2016){target="_blank"} (Chapters
-1, 5, 6) and *Mathematical Engineering of Deep Learning* (Chapters
-5–6) for exactly the kind of side-by-side comparison we're about
-to do.
+isn't perfect, and used in
+[*Mathematical Engineering of Deep Learning*](../references/references.qmd#ref-liquet2024){target="_blank"}
+(Chapters 5–6) for exactly the kind of side-by-side comparison
+we're about to do.
 
 ### MNIST random forest in Julia (`DecisionTree.jl`)
 
@@ -256,8 +255,8 @@ Reuse the `build_forest` call from the section verbatim — the third positional
 The simplest possible "neural network" is a single linear layer
 followed by a smooth squashing function. It is also the first
 genuinely useful classifier — the **softmax regression** baseline
-that Goodfellow, Bengio & Courville open Chapter 5 with, and that
-*MEDL* derives in detail in Chapter 3. The next four subsubsections
+that [*Mathematical Engineering of Deep Learning*](../references/references.qmd#ref-liquet2024){target="_blank"}
+derives in detail in Chapter 3 (*Simple Neural Networks*). The next four subsubsections
 walk through the theory (Bernoulli → sigmoid → softmax) and then
 fit it on MNIST in both Julia and Python, so the jump to deeper
 networks in §2.4 is a single conceptual step rather than a leap.
@@ -294,8 +293,9 @@ fit by **categorical cross-entropy**.
 The "deep learning baseline" — a single linear layer + softmax,
 trained by maximum likelihood — on the same MNIST data the forest
 just saw. With no nonlinearity and no hidden units, this is
-literally the model in [Goodfellow, Bengio & Courville 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} Chapter 5 used to motivate
-why we need deeper networks. Expect **~92% test accuracy** — a
+literally the simple network *MEDL* introduces in
+[Chapter 3](../references/references.qmd#ref-liquet2024){target="_blank"} before
+motivating the deeper feedforward networks of Chapter 5. Expect **~92% test accuracy** — a
 striking gap below the random forest's ~97%, which is the point.
 
 ```{.julia filename="units/unit_02/scripts/mnist_linear_lux.jl"}
@@ -497,9 +497,13 @@ that often finishes the job (L-BFGS), the batching choices that
 determine how noisy each gradient estimate is, and finally the
 forward-vs-reverse-mode autodiff distinction that PINNs depend on.
 Most of this material is treated at greater depth in
-[Goodfellow, Bengio & Courville Chapter 8](../references/references.qmd#ref-goodfellow2016){target="_blank"};
-the goal here is a working understanding sufficient to read PINN
-training code and know which knob to turn when it doesn't converge.
+[*Mathematical Engineering of Deep Learning*, Chapter 4 (*Optimization Algorithms*)](../references/references.qmd#ref-liquet2024){target="_blank"},
+our primary reference throughout this unit — with the classic,
+encyclopedic treatment in
+[Goodfellow, Bengio & Courville (2016)](../references/references.qmd#ref-goodfellow2016){target="_blank"}
+Chapter 8 as the standard alternative. The goal here is a working
+understanding sufficient to read PINN training code and know which
+knob to turn when it doesn't converge.
 
 ### Computational graphs and backprop
 
@@ -538,7 +542,8 @@ $$
 so any positive $\eta$ decreases the loss locally; too large and
 the $O(\eta^2)$ Hessian term wins and the iterate *diverges*. The
 practical learning-rate range for deep networks ($10^{-4}$ to
-$10^{-2}$) is set by this balance — see [Goodfellow, Bengio & Courville 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} §8.3 for
+$10^{-2}$) is set by this balance — see *MEDL*
+[Chapter 4](../references/references.qmd#ref-liquet2024){target="_blank"} for
 the convergence analysis.
 
 **Why isn't plain gradient descent enough?** Three failure modes
@@ -584,7 +589,7 @@ dominate practice:
   single SGD update but with far lower variance.
 - **Gradient noise as a regulariser.** Noisy gradients prevent the
   iterate from settling into sharp minima; flat minima generalise
-  better empirically. See [Goodfellow et al. 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} §8.1.3.
+  better empirically. See *MEDL* [Chapter 4](../references/references.qmd#ref-liquet2024){target="_blank"}.
 - **Memory.** Full-batch gradients on a million-example dataset
   don't fit on a GPU.
 
@@ -635,8 +640,8 @@ historical gradient has been. The bias correction
 ($/(1 - \beta_1^t)$, $/(1 - \beta_2^t)$) fixes the initial-transient
 underestimate when $m_0 = v_0 = 0$.
 
-Hyperparameter defaults from [Goodfellow et al. 2016](../references/references.qmd#ref-goodfellow2016){target="_blank"} §8.5.3 (and what the
-workshop scripts use): $\eta \in [10^{-4}, 10^{-2}]$, $\beta_1 =
+Hyperparameter defaults — what *MEDL* [Chapter 4](../references/references.qmd#ref-liquet2024){target="_blank"} recommends and the
+workshop scripts use: $\eta \in [10^{-4}, 10^{-2}]$, $\beta_1 =
 0.9$, $\beta_2 = 0.999$, $\varepsilon = 10^{-8}$. Adam *almost
 always works*; it is the right first move for any neural-network
 training, including the initial phase of every PINN in
@@ -731,24 +736,12 @@ Each optimiser is under ten lines if you mutate the iterate in place and keep st
 The previous sections set up everything we need — a function class
 (MLP), an autodiff engine, an optimiser, and a dataset (MNIST) with
 two known baselines (random forest ~97%, softmax regression ~92%).
-Now we close the gap with an actual MLP, written *three* times so
-the cross-ecosystem mechanics are explicit. The Julia (`Lux.jl`)
-version doubles as the iris sidecar that already runs under
-`./build.sh execute 2`; the MNIST PyTorch and `scikit-learn`
-parallels are static, for the cross-ecosystem comparison.
-
-### `Lux.jl` MLP on iris (the runnable sidecar)
-
-```{.julia filename="units/unit_02/scripts/iris_lux.jl" code-fold="true" code-summary="Show the Julia source"}
-{{< include scripts/iris_lux.jl >}}
-```
-
-Captured output (after `./build.sh execute 2`):
-
-{{< include output/iris_lux.md >}}
-
-The next two parallels swap iris for MNIST so the depth-vs-baseline
-comparison from §2.2–§2.3 closes.
+Now we close the gap by climbing the deep-learning ladder on MNIST.
+First an actual **MLP** — written in `scikit-learn` and `PyTorch`
+below, alongside the Julia `Lux.jl` softmax of §2.3 and the GPU MLP
+that follows — and then a step up to a **convolutional network** that
+takes the lead. The Python listings are static, for the cross-ecosystem
+comparison; the Julia runs are the ones we execute.
 
 ### `scikit-learn` MLP on MNIST
 
@@ -891,25 +884,66 @@ on either processor. The full 10-epoch run reaches **97.96%** test accuracy:
 
 ![MNIST test accuracy over 10 training epochs of the Lux MLP, trained on the GPU.](figures/mnist_gpu_accuracy.png)
 
-::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
-## ✏️ Section exercise — close the MNIST gap in Lux
+### From MLP to a convolutional network (Lux.jl) {#sec-mnist-cnn}
 
-The unit has now shown you MNIST three ways: random forest (~97%),
-softmax regression (~92%), and an MLP in two Python frameworks
-(~98%). Close the loop in Julia: extend `mnist_linear_lux.jl` from
-§2.3 with two hidden layers (784 → 256 → 128 → 10, ReLU), keep the
-same Adam mini-batch loop, and train for 10 epochs. Verify you beat
-the forest. Then re-run with the Adam → **L-BFGS-style** trick in
-miniature: after the Adam epochs, do 5 epochs at a 10× smaller
-learning rate and note the effect on the final accuracy. Roughly
-how many parameters does your network have, and how does that
-compare to the softmax baseline?
+The softmax and the MLP both *flatten* each $28 \times 28$ image to a
+length-784 vector — they throw the 2-D structure away before they ever
+see it. A **convolutional network** keeps it: each conv layer slides
+small learnable filters across the image, sharing one set of weights
+over every location. That weight sharing is the whole trick — far fewer
+parameters, plus a built-in bias toward local, translation-aware
+features. Convolutional networks are the subject of
+[*Mathematical Engineering of Deep Learning*, Chapter 6 (*Convolutional Neural Networks*)](../references/references.qmd#ref-liquet2024){target="_blank"}.
+
+The script below is the classic **LeNet-5** (LeCun et al., 1998) in
+`Lux.jl` — two `Conv` + `MaxPool` blocks that learn 2-D features, then
+three `Dense` layers that classify them — trained on the same MNIST
+data, on the CPU and the GPU:
+
+```{.julia filename="units/unit_02/scripts/conv_mnist_lux.jl" code-fold="true" code-summary="Show the LeNet-5 convolutional network"}
+{{< include scripts/conv_mnist_lux.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/conv_mnist_lux.md >}}
+
+Two payoffs. First, **accuracy**: the CNN reaches **~98.8%** — the best
+in the unit, topping the random forest (~97%), the softmax baseline
+(~92%) and the MLP (~98%). And it does so with **61,706 parameters,
+fewer than a quarter of the MLP's 235,146**: weight sharing buys *more*
+accuracy with *fewer* weights — the opposite of the "depth costs
+parameters" trade the MLP made. Second, **the GPU**: because a CNN is
+many small matmuls per layer it is far more compute-dense than the flat
+MLP, so the per-epoch speed-up here is **~16×**, against the MLP's ~3×
+on the very same card. Convolutions are where the GPU starts to matter,
+and the collocation counts of PINNs (from
+[Unit 5](../unit_05/unit_05.qmd)) push that lever harder still.
+
+::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
+## ✏️ Section exercise — parameters, accuracy, and a two-phase finetune
+
+The unit has now climbed the whole MNIST ladder: random forest (~97%),
+softmax regression (~92%), an MLP in Python and in Julia (~98%), and
+the LeNet CNN above (~98.8%). Two questions about that ladder:
+
+1. **Parameter efficiency.** Use `Lux.parameterlength` to count the
+   parameters of three Julia models: the §2.3 softmax classifier
+   (`784 → 10`), the GPU-section MLP (`784 → 256 → 128 → 10`), and the
+   LeNet CNN. Rank them by accuracy *and* by parameter count — the CNN
+   should come out most accurate while **not** being the largest.
+   Explain in one sentence why a convolution needs so few weights.
+2. **A miniature Adam → L-BFGS schedule.** Re-run `conv_mnist_lux.jl`
+   but, after the 10 `Adam(1f-3)` epochs, do **5 more epochs at a 10×
+   smaller learning rate** (`Adam(1f-4)`). Note the effect on the final
+   test accuracy. That fast-then-careful pattern is a miniature of the
+   **Adam → L-BFGS** schedule every PINN in Units 5–10 uses.
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
 
 ::: {.exercise-hint-text}
-Copy `mnist_linear_lux.jl` and change only the `model` definition and epoch count — the data pipeline and mini-batch loop are already right. `Lux.parameterlength(model)` gives the parameter count without hand-arithmetic. For the fine-tune, rebuild `opt_state` with the smaller learning rate but keep the trained `ps`.
+`Lux.parameterlength(make_cnn())` counts a model with no hand-arithmetic — build the softmax and MLP models the same way to compare. For the finetune, keep the trained `ps` and only rebuild the optimiser state, `opt = Optimisers.setup(Adam(1f-4), ps)`, before the extra 5 epochs.
 :::
 :::
 

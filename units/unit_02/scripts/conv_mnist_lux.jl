@@ -1,25 +1,31 @@
 #!/usr/bin/env julia
 # ===========================================================================
-# Unit 2.6 — a real deep-learning training run on the GPU (MNIST, Lux.jl).
+# Unit 2.6 — a convolutional network in Lux.jl (LeNet-5 on MNIST).
 #
-# Section 2.6 trains an MLP on MNIST in scikit-learn and PyTorch. The PyTorch
-# version already moves tensors to `cuda`; this
-# is the *Julia* side of that story: the identical Lux model trained on the CPU
-# and on the GPU, so you can see (a) that the move is a one-liner — push the
-# params and the data to the device — and (b) the speed-up on an image-scale
-# dataset where the GPU's batched matmuls actually pay off.
+# This replaces the toy iris MLP with a real, multi-layer CONVOLUTIONAL network
+# — the architecture family of *Mathematical Engineering of Deep Learning*
+# Chapter 6 (Convolutional Neural Networks). It is the classic LeNet-5
+# (LeCun et al., 1998): two conv+pool blocks that learn local 2-D features,
+# then three dense layers that classify them.
 #
-# MNIST is fetched directly from a public mirror and parsed in a few lines of
-# pure Julia (no MLDatasets / PyCall dependency). Model: 784-256-128-10 MLP.
+# Why convolutions? The softmax (§2.3) and MLP (§2.6) flatten each 28×28 image
+# to a length-784 vector, throwing away the 2-D spatial structure. A conv layer
+# instead slides small learnable filters over the image, sharing weights across
+# locations — far fewer parameters, and translation-aware. On the same MNIST
+# data that gave us random forest ~97%, softmax ~92% and the MLP ~98%, the CNN
+# reaches ~99%, the best in the unit.
+#
+# Convolutions are also where the GPU really earns its keep: each layer is many
+# small matmuls, so the per-epoch speed-up is much larger than the MLP's ~3×.
 #
 # Run on the GPU hub (the @pinn env has Lux + LuxCUDA + cuDNN + CUDA):
-#   julia --project=@pinn units/unit_02/scripts/mnist_gpu_lux.jl
+#   julia --project=@pinn units/unit_02/scripts/conv_mnist_lux.jl
 # Nothing here runs during `quarto render` — the .qmd shows it `eval: false`.
 # ===========================================================================
 
 using Lux, LuxCUDA, CUDA, Optimisers, Zygote, Random, Printf, Statistics, Downloads
 
-# --- MNIST loader (direct download + pure-Julia IDX parse) -----------------
+# --- MNIST loader (direct download + pure-Julia IDX parse) → image tensors ---
 const MIRRORS = ["https://storage.googleapis.com/cvdf-datasets/mnist/",
                  "https://ossci-datasets.s3.amazonaws.com/mnist/"]
 
@@ -42,12 +48,12 @@ end
 
 function load_mnist()
     function images(name)
-        b = fetch_idx(name)
+        b  = fetch_idx(name)
         n  = Int(b[5])<<24 | Int(b[6])<<16 | Int(b[7])<<8 | Int(b[8])
         nr = Int(b[9])<<24 | Int(b[10])<<16 | Int(b[11])<<8 | Int(b[12])
         nc = Int(b[13])<<24 | Int(b[14])<<16 | Int(b[15])<<8 | Int(b[16])
-        px = reshape(b[17:end], nr*nc, n)
-        return Float32.(px) ./ 255f0          # (784, n), normalised
+        # Lux/cuDNN want WHCN: (width, height, channels, batch)
+        return reshape(Float32.(b[17:end]) ./ 255f0, nr, nc, 1, n)
     end
     function labels(name)
         b = fetch_idx(name)
@@ -68,18 +74,35 @@ function logitce(logits, Y)
     return -sum(Y .* ls) / size(Y, 2)
 end
 
-function accuracy(model, ps, st, X, y, dev)
-    ŷ, _ = model(dev(X), ps, st)
-    pred = vec(map(i -> i[1] - 1, argmax(Array(ŷ); dims = 1)))
-    return mean(pred .== y)
+# LeNet-5: conv→pool→conv→pool→dense×3. ~62k parameters.
+make_cnn() = Chain(
+    Conv((5, 5), 1 => 6, relu, pad = 2),   # 28×28×6
+    MaxPool((2, 2)),                        # 14×14×6
+    Conv((5, 5), 6 => 16, relu),            # 10×10×16
+    MaxPool((2, 2)),                        #  5×5×16
+    FlattenLayer(),                         # 400
+    Dense(400 => 120, relu),
+    Dense(120 => 84, relu),
+    Dense(84 => 10),
+)
+
+function accuracy(model, ps, st, X, y, dev; bs = 1000)
+    correct = 0
+    for s in 1:bs:size(X, 4)
+        idx = s:min(s + bs - 1, size(X, 4))
+        ŷ, _ = model(dev(X[:, :, :, idx]), ps, st)
+        pred = vec(map(i -> i[1] - 1, argmax(Array(ŷ); dims = 1)))
+        correct += sum(pred .== y[idx])
+    end
+    return correct / length(y)
 end
 
-# --- one training epoch (mini-batch SGD/Adam); returns seconds --------------
+# one mini-batch SGD/Adam epoch; returns updated (ps, opt)
 function train_epoch!(model, ps, st, opt, Xd, Yd, n, bs)
     order = randperm(n)
     for s in 1:bs:n
-        idx = order[s:min(s+bs-1, n)]
-        xb = Xd[:, idx]; yb = Yd[:, idx]
+        idx = order[s:min(s + bs - 1, n)]
+        xb = Xd[:, :, :, idx]; yb = Yd[:, idx]
         gs = Zygote.gradient(p -> logitce(first(model(xb, p, st)), yb), ps)[1]
         opt, ps = Optimisers.update(opt, ps, gs)
     end
@@ -87,65 +110,50 @@ function train_epoch!(model, ps, st, opt, Xd, Yd, n, bs)
 end
 
 # ---------------------------------------------------------------------------
-println("="^64); println("Unit 2.6 — MNIST MLP training on CPU vs GPU (Lux.jl)"); println("="^64)
+println("="^64); println("Unit 2.6 — MNIST convolutional network (LeNet-5, Lux.jl)"); println("="^64)
 have_gpu = CUDA.functional()
 @printf("GPU available: %s%s\n", have_gpu, have_gpu ? "  ($(CUDA.name(CUDA.device())))" : "")
 
 print("loading MNIST … "); Xtr, ytr, Xte, yte = load_mnist()
 Ytr = onehot(ytr)
-@printf("train=%d  test=%d  (28x28 → 784)\n\n", size(Xtr, 2), size(Xte, 2))
-
-make_model() = Chain(Dense(784 => 256, relu), Dense(256 => 128, relu), Dense(128 => 10))
+@printf("train=%d  test=%d  (28×28×1 image tensors)\n", size(Xtr, 4), size(Xte, 4))
+@printf("LeNet-5: 2 conv blocks + 3 dense layers, %d parameters\n\n", Lux.parameterlength(make_cnn()))
 const BS = 128
 
-# --- per-epoch wall-clock: CPU vs GPU (same model, same data) --------------
+# --- per-epoch wall-clock: CPU vs GPU (convolutions favour the GPU heavily) --
 println("Per-epoch wall-clock (batch=$BS, full 60k train set):")
 @printf("%-8s %12s\n", "device", "sec / epoch"); println("-"^24)
 results = Dict{String,Float64}()
 for (tag, dev) in (have_gpu ? (("CPU", identity), ("GPU", gpu_device())) : (("CPU", identity),))
     rng = Xoshiro(0)
-    model = make_model(); ps, st = Lux.setup(rng, model)
+    model = make_cnn(); ps, st = Lux.setup(rng, model)
     ps = ps |> dev; st = st |> dev
     Xd = Xtr |> dev; Yd = Ytr |> dev
-    ps, _ = train_epoch!(model, ps, st, Optimisers.setup(Adam(1f-3), ps), Xd, Yd, size(Xtr,2), BS) # warmup/compile
+    ps, _ = train_epoch!(model, ps, st, Optimisers.setup(Adam(1f-3), ps), Xd, Yd, size(Xtr,4), BS) # warmup/compile
     dev === identity || CUDA.synchronize()
     t0 = time()
-    ps, _ = train_epoch!(model, ps, st, Optimisers.setup(Adam(1f-3), ps), Xd, Yd, size(Xtr,2), BS)
+    ps, _ = train_epoch!(model, ps, st, Optimisers.setup(Adam(1f-3), ps), Xd, Yd, size(Xtr,4), BS)
     dev === identity || CUDA.synchronize()
     results[tag] = time() - t0
     @printf("%-8s %12.2f\n", tag, results[tag])
 end
 if haskey(results, "GPU")
-    @printf("\nGPU speed-up: %.1fx per epoch\n", results["CPU"] / results["GPU"])
+    @printf("\nGPU speed-up: %.1fx per epoch (vs the MLP's ~3x — convolutions are far more compute-dense)\n",
+            results["CPU"] / results["GPU"])
 end
 
-# --- a full training run on the GPU (or CPU fallback) to real accuracy ------
+# --- a full training run on the GPU (or CPU fallback) to real accuracy -------
 dev = have_gpu ? gpu_device() : identity
 println("\nFull training run on $(have_gpu ? "GPU" : "CPU") — 10 epochs:")
-rng = Xoshiro(1); model = make_model(); ps, st = Lux.setup(rng, model)
+rng = Xoshiro(1); model = make_cnn(); ps, st = Lux.setup(rng, model)
 ps = ps |> dev; st = st |> dev
 Xd = Xtr |> dev; Yd = Ytr |> dev
 opt = Optimisers.setup(Adam(1f-3), ps)
 hist = Float64[]
 for epoch in 1:10
-    global ps, opt = train_epoch!(model, ps, st, opt, Xd, Yd, size(Xtr,2), BS)
+    global ps, opt = train_epoch!(model, ps, st, opt, Xd, Yd, size(Xtr,4), BS)
     acc = accuracy(model, ps, st, Xte, yte, dev)
     push!(hist, acc)
     @printf("  epoch %2d   test accuracy = %.4f\n", epoch, acc)
 end
-@printf("\nFinal MNIST test accuracy: %.4f\n", hist[end])
-
-try
-    using CairoMakie
-    f = Figure(size = (560, 380))
-    ax = Axis(f[1, 1], title = "MNIST MLP on the GPU — test accuracy",
-              xlabel = "epoch", ylabel = "test accuracy")
-    lines!(ax, 1:length(hist), hist, linewidth = 3)
-    scatter!(ax, 1:length(hist), hist, markersize = 9)
-    figdir = get(ENV, "GPU_FIG_DIR", joinpath(@__DIR__, "..", "figures"))
-    isdir(figdir) || mkpath(figdir)
-    save(joinpath(figdir, "mnist_gpu_accuracy.png"), f)
-    println("wrote figures/mnist_gpu_accuracy.png")
-catch e
-    println("(figure skipped: ", e, ")")
-end
+@printf("\nFinal MNIST test accuracy: %.4f  (forest ~0.97, softmax ~0.92, MLP ~0.98)\n", hist[end])
