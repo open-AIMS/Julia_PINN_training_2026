@@ -33,6 +33,7 @@ on:
           - '08'
           - '09'
           - '10'
+          - exercise_solutions
           - all
 
 permissions:
@@ -65,6 +66,8 @@ jobs:
             # Render a single document directly: this always executes,
             # regardless of `freeze: true`, and updates its freeze entry.
             quarto render index.qmd
+          elif [ "$U" = "exercise_solutions" ]; then
+            quarto render units/exercise_solutions/exercise_solutions.qmd
           else
             quarto render "units/unit_${U}/unit_${U}.qmd"
           fi

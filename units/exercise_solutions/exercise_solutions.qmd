@@ -443,39 +443,42 @@ What the three trajectories show, mapped to the §2.5 failure modes:
 [← Back to Unit 2 §2.5](../unit_02/unit_02.qmd#ex-2-5)
 :::
 
-### Solution 2.6 — close the MNIST gap in Lux {#sol-2-6}
+### Solution 2.6 — parameters, accuracy, and a two-phase finetune {#sol-2-6}
 
-The only changes from `mnist_linear_lux.jl` are the model
-definition and the post-Adam fine-tune:
+**1. Parameter counts** (each from `Lux.parameterlength`):
+
+| model | parameters | test accuracy |
+|---|---|---|
+| softmax (`784 → 10`) | 7,850 | ~92% |
+| MLP (`784 → 256 → 128 → 10`) | 235,146 | ~98% |
+| LeNet-5 CNN | 61,706 | ~98.8% |
+
+By hand the softmax is $784\!\times\!10 + 10 = 7\,850$ and the MLP is
+$784\!\cdot\!256 + 256 + 256\!\cdot\!128 + 128 + 128\!\cdot\!10 + 10 = 235\,146$.
+The CNN is the **most accurate yet has under a third** of the MLP's
+weights. Why so few? A convolution applies the *same* small filter
+(here $5\times5$ — a few dozen weights per channel pair) at *every*
+position of the image: hundreds of outputs share **one** set of
+weights, where a `Dense` layer gives every input–output pair its own.
+Weight sharing is what turns the image's 2-D structure into a
+parameter saving — the central idea of *MEDL* Chapter 6.
+
+**2. Two-phase finetune.** Keep the trained `ps`, drop the learning
+rate 10×, run 5 more epochs:
 
 ```julia
-model = Lux.Chain(
-    Lux.Dense(784 => 256, relu),
-    Lux.Dense(256 => 128, relu),
-    Lux.Dense(128 => 10),
-    Lux.softmax,
-)
-
-# ... identical data pipeline and mini-batch Adam loop, 10 epochs ...
-
-# fine-tune: 5 more epochs at 10× smaller learning rate
-opt_state = Optimisers.setup(Optimisers.Adam(1f-3), ps)
-# ... same loop, 5 epochs ...
+# after the 10 Adam(1f-3) epochs, with ps already trained:
+opt = Optimisers.setup(Adam(1f-4), ps)
+for epoch in 1:5
+    global ps, opt = train_epoch!(model, ps, st, opt, Xd, Yd, size(Xtr, 4), BS)
+end
 ```
 
-Expected numbers: ~97.5–98.2% after the 10 Adam epochs — past the
-random forest's ~97% — and the small-learning-rate fine-tune
-typically adds another 0.1–0.3% by letting the iterate settle into
-the minimum instead of bouncing around it at the larger step size.
-That two-phase pattern (fast optimiser to get close, careful
-optimiser to finish) is a miniature of the **Adam → L-BFGS**
+The small-step phase lets the iterate settle into the minimum instead
+of bouncing around it at the larger step — typically another ~0.1–0.3%,
+modest here only because LeNet is already near MNIST's ceiling. That
+fast-then-careful pattern is a miniature of the **Adam → L-BFGS**
 schedule every PINN in Units 5–10 uses.
-
-Parameter count:
-$784\!\times\!256 + 256 + 256\!\times\!128 + 128 + 128\!\times\!10 + 10
-= 235\,146$ — thirty times the softmax baseline's
-$784\!\times\!10 + 10 = 7\,850$, for about six points of accuracy.
-Depth is buying feature composition, not free lunch.
 
 ::: {.exercise-solution-link}
 [← Back to Unit 2 §2.6](../unit_02/unit_02.qmd#ex-2-6)
