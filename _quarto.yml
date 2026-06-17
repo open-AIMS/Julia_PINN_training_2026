@@ -36,8 +36,6 @@ website:
     contents:
       - text: Course index
         href: index.qmd
-      - text: Running it on your laptop
-        href: units/setup/setup.qmd
       - section: Curriculum
         contents:
           - units/unit_01/unit_01.qmd
@@ -52,6 +50,8 @@ website:
           - units/unit_10/unit_10.qmd
       - section: Appendices
         contents:
+          - text: Running it on your laptop
+            href: units/setup/setup.qmd
           - text: Exercise Solutions
             href: units/exercise_solutions/exercise_solutions.qmd
           - text: References

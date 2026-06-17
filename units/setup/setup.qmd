@@ -11,19 +11,29 @@ link and your login. This page is for running the **same environment on your own
 computer**: as a backup during the workshop, or (mainly) afterwards, to keep
 working on your projects once the cloud servers are switched off.
 
-Everything is bundled into a single **Docker image** — the same Julia 1.12 + PINN
-stack, the same Python (PyTorch / JAX) stack, and the course materials as on the
-cloud hub. One command and you have the whole course running locally.
+The environment is packaged as a single **Docker image**. It contains the same
+Julia 1.12 + PINN stack, the same Python (PyTorch / JAX) stack, and the course
+materials that are used on the cloud hub.
 
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/){target="_blank"}
-  (Windows / macOS) or Docker Engine (Linux).
-- x86-64 machine. Apple-Silicon Macs run it under Docker Desktop's emulation —
-  it works, just slower.
+  (Windows / macOS) or
+  [Docker Engine](https://docs.docker.com/engine/install/){target="_blank"} (Linux).
+- The image is built for **x86-64** (Intel/AMD) CPUs. On an **Apple-Silicon Mac**
+  (M1/M2/M3/M4), Docker Desktop runs it through its built-in emulation layer — no
+  extra setup on your part, but training runs are noticeably slower than on a
+  native x86-64 machine.
 - ~8 GB of free disk for the image.
 
 ## Run it
+
+On **macOS and Windows**, start **Docker Desktop** first and wait until it reports
+that the engine is running (the whale icon in the menu bar / system tray stops
+animating) — the `docker` command only works once it is up. On **Linux** the Docker
+Engine service is normally already running.
+
+Then, in a terminal:
 
 ```bash
 docker run --rm -p 8888:8888 ghcr.io/accumulationpoint/pinns-course-core
@@ -60,9 +70,16 @@ runs. GPU acceleration is what the **cloud GPU hub** is for during the workshop;
 notebook cell marked as GPU code is meant to be run there, on a machine with an
 NVIDIA GPU.
 
-::: {.callout-note}
-The image lives on the GitHub Container Registry as
-`ghcr.io/accumulationpoint/pinns-course-core`. It is rebuilt automatically whenever
-the course software stack changes, so `docker pull ghcr.io/accumulationpoint/pinns-course-core`
-always fetches the current version.
-:::
+## Updating the image
+
+The image is published on the GitHub Container Registry as
+`ghcr.io/accumulationpoint/pinns-course-core`. When the course software stack is
+updated, a new version is published under the same name. To make sure you have the
+latest one, pull it before running:
+
+```bash
+docker pull ghcr.io/accumulationpoint/pinns-course-core
+```
+
+(The very first `docker run` already downloads the image, so you only need this
+later, to refresh an image you downloaded earlier.)
