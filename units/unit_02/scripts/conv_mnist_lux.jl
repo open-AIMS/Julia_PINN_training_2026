@@ -2,9 +2,9 @@
 # ===========================================================================
 # Unit 2.6 — a convolutional network in Lux.jl (LeNet-5 on MNIST).
 #
-# This replaces the toy iris MLP with a real, multi-layer CONVOLUTIONAL network
-# — the architecture family of *Mathematical Engineering of Deep Learning*
-# Chapter 6 (Convolutional Neural Networks). It is the classic LeNet-5
+# A real, multi-layer CONVOLUTIONAL network — the architecture family of
+# *Mathematical Engineering of Deep Learning* Chapter 6 (Convolutional Neural
+# Networks), and the headline model of §2.6. It is the classic LeNet-5
 # (LeCun et al., 1998): two conv+pool blocks that learn local 2-D features,
 # then three dense layers that classify them.
 #
