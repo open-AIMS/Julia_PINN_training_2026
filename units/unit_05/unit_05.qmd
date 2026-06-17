@@ -539,6 +539,54 @@ The sharpness is the `200` inside the IC line of the `bcs` vector — sweep it, 
 :::
 :::
 
+### The 2-D version, on a GPU {#sec-2d-diffusion-gpu}
+
+§5.3 built a PINN from first principles; §5.5 solved the 1-D heat
+equation. Add one space dimension —
+$$
+\partial_t u = \alpha\,(\partial_{xx} u + \partial_{yy} u),
+\qquad (x, y) \in [0, 1]^2,\ t \in [0, 0.2],
+$$
+with $u(x, y, 0) = \sin\pi x\,\sin\pi y$ and $u = 0$ on the spatial
+boundary — and the collocation grid multiplies. Every collocation point
+is an independent network evaluation, so a large batch is exactly the
+embarrassingly-parallel workload a GPU was built for (the same lever as
+[Unit 6](../unit_06/unit_06.qmd#sec-heat2d-gpu) and
+[Unit 7](../unit_07/unit_07.qmd#sec-gpu)).
+
+We keep the §5.3 recipe — a hand-built residual, derivatives by the
+finite-difference-in-input stencil — and bake the initial condition and
+all four boundaries in *exactly* with the ansatz
+$$
+u_\theta(x, y, t) = \sin\pi x\,\sin\pi y\,\bigl(1 + t\,N_\theta(x, y, t)\bigr),
+$$
+which vanishes on the boundary and equals $\sin\pi x\,\sin\pi y$ at
+$t = 0$. That initial condition has the closed form
+$u^\star = e^{-2\alpha\pi^2 t}\sin\pi x\,\sin\pi y$, so we can report a
+*true* L2 error. The **same model** trains on the CPU (`Array`) and the
+GPU (`CuArray`); only the device of the parameters and collocation arrays
+changes.
+
+```{.julia filename="units/unit_05/scripts/pinn_2d_diffusion_gpu.jl" code-fold="true" code-summary="Show the 2-D diffusion GPU PINN"}
+{{< include scripts/pinn_2d_diffusion_gpu.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/pinn_2d_diffusion_gpu.md >}}
+
+The win here isn't the stopwatch — it's **resolution**. In about the same
+wall-clock (1.1×) the GPU trains on **30× the collocation points** (and
+1.5× the iterations), and that denser sampling roughly halves the error
+against the analytic solution (L2 $6.6\times10^{-5} \to 3.2\times10^{-5}$).
+On the CPU, 30× the points would cost roughly 30× the time; on the GPU it
+is nearly free until the card fills. That is the same lever Unit 6's
+finite-difference solver pulls on a grid and Unit 7 measures as raw
+training-step throughput — and it is what makes the
+[Unit 9 / Unit 10](../unit_09/unit_09.qmd) capstone columns tractable.
+
+![The trained PINN field $u(x, y, 0.2)$ (left, on the GPU) beside the analytic solution $e^{-2\alpha\pi^2 t}\sin\pi x\,\sin\pi y$ (right) — a single $\sin\!\cdot\!\sin$ mode decaying under 2-D diffusion. The two are visually indistinguishable (L2 $3.2\times10^{-5}$).](figures/pinn_2d_diffusion_gpu.png)
+
 ## 5.6 Failure modes already visible
 
 Even on benign problems three pathologies show up that motivate
