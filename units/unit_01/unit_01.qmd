@@ -309,8 +309,10 @@ $$
 \;=\; \nabla\!\cdot\!\bigl(g\,H\,\nabla \eta\bigr),
 $$ {#eq-wave-eta}
 
-i.e.\ pressure waves on a free surface, propagating at a depth-
-dependent speed $c(x,y) = \sqrt{g\,H(x,y)}$ — roughly
+i.e.\ **surface gravity waves** — the restoring force is gravity
+pulling a displaced water column back down, not the fluid's
+compressibility (which is what drives acoustic/"pressure" waves) —
+propagating at a depth-dependent speed $c(x,y) = \sqrt{g\,H(x,y)}$ — roughly
 $8\,\text{m/s}$ in the inner bay and $15\,\text{m/s}$ along the
 deeper eastern trough. This is the cleanest form to think about and
 is what the inverse solver below uses as its physics constraint.
