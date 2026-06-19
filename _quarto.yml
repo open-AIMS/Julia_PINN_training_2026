@@ -50,6 +50,8 @@ website:
           - units/unit_10/unit_10.qmd
       - section: Appendices
         contents:
+          - text: The @pinn Julia environment
+            href: units/pinn_env/pinn_env.qmd
           - text: Running it on your laptop
             href: units/setup/setup.qmd
           - text: Exercise Solutions

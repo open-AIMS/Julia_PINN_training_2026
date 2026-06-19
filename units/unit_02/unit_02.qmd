@@ -174,7 +174,11 @@ forest = build_forest(
 *Setup note.* `MLDatasets.jl` isn't in the workshop `Project.toml`
 by default (we keep PINN-focused deps minimal). To run this
 script, add it once with `Pkg.add("MLDatasets")` from the repo
-root.
+root. Heads-up: this re-resolves your personal environment and can
+nudge a dependency the SciML stack also uses, so your **next
+`using NeuralPDE` may recompile once** (a few minutes — normal and
+one-off). Do it at a break, not mid-exercise. Why this happens:
+[The `@pinn` Julia environment](../pinn_env/pinn_env.qmd#adding-packages).
 
 ### MNIST random forest in Python (`scikit-learn`)
 
@@ -1021,7 +1025,11 @@ end
 `Project.toml`; add it once with `Pkg.add("KolmogorovArnold")`.
 The package uses **radial basis functions** as the per-edge basis
 instead of B-splines — a near-equivalent parameterisation with
-better Julia ergonomics.
+better Julia ergonomics. As with `MLDatasets` above, this `Pkg.add`
+re-resolves your personal environment, so your **next `using
+NeuralPDE` may recompile once** (a few minutes — one-off); do it at
+a break. See [The `@pinn` Julia
+environment](../pinn_env/pinn_env.qmd#adding-packages).
 
 ### KAN in Python (`pykan`)
 

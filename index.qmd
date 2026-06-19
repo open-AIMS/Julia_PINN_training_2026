@@ -220,6 +220,11 @@ spoil the other.
 
 ## Appendices
 
+- [**The `@pinn` Julia environment**](units/pinn_env/pinn_env.qmd) — the shared,
+  pinned package environment every Julia cell runs against (identical on the hubs
+  and the take-home Docker image): the exact packages, what's precompiled and why
+  the first run is the slow one, how the depot and stacked environments work, and
+  why adding a package can trigger a one-time recompile.
 - [**Running it on your laptop**](units/setup/setup.qmd) — how to run the same
   environment on your own computer with the take-home Docker image: as a backup
   during the workshop, or to keep working on your project after the cloud servers

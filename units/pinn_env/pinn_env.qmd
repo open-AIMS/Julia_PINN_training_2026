@@ -1,0 +1,291 @@
+---
+title: "The `@pinn` Julia environment"
+toc-title: "The @pinn environment"
+date: today
+date-format: "DD/MM/YYYY"
+number-sections: false
+---
+
+Every Julia cell in this course runs against one shared package environment
+called **`@pinn`** — the name is a nod to **PINN** (*Physics-Informed Neural
+Networks*), the subject of the course. Happily, it is also *pinned* in the
+software sense: every package in it is **locked to an exact version** (recorded in
+a `Manifest.toml` — see [Julia environments in 90 seconds](#environments-primer)
+below), so the whole stack is reproducible rather than "whatever was newest the day
+you installed". "Pinning" a version means fixing it precisely, so it can't drift
+from under you.
+
+That pinning is why `@pinn` is *identical* on the cloud JupyterHub servers and in
+the take-home [Docker image](../setup/setup.qmd) — the same Julia version, the same
+packages, the same exact versions — so a notebook behaves the same on a laptop and
+on the hub. This appendix lists exactly what is in it, explains what is
+**precompiled** (and therefore why the *first* `using` and the *first* solve are
+the slow ones), and describes how Julia's **depot** works — including why adding
+your own packages can occasionally set off a long recompilation.
+
+- **Julia version:** 1.12.6
+- **Direct dependencies:** 28 (listed below)
+- **Total packages with transitive dependencies:** ~552
+
+## What `@pinn` is
+
+`@pinn` is a Julia **named environment** — a `Project.toml` (the packages you
+asked for) plus a `Manifest.toml` (the *exact* resolved version of every package,
+direct and indirect). It is **read-only** to you and **shared** by everyone, so
+nobody can accidentally break it, and so a single precompiled copy serves all
+users.
+
+When a notebook does `using NeuralPDE`, Julia finds `NeuralPDE` in `@pinn` and
+loads it from there. Your *own* additions (`Pkg.add(...)`) go into a separate,
+**writable** environment in your home directory that is layered on top — see
+[How the depot works](#how-the-depot-works) below.
+
+## Julia environments in 90 seconds {#environments-primer}
+
+A Julia **environment** is just two files:
+
+- **`Project.toml`** — the packages *you asked for* (direct dependencies), each
+  with a range of compatible versions.
+- **`Manifest.toml`** — the *complete, exact* set of versions the resolver
+  actually chose: every direct package **and** every indirect one it pulls in,
+  frozen to a specific version. The manifest is what makes an environment
+  reproducible — instantiate the same manifest anywhere and you get the same
+  packages, bit for bit. `@pinn` ships with a manifest, which is why the laptop
+  image and the hubs run *identical* versions.
+
+You can have many environments, and Julia **stacks** several at once (via its
+`LOAD_PATH`). Three kinds matter here:
+
+- **The active project (`@`)** — whatever `Pkg` commands act on, and the first
+  place `using` looks. In a course notebook this is your personal home environment.
+- **Named / shared environments** — e.g. `@pinn` (the course stack) and `@v1.12`
+  (Julia's default). These live under `…/environments/<name>/`.
+- **Stacked resolution** — when you `using X`, Julia walks the load path and loads
+  `X` from the **first** environment that provides it. `@pinn` is stacked *under*
+  your personal environment, so course packages are importable while your own
+  `Pkg.add`s stay in your home env and never touch the shared base.
+
+The catch — and the reason the [Adding packages](#adding-packages) section matters
+— is that **a package can only be loaded at one version per session.** If your
+personal environment and `@pinn` both pull in the same dependency but resolve it to
+*different* versions, one wins, and any precompiled code built against the *other*
+version is suddenly stale.
+
+::: {.callout-note collapse="true"}
+## Why `Pkg.status` looks empty (but `using NeuralPDE` still works)
+
+`Pkg` commands act on the **active project** only — your personal `@v1.12`
+environment, which starts empty. `@pinn` is stacked *below* it on the load path,
+so its 28 packages **don't appear in `Pkg.status`**. But `using` searches the
+**whole stack**, so it finds `NeuralPDE` in `@pinn` and loads it fine. Hence the
+apparent paradox: `using NeuralPDE` succeeds while `Pkg.status` shows nothing.
+
+To inspect the course stack itself:
+
+```julia
+import Pkg
+Pkg.activate("pinn"; shared = true)   # read-only; just for looking
+Pkg.status()                          # now you see the 28 @pinn packages
+Pkg.activate()                        # back to your own env
+```
+
+or, without switching, `Base.load_path()` prints the stacked environments in order.
+:::
+
+## The packages
+
+These are the 28 packages named directly in `@pinn`'s `Project.toml`. Everything
+else (the ~552 total) is pulled in automatically as a dependency of one of these.
+
+### PINN / SciML core — the heart of the course
+
+- **`NeuralPDE`** — the symbolic PINN solver. Turns a `ModelingToolkit.PDESystem`
+  (equation + domain + boundary conditions) plus a `PhysicsInformedNN(chain,
+  strategy)` into a physics-informed loss automatically. The course's primary PINN
+  driver.
+- **`ModelingToolkit`** — symbolic modelling of ODEs/PDEs; you write the equation
+  with `@variables`/`@parameters` and it builds the problem.
+- **`MethodOfLines`** — finite-difference discretisation of PDEs (the classical
+  "reference" solver we compare PINNs against).
+- **`Optimization`** + **`OptimizationOptimJL`** — the unified optimisation
+  interface and its `Optim.jl` backend (this is where `BFGS()` comes from).
+- **`OrdinaryDiffEq`** + **`OrdinaryDiffEqBDF`** — ODE time-steppers (explicit/
+  implicit; BDF for stiff problems).
+- **`DomainSets`** — intervals and domains (`Interval(0,1)`, etc.) for PDE problems.
+
+### Neural networks & automatic differentiation
+
+- **`Lux`** — the neural-network library (`Chain`, `Dense`, …) used to build the
+  networks inside a PINN.
+- **`Optimisers`** — optimiser update rules (Adam, etc.) for training loops.
+- **`Zygote`** — reverse-mode automatic differentiation (gradients of the loss).
+- **`ForwardDiff`** — forward-mode automatic differentiation (derivatives in the
+  PDE residual).
+- **`ComponentArrays`** — structured, named parameter vectors that keep network
+  weights tidy while staying a flat array the optimiser can use.
+
+### GPU
+
+- **`CUDA`** — NVIDIA GPU arrays and kernels (the GPU hub only; degrades gracefully
+  on the CPU hub and laptop image).
+- **`LuxCUDA`** — the glue that moves `Lux` models/data onto the GPU.
+- **`cuDNN`** — NVIDIA's deep-learning primitives, used by the GPU path.
+
+### Classical ML & statistics
+
+- **`MLJ`** — a general machine-learning framework (the non-PINN baselines).
+- **`DecisionTree`** + **`MLJDecisionTreeInterface`** — decision trees / random
+  forests and their MLJ wrapper.
+- **`Distributions`** — probability distributions (sampling, densities, moments).
+
+### Data, plotting & notebook glue
+
+- **`CSV`**, **`DataFrames`** — reading tabular data and working with data frames.
+- **`JSON3`** — fast JSON read/write.
+- **`Plots`** — the general-purpose plotting front-end used throughout the notes.
+- **`CairoMakie`** — publication-quality static figures.
+- **`LaTeXStrings`** — `L"..."` LaTeX in plot labels and titles.
+- **`IJulia`** — the Julia kernel for Jupyter (this is what runs your notebook).
+- **`Random`** — the standard-library RNG (pinned here so seeds are reproducible).
+
+> A broader, link-rich catalogue of these and related packages — including ones
+> only *mentioned* in the notes — is in [Software Resources](../software/software.qmd).
+
+## What is precompiled (and why the first run is the slow one) {#what-is-precompiled}
+
+Julia compiles code to native machine code. To avoid paying that cost every time,
+the course environment is **precompiled ahead of time** in two layers:
+
+1. **A system image.** The kernel boots from a custom system image
+   (`course-1.12.so`) that already has `Plots`, `CairoMakie` and `IJulia` *loaded
+   and code-generated* inside it. That is why your **first plot is instant** and
+   the kernel starts ready to draw.
+2. **A precompiled depot cache.** Every other `@pinn` package — `NeuralPDE`,
+   `ModelingToolkit`, `Lux`, … — is precompiled into **package images**
+   (`.ji`/`.so` files in the depot) when the environment is built. On the Docker
+   image these are **baked into the image**; on the hubs they live on shared
+   storage. Either way, `using NeuralPDE` *loads* from that cache instead of
+   building it.
+
+So on a clean account the first PINN cell is roughly:
+
+| Step | Time | Recurs? |
+|------|------|---------|
+| `using Plots` | ~0 s (in the system image) | — |
+| `using NeuralPDE` + the SciML stack | ~20 s (**load** from the cache) | shrinks after first use |
+| First `solve(...)` | ~50 s (compiling *your* problem) | **once per kernel session** |
+| **Total first run** | **~1 minute** | |
+| Re-running the same cell | ~1–2 s | — |
+
+The key thing to understand: the **package precompilation is done for you** (you
+don't pay it). What you *do* pay, the first time, is **compiling your specific
+problem** when `solve` runs — and Julia does not save that to disk, so it happens
+again (~50 s) in a **fresh kernel** (a restart, or the next day). Within a session
+it is instant after the first run. If a cell sits for "about a minute" the first
+time, that is normal — it is not stuck.
+
+## How the depot works {#how-the-depot-works}
+
+A **depot** is a directory where Julia keeps everything package-related: the
+registry, downloaded source, and the precompiled package-image cache. Julia
+actually searches a **list** of depots (`DEPOT_PATH`), in order. On the hubs your
+list is:
+
+```
+~/.julia                      ← your personal depot (writable; on your EFS home)
+/home/efs/_shared/julia-depot ← the shared course depot (read-only)
+```
+
+Two consequences follow from this layout:
+
+- **Your `Pkg.add` lands in your own home depot** and **persists** — across kernel
+  restarts, across both hubs, and after the cloud servers are switched off (it is
+  on your EFS home, which is backed up). It never touches the shared base.
+- **`@pinn`'s packages load from the shared depot's precompiled cache** — so the
+  whole class shares one precompiled copy and you start fast.
+
+A precompiled **package image** is only valid for one exact context: the package
+version *and* all its dependency versions, the Julia version, the CPU target, and
+the system image it was built against. If any of those don't match, Julia
+**rebuilds** that package's image (into your writable home depot) and uses the new
+one. That rebuild is the mechanism behind the next section.
+
+## Adding packages: dependency resolution and the SciML cascade {#adding-packages}
+
+You are welcome to add packages for your own work — `import Pkg;
+Pkg.add("SomePackage")`. It lands in your home depot and persists. To understand
+what *can* go wrong — a sudden multi-minute recompile, or a flat refusal — it helps
+to see what the resolver actually does.
+
+### What `Pkg.add` really does
+
+`Pkg.add` doesn't just download a package; it **re-solves your whole environment.**
+Every package declares the versions of each dependency it is *compatible* with (its
+`[compat]` bounds). The resolver must find **one** version of **every** package —
+direct *and* transitive — that satisfies *all* of those bounds at once, then write
+the result into your `Manifest.toml`. So adding a single package can quietly change
+the chosen version of packages you never named.
+
+### Why the SciML stack is sensitive
+
+The PINN stack is a **large, tightly-coupled dependency graph.** `NeuralPDE` sits on
+top of `ModelingToolkit` → `Symbolics` → `SymbolicUtils`, alongside `SciMLBase`,
+`DiffEqBase`, `RecursiveArrayTools`, `ForwardDiff`, `Zygote` and dozens of shared
+low-level libraries. Crucially, **many *unrelated* packages depend on those same
+low-level libraries** — things like `StatsBase`, `Distributions`, or common binary
+(`_jll`) wrappers. So a package that looks nothing like a PDE solver can still share
+dependencies with one.
+
+### The cascade, step by step
+
+Suppose you `Pkg.add` a statistics package whose `[compat]` needs a **newer**
+`StatsBase` than the one `@pinn` pinned:
+
+1. The resolver re-solves your environment and **bumps `StatsBase`** to satisfy the
+   newcomer.
+2. `Distributions` (used across the SciML stack) depends on `StatsBase`, so *its*
+   resolved version can move too — the change **propagates** through the graph.
+3. The **precompiled image** of `NeuralPDE` in the shared cache was built against the
+   *old* versions. With different versions now resolved, that image is **stale**, and
+   Julia refuses to load it — the banner reads `cache misses: wrong dep version
+   loaded`.
+4. Because precompilation is **transitive**, *every* package on the path from the
+   bumped dependency up to `NeuralPDE` is invalidated as well. So your next
+   `using NeuralPDE` rebuilds **the whole closure** — `Symbolics`,
+   `ModelingToolkit`, `NeuralPDE`, … — which can take **several minutes**.
+
+It is a **one-off** — the rebuilt images cache in your home depot, so it's fast
+afterwards (until you perturb the set again). But that is exactly why a seemingly
+innocent `Pkg.add` can make your *next* PINN cell sit for five minutes.
+
+### The other outcome: incompatibility
+
+Sometimes **no** assignment of versions satisfies everyone — the newcomer demands
+something *outside* what the pinned SciML stack allows. Then the resolver can't
+proceed and `Pkg.add` **reports a version conflict** instead of installing. That is
+not a failure of the system; it is the resolver refusing to build an environment
+that could never load consistently.
+
+### How to stay out of trouble
+
+- For the course exercises you **don't need to add anything** — `@pinn` already has
+  the full stack.
+- Add extras at a **natural break**, not mid-exercise, and don't be alarmed if the
+  next `using NeuralPDE` recompiles once.
+- To experiment *without* disturbing your main setup, install into a **throwaway
+  environment** so it can't perturb the resolution your PINN notebooks use:
+  ```julia
+  import Pkg
+  Pkg.activate("sandbox"; shared = true)   # a separate named env
+  Pkg.add("SomeExperimentalPackage")
+  # ... when done, go back with: Pkg.activate()
+  ```
+- If a package should be available to **everyone** (a shared example), it belongs in
+  `@pinn` itself — an instructor adds it centrally and rebuilds the shared cache
+  *once*, rather than 30 people each `Pkg.add`-ing (and each recompiling) it.
+
+> In short: `@pinn` is a carefully pinned, fully precompiled environment shared by
+> the whole class. Loading its packages is fast because the heavy work is already
+> done; the only first-run cost is compiling *your* problem. Your own additions are
+> free to make and persistent — just expect an occasional one-time recompile when a
+> new package nudges a dependency the SciML stack also relies on.
