@@ -114,15 +114,27 @@ NVIDIA GPU.
 
 The image is published on the GitHub Container Registry as
 `ghcr.io/accumulationpoint/pinns-course-core`. When the course software stack is
-updated, a new version is published under the same name. To make sure you have the
-latest one, pull it before running:
+updated, a new version is published under the **same** name (`:latest`).
+
+**Important:** if you already downloaded the image earlier (say at the install
+party), Docker will keep using that **cached older copy** — `docker run` does *not*
+check for a newer one automatically. To move to the latest build you have to ask
+for it explicitly. Either pull before running:
 
 ```bash
 docker pull ghcr.io/accumulationpoint/pinns-course-core
 ```
 
+or, equivalently, delete your local copy and let the next run re-download it:
+
+```bash
+docker rmi ghcr.io/accumulationpoint/pinns-course-core   # remove the cached image
+docker run --rm -p 8888:8888 ghcr.io/accumulationpoint/pinns-course-core
+```
+
 (The very first `docker run` already downloads the image, so you only need this
-later, to refresh an image you downloaded earlier.)
+later, to refresh an image you downloaded earlier. If a refresh seems to do
+nothing, the tag may be momentarily unchanged — there's no harm in re-running it.)
 
 ## Without Docker — a native Julia install {#without-docker}
 

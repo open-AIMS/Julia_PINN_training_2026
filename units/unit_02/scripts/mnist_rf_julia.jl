@@ -23,7 +23,7 @@ forest = build_forest(
     100,           # n_trees
     0.7,           # partial_sampling (fraction of rows per tree)
     -1,            # max_depth (-1 = unbounded)
-    1, 0.0, 0;     # min_samples_leaf, min_samples_split, min_purity_increase
+    1, 2, 0.0;     # min_samples_leaf, min_samples_split, min_purity_increase
     rng = 0,
 )
 ŷ = apply_forest(forest, X_test)

@@ -138,6 +138,41 @@ isn't perfect, and used in
 (Chapters 5–6) for exactly the kind of side-by-side comparison
 we're about to do.
 
+### A first look at the digits
+
+Before training anything, it's worth *looking* at the data. Each MNIST sample is
+a $28 \times 28$ grayscale image; flattened to a length-784 vector of pixel
+intensities, that raw vector is all every model in this unit — forest, softmax,
+MLP — ever sees (only the convolutional network in §2.6 keeps the 2-D grid). Load
+the training split and show the first 40 digits with their labels:
+
+```{.julia}
+using MLDatasets, Plots
+
+# train_x is 28×28×60000 with pixel values already in [0,1]; train_y are labels 0–9
+train_x, train_y = MLDatasets.MNIST(split = :train)[:]
+
+panels = map(1:40) do i
+    heatmap(train_x[:, :, i]';                    # transpose + yflip ⇒ upright digit
+            yflip = true, color = :grays, aspect_ratio = 1,
+            axis = false, ticks = false, colorbar = false, legend = false,
+            title = string(train_y[i]), titlefontsize = 7)
+end
+plot(panels...; layout = (5, 8), size = (760, 500),
+     plot_title = "MNIST — first 40 training digits")   # in a notebook this renders inline
+```
+
+![The first 40 MNIST training digits, with their labels. Each is a $28\times28$ grayscale image — 784 raw pixel values, which is all a *flat* classifier ever sees.](figures/mnist_digits.png)
+
+*Setup note.* `MLDatasets.jl` — the dataset loader used here and by the forest
+below — isn't in the workshop `Project.toml` by default (we keep the PINN deps
+minimal). Add it once with `Pkg.add("MLDatasets")` from the repo root. This
+re-resolves your personal environment and precompiles MLDatasets' own dependency
+closure — a few minutes, one-off, cached afterwards — so do it at a break, not
+mid-exercise. It installs into *your* home environment and doesn't disturb the
+shared PINN stack, so `using NeuralPDE` stays fast. Why this is a separate step:
+[The `@pinn` Julia environment](../pinn_env/pinn_env.qmd#adding-packages).
+
 ### MNIST random forest in Julia (`DecisionTree.jl`)
 
 A 100-tree forest on flattened MNIST takes a couple of minutes to
@@ -164,21 +199,15 @@ forest = build_forest(
     100,          # n_trees
     0.7,          # partial_sampling
     -1,           # max_depth
-    1, 0.0, 0;
+    1, 2, 0.0;    # min_samples_leaf, min_samples_split, min_purity_increase
     rng = 0,
 )
 ŷ = apply_forest(forest, X_test)
 @info "MNIST test accuracy (DecisionTree.jl RF, 100 trees) = $(round(mean(ŷ .== y_test); digits = 4))"
 ```
 
-*Setup note.* `MLDatasets.jl` isn't in the workshop `Project.toml`
-by default (we keep PINN-focused deps minimal). To run this
-script, add it once with `Pkg.add("MLDatasets")` from the repo
-root. Heads-up: this re-resolves your personal environment and can
-nudge a dependency the SciML stack also uses, so your **next
-`using NeuralPDE` may recompile once** (a few minutes — normal and
-one-off). Do it at a break, not mid-exercise. Why this happens:
-[The `@pinn` Julia environment](../pinn_env/pinn_env.qmd#adding-packages).
+(This uses the same `MLDatasets` loader as the digit display above — see that
+*setup note* if you haven't added it yet.)
 
 ### MNIST random forest in Python (`scikit-learn`)
 
@@ -493,13 +522,14 @@ that disqualify it from any diffusion-type PDE residual?
 
 Training a neural network — or fitting a PINN — comes down to
 **minimising a scalar loss over a large parameter vector $\theta
-\in \mathbb{R}^P$**. The next six subsubsections cover the
+\in \mathbb{R}^P$**. The subsubsections below cover the
 machinery: how gradients of the loss are *computed* (computational
 graph + backprop), the family of first-order methods that *use*
 those gradients (SGD, momentum, Adam), the quasi-Newton method
 that often finishes the job (L-BFGS), the batching choices that
-determine how noisy each gradient estimate is, and finally the
-forward-vs-reverse-mode autodiff distinction that PINNs depend on.
+determine how noisy each gradient estimate is, and finally
+automatic differentiation itself — dual numbers, the backprop tape,
+and the forward-over-reverse nesting that PINNs depend on.
 Most of this material is treated at greater depth in
 [*Mathematical Engineering of Deep Learning*, Chapter 4 (*Optimization Algorithms*)](../references/references.qmd#ref-liquet2024){target="_blank"},
 our primary reference throughout this unit — with the classic,
@@ -686,29 +716,125 @@ after Adam has done the rough work. The recipe across
 > a few hundred iterations (drive the residual to convergence with
 > exact gradients).
 
-### Forward vs reverse mode (why PINNs need both)
+### How autodiff actually works: dual numbers and the tape
 
-For a function $f: \mathbb{R}^n \to \mathbb{R}^m$:
+Every method above needs the gradient $\nabla_\theta \mathcal{L}$, and we have
+been getting it "for free." It is worth seeing *how*, because PINNs lean on the
+machinery harder than ordinary deep learning does.
 
-- **Forward mode** propagates derivatives along with values. Cost
-  scales with $n$ (inputs).
-- **Reverse mode** propagates derivatives backward. Cost scales with
-  $m$ (outputs).
+**Automatic differentiation is neither of the two things people first guess.**
+It is *not* symbolic differentiation (manipulating formulas, which blows up in
+size), and it is *not* finite differences
+$\bigl(f(x+h)-f(x)\bigr)/h$ (which forces a bad trade between truncation error at
+large $h$ and round-off at small $h$). Instead it computes the **exact**
+derivative — to machine precision — by applying the chain rule to the elementary
+operations your code already runs. There are two ways to do it.
 
-Standard deep learning is "many inputs, one scalar loss": $m = 1$,
-reverse mode wins. *PINNs* are different: the loss involves
-**spatial derivatives** of the network output evaluated at
-collocation points. Those derivatives go into the loss, and the
-final loss-gradient pass needs gradients of those *derivatives* —
-a derivative of a derivative.
+**Forward mode = dual numbers.** Carry each value together with its derivative as
+a pair $(x, \dot x)$. Formally, adjoin a symbol $\varepsilon$ with
+$\varepsilon^2 = 0$ and evaluate $f$ at $a + \varepsilon$: every elementary rule
+gives $f(a + \varepsilon) = f(a) + f'(a)\,\varepsilon$, so the coefficient of
+$\varepsilon$ that drops out the far end *is* the derivative. `ForwardDiff.jl` is
+exactly this — no formulas, no step size:
 
-Computing this efficiently means **forward-over-reverse**:
-forward-mode for the spatial derivative (one or two inputs),
-reverse-mode for the outer gradient over parameters. Getting the
-nesting right is what makes a PINN frame work; getting it wrong
-makes training 100× slower. `Lux.jl` + `Zygote.jl` + `ForwardDiff.jl`
-handle this composition cleanly, which is why the workshop uses
-that stack.
+```{.julia}
+using ForwardDiff
+
+f(x) = sin(x^2)
+ForwardDiff.derivative(f, 1.0)            # 1.08060…  (= 2x·cos(x²) at x=1, exact)
+
+g(v) = sum(v .^ 2)
+ForwardDiff.gradient(g, [1.0, 2.0, 3.0])  # [2.0, 4.0, 6.0]
+```
+
+One forward pass carries one derivative direction, so a full gradient costs about
+$n$ passes for $n$ inputs — cheap when $n$ is small.
+
+**Reverse mode = the tape (backpropagation).** Record every elementary operation
+on the forward pass — that is the "tape", i.e. the computational graph above —
+then walk it **backwards once**, accumulating the adjoint
+$\partial\mathcal{L}/\partial(\text{each node})$ by the chain rule. A *single*
+backward pass produces the gradient with respect to **all** inputs at once, at a
+cost of roughly one forward evaluation — *independent of how many parameters
+there are*. `Zygote.jl` does this:
+
+```{.julia}
+using Zygote
+
+g(v) = sum(v .^ 2)
+Zygote.gradient(g, [1.0, 2.0, 3.0])[1]    # [2.0, 4.0, 6.0] — same answer, one backward pass
+```
+
+**So which mode?** For $f:\mathbb{R}^n \to \mathbb{R}^m$, forward mode costs
+$\propto n$ and reverse mode $\propto m$. Training a network is "millions of
+parameters in, one scalar loss out" ($n$ huge, $m = 1$), so **reverse mode wins**
+— which is why backprop, and every deep-learning framework, is reverse-mode AD.
+
+### Differentiating the network itself: forward-over-reverse (the PINN twist)
+
+PINNs add something ordinary deep learning never does: the loss contains
+**derivatives of the network's output with respect to its inputs**. For a network
+$u(x;\theta)$ standing in for a PDE solution, the residual needs spatial
+derivatives like $u_x, u_{xx}$ at each collocation point — and we *still* need the
+gradient of that loss with respect to the parameters $\theta$. Two
+differentiations, nested.
+
+**The inner derivative — network output w.r.t. its input.** Few inputs ($x$,
+maybe $t$), often to second order or higher: exactly where forward mode shines,
+and it **nests** — just differentiate the derivative:
+
+```{.julia}
+using ForwardDiff
+
+u(x)  = sin(2x) * exp(-x)               # pretend this is the network output u(x)
+u1(x) = ForwardDiff.derivative(u, x)
+u2(x) = ForwardDiff.derivative(u1, x)  # nest forward mode → the 2nd derivative
+
+u2(0.3)    # -3.7006…  (matches the hand derivative e^{-x}(-3 sin 2x - 4 cos 2x))
+```
+
+That `u2` is precisely the operator a diffusion or Poisson PINN puts in its
+residual ([Unit 5](../unit_05/unit_05.qmd)). It is also why §2.4's ReLU warning
+bites: a ReLU network's second derivative is zero almost everywhere, so the
+residual can't even be formed.
+
+**The outer gradient — loss w.r.t. parameters.** Sum the residual over collocation
+points into a scalar loss and differentiate w.r.t. the parameters. Here is the
+whole shape on a tiny three-parameter stand-in "network"
+$u(x;p) = p_1 \sin(p_2 x) + p_3$, asked to satisfy $u'' = -\pi^2 \sin(\pi x)$:
+
+```{.julia}
+using ForwardDiff
+
+unet(x, p) = p[1] * sin(p[2] * x) + p[3]
+uxx(x, p)  = ForwardDiff.derivative(z -> ForwardDiff.derivative(y -> unet(y, p), z), x)
+
+xs   = range(0, 1; length = 20)
+loss(p) = sum((uxx(x, p) + pi^2 * sin(pi * x))^2 for x in xs)   # PDE residual, summed
+
+ForwardDiff.gradient(loss, [1.0, 3.0, 0.0])   # ∇ₚ loss = [-108.8, -143.7, 0.0]
+```
+
+That gradient drives the optimiser (Adam, then L-BFGS) just like every other fit
+in this unit — the *only* new ingredient is that `loss` had a derivative of the
+network inside it.
+
+**Forward-over-reverse, and what SciML actually uses.** Both differentiations
+above use forward mode because the toy has just three parameters. A real PINN has
+*thousands*, so the **outer** parameter-gradient switches to **reverse mode**
+(cheap when $m=1$ over many parameters) while the **inner** input-derivative stays
+**forward mode** (cheap for one or two inputs). That composition — a reverse-mode
+gradient of a loss that contains forward-mode input-derivatives — is
+**forward-over-reverse**, and getting the nesting right is the difference between a
+PINN that trains in minutes and one that crawls.
+
+You won't assemble this by hand. `NeuralPDE.jl` builds the residual and its
+derivatives for you, layered on `Lux.jl` (the network), `ForwardDiff.jl` (the
+input derivatives), and reverse-mode AD (`Zygote.jl`, increasingly `Enzyme.jl`)
+for the parameter gradient — with `ChainRules.jl` supplying the rules that let the
+modes compose. Picking and nesting these backends correctly is a large part of
+what the SciML stack does so that the residual you write in maths comes out
+differentiated correctly *and* fast.
 
 ::: {#ex-2-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — race the optimisers down a ravine
@@ -740,18 +866,122 @@ Each optimiser is under ten lines if you mutate the iterate in place and keep st
 The previous sections set up everything we need — a function class
 (MLP), an autodiff engine, an optimiser, and a dataset (MNIST) with
 two known baselines (random forest ~97%, softmax regression ~92%).
-Now we close the gap by climbing the deep-learning ladder on MNIST.
-First an actual **MLP** — written in `scikit-learn` and `PyTorch`
-below, alongside the Julia `Lux.jl` softmax of §2.3 and the GPU MLP
-that follows — and then a step up to a **convolutional network** that
-takes the lead. The Python listings are static, for the cross-ecosystem
-comparison; the Julia runs are the ones we execute.
+Now we train *real* networks on MNIST and close the gap. We lead with
+the strongest, most genuinely-Julia piece — a **convolutional network in
+`Lux.jl`**, trained on CPU and GPU — then step back to a plain **MLP** to
+see how the GPU payoff scales, and finally show the same MLP in the
+Python ecosystem (`scikit-learn`, `PyTorch`) for the cross-language
+comparison. The Julia runs are the ones we execute (they fetch MNIST
+directly, so they need no extra dataset package); the Python listings are
+static.
 
-### `scikit-learn` MLP on MNIST
+### A convolutional network on MNIST (Lux.jl) {#sec-mnist-cnn}
 
-The same architecture in `scikit-learn`'s `MLPClassifier`. Expect
-**~98% test accuracy** — comfortably beating the softmax baseline,
-edging out the random forest:
+The softmax classifier (§2.3) and the MLP both *flatten* each
+$28 \times 28$ image into a length-784 vector — they throw the 2-D
+structure away before they ever see it. A **convolutional network** keeps
+it: each conv layer slides small learnable filters across the image,
+sharing one set of weights over every location.
+
+That weight sharing is a textbook **inductive bias** — an assumption
+about the problem, baked into the *architecture*, that biases the model
+toward the right kind of solution before it sees any data. A convolution
+assumes two things about images: *locality* (nearby pixels are what
+matter) and *translation invariance* (an edge or stroke means the same
+thing wherever it sits, so one filter should detect it everywhere).
+Encoding those assumptions in the architecture means the network doesn't
+have to *learn* them — so it needs far fewer parameters and generalises
+better. Hold onto this idea, because it is exactly how **PINNs** work too:
+there the inductive bias is the *PDE itself*, wired into the loss, telling
+the network what physics the solution must satisfy
+(§2.8, [Unit 5](../unit_05/unit_05.qmd)). A CNN biases the model toward
+image structure; a PINN biases it toward physics — same principle, with
+the prior coming from a law of nature instead of an architecture.
+Convolutional networks are the subject of
+[*Mathematical Engineering of Deep Learning*, Chapter 6 (*Convolutional Neural Networks*)](../references/references.qmd#ref-liquet2024){target="_blank"}.
+
+The script below is the classic **LeNet-5** (LeCun et al., 1998) in
+`Lux.jl` — two `Conv` + `MaxPool` blocks that learn 2-D features, then
+three `Dense` layers that classify them — trained on the same MNIST
+data, on the CPU and the GPU:
+
+```{.julia filename="units/unit_02/scripts/conv_mnist_lux.jl" code-fold="true" code-summary="Show the LeNet-5 convolutional network"}
+{{< include scripts/conv_mnist_lux.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/conv_mnist_lux.md >}}
+
+Two payoffs. First, **accuracy**: the CNN reaches **~98.8%** — the best
+in the unit, topping the random forest (~97%) and the softmax baseline
+(~92%), and edging out the plain MLP (~98%) we train next. And it does so
+with **61,706 parameters — fewer than a quarter of that MLP's 235,146**:
+the convolution's inductive bias buys *more* accuracy with *fewer*
+weights — the opposite of the "depth costs parameters" trade a plain MLP
+makes. Second, **the GPU**: because a CNN is many small matmuls per layer
+it is far more compute-dense than a flat MLP, so the per-epoch speed-up
+here is **~16×** — far above what the same card gives the small dense MLP
+(~3×, which we see next). Convolutions are where the GPU starts to matter,
+and the collocation counts of PINNs (from
+[Unit 5](../unit_05/unit_05.qmd)) push that lever harder still.
+
+### Training on the GPU — the same one-liner on a plain MLP (Julia, Lux + CUDA) {#sec-mnist-gpu}
+
+Now step down to a simpler model — a plain **MLP** (the §2.3 softmax grown
+two hidden layers, `784 → 256 → 128 → 10`) — which makes it easy to see
+*how the GPU's advantage scales with the model*. The same MLP is trained
+on the CPU and on the GPU, where the only change is pushing the parameters
+and the data to the device with `|> gpu_device()`. Everything else — the
+model, the loss, the Adam update — is byte-for-byte identical.
+
+```{.julia filename="units/unit_02/scripts/mnist_gpu_lux.jl" code-fold="true" code-summary="Show the GPU MNIST trainer"}
+{{< include scripts/mnist_gpu_lux.jl >}}
+```
+
+Captured on the workshop GPU hub (NVIDIA L4):
+
+{{< include output/mnist_gpu_lux.md >}}
+
+Two things to take away. First, the GPU is about **3× faster per epoch**
+here — real, but not dramatic, because a 784-wide MLP on 28×28 images is
+*small*: the batched matmuls don't fully occupy the card and the CPU is no
+slouch. That's the flip side of the CNN's **~16×** above — the more
+compute-dense the model, the more the GPU pulls ahead, and the
+collocation-point counts that PINNs demand
+([Unit 5](../unit_05/unit_05.qmd)) push it further still. Second, the move
+itself is trivial: one `gpu_device()` and the same code trains on either
+processor. The full 10-epoch run reaches **97.96%** test accuracy:
+
+![MNIST test accuracy over 10 training epochs of the Lux MLP, trained on the GPU.](figures/mnist_gpu_accuracy.png)
+
+### Regularisation, batch norm, dropout
+
+Three standard knobs to keep training honest:
+
+- **Weight regularisation** — add $\lambda \|\theta\|^2$ to the loss
+  ($L_2$, "weight decay") to keep the parameters small.
+- **Batch normalisation** — normalise activations within each
+  mini-batch; lets you use higher learning rates and reduces
+  sensitivity to initialisation.
+- **Dropout** — randomly zero a fraction of activations during
+  training; equivalent to averaging over an ensemble of thinned
+  networks.
+
+![Dropout: at each training step, a random subset of hidden units is masked out; at test time all units are used with weights rescaled. (Figure from *MEDL*, §5.7.)](figures/figure5-11-dropout.svg)
+
+For PINNs the regularisation knobs you care about are *physics
+terms* in the loss rather than weight penalties or dropout — the
+PDE residual itself is a powerful regulariser, as we'll see from
+[Unit 5](../unit_05/unit_05.qmd) onward.
+
+### The same MLP in Python — `scikit-learn`
+
+For the cross-language picture, here is that same MLP in the Python
+ecosystem. These listings are **static** — we don't execute them in the
+build; they're the Python mirror of the Julia workflow above. First the
+few-line `scikit-learn` version; expect **~98% test accuracy** —
+comfortably beating the softmax baseline, edging out the random forest:
 
 ```{.python filename="units/unit_02/scripts/mnist_mlp_sklearn.py"}
 from sklearn.datasets import fetch_openml
@@ -773,7 +1003,7 @@ print(f"MNIST test accuracy (sklearn MLP): "
       f"{accuracy_score(y_test, clf.predict(X_test)):.4f}")
 ```
 
-### `PyTorch` MLP on MNIST
+### The same MLP in Python — `PyTorch`
 
 The same model with explicit autodiff and an explicit training
 loop. This is the PyTorch idiom you'll see everywhere in the deep
@@ -824,7 +1054,7 @@ The structural beats — `model.train()` / `model.eval()` mode,
 `opt.zero_grad()` to clear accumulated gradients, the inner
 `loss.backward(); opt.step()` two-liner — are PyTorch idiom you'll
 see in every textbook and tutorial. *Functionally* it's the same
-training loop as `mnist_linear_lux.jl` above. The only ecosystem
+training loop as `mnist_linear_lux.jl` (§2.3). The only ecosystem
 difference is whether parameters live on the model object (PyTorch)
 or in a separate `ps` tuple (Lux).
 
@@ -838,91 +1068,6 @@ define model, set optimiser, loop minibatches, compute loss,
 step. The Julia version makes the parameter state explicit;
 PyTorch and `scikit-learn` hide it. The only meaningful differences
 are surface-level. Pick by ecosystem.
-
-### Regularisation, batch norm, dropout
-
-Three standard knobs to keep training honest:
-
-- **Weight regularisation** — add $\lambda \|\theta\|^2$ to the loss
-  ($L_2$, "weight decay") to keep the parameters small.
-- **Batch normalisation** — normalise activations within each
-  mini-batch; lets you use higher learning rates and reduces
-  sensitivity to initialisation.
-- **Dropout** — randomly zero a fraction of activations during
-  training; equivalent to averaging over an ensemble of thinned
-  networks.
-
-![Dropout: at each training step, a random subset of hidden units is masked out; at test time all units are used with weights rescaled. (Figure from *MEDL*, §5.7.)](figures/figure5-11-dropout.svg)
-
-For PINNs the regularisation knobs you care about are *physics
-terms* in the loss rather than weight penalties or dropout — the
-PDE residual itself is a powerful regulariser, as we'll see from
-[Unit 5](../unit_05/unit_05.qmd) onward.
-
-### Training on the GPU (Julia, Lux + CUDA) {#sec-mnist-gpu}
-
-The PyTorch listing above quietly did the thing that matters for scale —
-`X, y = X.to(device), y.to(device)` — and trained on a GPU if one was present.
-Here is the *Julia* side of that story: the **same MLP**, trained on the CPU and
-on the GPU, where the only change is pushing the parameters and the data to the
-device with `|> gpu_device()`. Everything else — the model, the loss, the Adam
-update — is byte-for-byte identical. MNIST is fetched directly and parsed in a
-few lines, so there is no extra dataset dependency.
-
-```{.julia filename="units/unit_02/scripts/mnist_gpu_lux.jl" code-fold="true" code-summary="Show the GPU MNIST trainer"}
-{{< include scripts/mnist_gpu_lux.jl >}}
-```
-
-Captured on the workshop GPU hub (NVIDIA L4):
-
-{{< include output/mnist_gpu_lux.md >}}
-
-Two things to take away. First, the GPU is about **3× faster per epoch** here —
-real, but not dramatic, because a 784-wide MLP on 28×28 images is *small*: the
-batched matmuls don't fully occupy the card and the CPU is no slouch. The GPU
-advantage grows with model and image size — wider networks, convolutions on
-larger images, bigger batches — and, as you'll see from [Unit
-5](../unit_05/unit_05.qmd), with the collocation-point counts that PINNs demand.
-Second, the move itself is trivial: one `gpu_device()` and the same code trains
-on either processor. The full 10-epoch run reaches **97.96%** test accuracy:
-
-![MNIST test accuracy over 10 training epochs of the Lux MLP, trained on the GPU.](figures/mnist_gpu_accuracy.png)
-
-### From MLP to a convolutional network (Lux.jl) {#sec-mnist-cnn}
-
-The softmax and the MLP both *flatten* each $28 \times 28$ image to a
-length-784 vector — they throw the 2-D structure away before they ever
-see it. A **convolutional network** keeps it: each conv layer slides
-small learnable filters across the image, sharing one set of weights
-over every location. That weight sharing is the whole trick — far fewer
-parameters, plus a built-in bias toward local, translation-aware
-features. Convolutional networks are the subject of
-[*Mathematical Engineering of Deep Learning*, Chapter 6 (*Convolutional Neural Networks*)](../references/references.qmd#ref-liquet2024){target="_blank"}.
-
-The script below is the classic **LeNet-5** (LeCun et al., 1998) in
-`Lux.jl` — two `Conv` + `MaxPool` blocks that learn 2-D features, then
-three `Dense` layers that classify them — trained on the same MNIST
-data, on the CPU and the GPU:
-
-```{.julia filename="units/unit_02/scripts/conv_mnist_lux.jl" code-fold="true" code-summary="Show the LeNet-5 convolutional network"}
-{{< include scripts/conv_mnist_lux.jl >}}
-```
-
-Captured on the workshop GPU hub (NVIDIA L4):
-
-{{< include output/conv_mnist_lux.md >}}
-
-Two payoffs. First, **accuracy**: the CNN reaches **~98.8%** — the best
-in the unit, topping the random forest (~97%), the softmax baseline
-(~92%) and the MLP (~98%). And it does so with **61,706 parameters,
-fewer than a quarter of the MLP's 235,146**: weight sharing buys *more*
-accuracy with *fewer* weights — the opposite of the "depth costs
-parameters" trade the MLP made. Second, **the GPU**: because a CNN is
-many small matmuls per layer it is far more compute-dense than the flat
-MLP, so the per-epoch speed-up here is **~16×**, against the MLP's ~3×
-on the very same card. Convolutions are where the GPU starts to matter,
-and the collocation counts of PINNs (from
-[Unit 5](../unit_05/unit_05.qmd)) push that lever harder still.
 
 ::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — parameters, accuracy, and a two-phase finetune
