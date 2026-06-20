@@ -289,9 +289,35 @@ $$
             + g\,\nabla \eta = -b\,\mathbf{u}}_{\textbf{momentum}}
 $$ {#eq-swe-momentum}
 
-To see what kind of physics this encodes, take $\partial/\partial t$
-of the continuity equation and substitute
-$\partial \mathbf{u}/\partial t$ from the momentum equation:
+Those two equations combine into a single, more familiar one. If you
+differentiate the mass equation in time and substitute the momentum equation
+(the algebra is in the callout), and drop the small drag, the surface height
+$\eta$ obeys a 2-D **wave equation**:
+
+$$
+\frac{\partial^2 \eta}{\partial t^2}
+\;=\; \nabla\!\cdot\!\bigl(g\,H\,\nabla \eta\bigr).
+$$ {#eq-wave-eta}
+
+In words: a bump in the water surface spreads outward as a **gravity wave** —
+gravity pulls the raised water back down, it overshoots, and so the
+disturbance travels. The one number that matters is its **speed**,
+
+$$ c(x, y) \;=\; \sqrt{g\,H(x, y)}, $$
+
+which depends only on the local depth $H$: **waves travel faster where the
+water is deeper.** In Moreton Bay that is roughly $8\,\text{m/s}$ over the
+shallow $\sim 6\,\text{m}$ inner flats and about $15\,\text{m/s}$ along the
+deeper eastern trough — so the surge does *not* reach every gauge at the same
+time, and that difference in timing is a big part of what later lets us
+reconstruct the source. This wave equation is the physics the inverse solver
+below is told to obey.
+
+::: {.callout-note collapse="true"}
+## Deriving the wave equation (optional)
+Take $\partial/\partial t$ of the continuity equation @eq-swe-continuity and
+substitute $\partial \mathbf{u}/\partial t$ from the momentum equation
+@eq-swe-momentum:
 
 $$
 \frac{\partial^2 \eta}{\partial t^2}
@@ -300,22 +326,11 @@ $$
        \;+\; \nabla\!\cdot\!\bigl(H\,b\,\mathbf{u}\bigr).
 $$
 
-The drag term is small over the few-hour surge window (we revisit it
-in the callout below); dropping it leaves a single 2-D **wave
-equation** for $\eta$,
-
-$$
-\frac{\partial^2 \eta}{\partial t^2}
-\;=\; \nabla\!\cdot\!\bigl(g\,H\,\nabla \eta\bigr),
-$$ {#eq-wave-eta}
-
-i.e.\ **surface gravity waves** — the restoring force is gravity
-pulling a displaced water column back down, not the fluid's
-compressibility (which is what drives acoustic/"pressure" waves) —
-propagating at a depth-dependent speed $c(x,y) = \sqrt{g\,H(x,y)}$ — roughly
-$8\,\text{m/s}$ in the inner bay and $15\,\text{m/s}$ along the
-deeper eastern trough. This is the cleanest form to think about and
-is what the inverse solver below uses as its physics constraint.
+The last term is the drag; it is small over the few-hour surge window, and
+dropping it leaves @eq-wave-eta. The restoring force here is gravity, not the
+fluid's compressibility — that is what separates these **surface gravity
+waves** from acoustic ("pressure") waves.
+:::
 
 ::: {.callout-note}
 ## Why "linearised"?
@@ -421,11 +436,11 @@ $500\,\text{m}$ resolution.
 
 ### Watching the surge cross the bay
 
-The slider below scrubs through the FD solution: 73 snapshots, 5
-minutes of real time per step, total 6 hours. Drag the handle to
-follow the surge from rest, through the two peaks, to the trailing
-ring-down. The red triangle is the Brisbane River source, the gold
-discs are the four tide gauges, and grey is land.
+The movie below plays through the FD solution: 73 snapshots, 5 minutes of real
+time per step, total 6 hours. It loops automatically (click the image to pause or
+resume); watch the surge rise from rest, through the two peaks, to the trailing
+ring-down. The red triangle is the Brisbane River source, the gold discs are the
+four tide gauges, and grey is land.
 
 ```{julia}
 #| echo: false
@@ -453,34 +468,35 @@ data_js = "[" * join([
 
 println("```{=html}")
 println("""
-<div class="surge-slider-widget" style="text-align:center;margin:1em 0;">
-<img id="surge-slider-img" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:560px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;"/>
-<div style="margin-top:0.6em;">
-<input type="range" min="0" max="$(n - 1)" value="0" step="1" id="surge-slider-range" style="width:80%;" oninput="updateSurgeFrame(this.value)"/>
-<div id="surge-slider-caption" style="font-size:0.9em;color:#555;margin-top:0.3em;font-family:ui-monospace,Menlo,monospace;">frame 0 / $(n - 1)  ·  t = 0.00 h  ·  ψ(t) = +0.000 m</div>
-<div style="font-size:0.85em;color:#777;margin-top:0.4em;"><em>Drag the slider to scrub through the surge. The red triangle marks the unknown source ψ(t).</em></div>
-</div>
+<div class="surge-movie-widget" style="text-align:center;margin:1em 0;">
+<img id="surge-movie-img" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:560px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;cursor:pointer;" title="click to pause / resume"/>
+<div id="surge-movie-caption" style="font-size:0.9em;color:#555;margin-top:0.4em;font-family:ui-monospace,Menlo,monospace;">t = 0.00 h  ·  ψ(t) = +0.000 m</div>
+<div style="font-size:0.85em;color:#777;margin-top:0.4em;"><em>A slow movie of the surge — it loops automatically; click the image to pause or resume. The red triangle marks the unknown source ψ(t).</em></div>
 </div>
 <script>
 (function() {
   const frames = $data_js;
   const fmt = x => (x >= 0 ? "+" : "") + x.toFixed(3);
-  // Initial frame on page load
-  document.getElementById("surge-slider-img").src = frames[0].src;
-  window.updateSurgeFrame = function(idx) {
-    const f = frames[parseInt(idx)];
-    document.getElementById("surge-slider-img").src = f.src;
-    document.getElementById("surge-slider-caption").textContent =
-      "frame " + idx + " / $(n - 1)  ·  t = " +
-      f.t_hr.toFixed(2) + " h  ·  ψ(t) = " + fmt(f.psi) + " m";
-  };
+  const img = document.getElementById("surge-movie-img");
+  const cap = document.getElementById("surge-movie-caption");
+  let i = 0, timer = null;
+  function show(k) {
+    const f = frames[k];
+    img.src = f.src;
+    cap.textContent = "t = " + f.t_hr.toFixed(2) + " h  ·  ψ(t) = " + fmt(f.psi) + " m";
+  }
+  function tick() { i = (i + 1) % frames.length; show(i); }
+  function play() { if (!timer) timer = setInterval(tick, 140); }
+  function pause() { if (timer) { clearInterval(timer); timer = null; } }
+  img.addEventListener("click", () => timer ? pause() : play());
+  show(0); play();   // a slow auto-looping movie (~140 ms/frame)
 })();
 </script>
 """)
 println("```")
 ```
 
-A few things to notice as you scrub:
+A few things to notice as it plays:
 
 1. **Wave speed depends on depth.** $c = \sqrt{g\,H}$. In the inner
    bay ($H \approx 6\,\text{m}$) that is about $8\,\text{m/s}$;
@@ -549,6 +565,22 @@ either listing in detail yet** — they are sketches of what the
 inverse problem looks like once you have Units 2–9 in your
 toolbox.
 
+**What is a PINN, in one breath?** A *physics-informed neural network* is just a
+small neural network used as a **stand-in for the unknown field** — here, the
+water height $\eta(x, y, t)$ everywhere in the bay and at every moment. Rather
+than march the physics forward in time the way the simulator does, we **train**
+the network so that it does two things at once: (1) it **matches the handful of
+gauge readings** we actually have, and (2) it **obeys the wave equation**
+@eq-wave-eta at thousands of random check-points scattered through space and
+time. That second part is the "physics-informed" bit — the equation is folded
+straight into the training objective, so the network is only allowed to settle on
+a water surface that is *physically possible*, not just any curve that threads the
+gauges. Once trained, the network has effectively **filled in the whole bay**, and
+we read off the river source simply by asking it for the height at the river-mouth
+cell, $\psi_\theta(t) = \eta_\theta(x_r, y_r, t)$. Units 5 and 7 build this
+properly; for now it is enough to picture *a neural network that is forced to
+respect the physics.*
+
 **Method A — Naive PINN.** Train a smooth **MLP** (multi-layer
 perceptron, the basic feed-forward neural network — covered in
 [Unit 2](../unit_02/unit_02.qmd)) $\eta_\theta(x, y, t)$ on inputs
@@ -603,12 +635,22 @@ $$
 \;+\; \tfrac{\lambda^2}{2}\,\|\mathrm{L}^{(2)} \psi\|_2^2,
 $$
 
-where $\mathrm{L}^{(2)}$ is the discrete second-difference operator.
-The first term says "the predicted gauges should match observations";
-the second term — Tikhonov regularisation, with strength $\lambda$ —
-penalises non-smooth $\psi$, which makes the otherwise ill-posed
-inversion stable. No neural network — but it uses the same physics
-that the PINN tries to learn. The full driver is
+The first term says "the predicted gauges should match the observations." The
+second term is the **regularisation**, and it is worth dwelling on, because every
+inverse problem in this course needs something like it. On its own, the first
+term is *unstable*: because the bay smooths and delays the signal, a wildly wobbly
+source — full of fast wiggles that nearly cancel out by the time they reach the
+gauges — can fit the noisy data just as well as the true, smooth one. Minimising
+the misfit *alone* therefore hands back a jagged, nonsensical $\psi$. The
+regularisation term cures this by adding a small penalty
+$\lambda^2 \|\mathrm{L}^{(2)}\psi\|^2$ on the **curvature** of $\psi$ (the operator
+$\mathrm{L}^{(2)}$ is just the discrete second derivative), which says: *of all
+the sources that fit the gauges, prefer the smoothest one.* The knob $\lambda$
+sets how hard we lean on that preference — too small and the wiggles return, too
+large and we flatten the real peaks. This idea — **fit the data, but prefer a
+simple answer** — is exactly the "prior" the naive PINN instead supplies
+*implicitly*, through the smoothness of its network. No neural network here, but
+it leans on the same physics the PINN tries to learn. The full driver is
 [`scripts/train_inverse_adjoint.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/train_inverse_adjoint.jl){target="_blank"}.
 
 ```{julia}
@@ -733,13 +775,13 @@ Everything is written so it ports cleanly to a GPU once the rest of
 the course has motivated why we'd want one.
 
 ::: {#ex-1-2 .callout-note .section-exercise icon="false" collapse="true"}
-## ✏️ Section exercise — travel-time forensics on the slider
+## ✏️ Section exercise — travel-time forensics on the movie
 
 The shallow-water wave speed is $c = \sqrt{g\,H}$. Using the gauge
 table above (distances from the river mouth: G1 ≈ 18 km, G2 ≈ 26 km,
 G3 ≈ 35 km, G4 ≈ 50 km) and a representative depth along each path,
 estimate the arrival time of the leading surge peak at each gauge.
-Then scrub the §1.2 slider and read off when each gauge first
+Then watch the §1.2 movie and read off when each gauge first
 responds. Two follow-ups:
 
 - Which gauge's predicted arrival is most sensitive to your choice
