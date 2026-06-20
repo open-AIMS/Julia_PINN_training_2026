@@ -55,7 +55,8 @@ function load_or_make_bay()
             H = _readcsv_float(bf)
             M = round.(Int, _readcsv_float(mf))
             H[isnan.(H)] .= 5.0
-            return (Float32.(H), M, "real Moreton Bay bathymetry ($(size(H,1))x$(size(H,2)))")
+            src0 = _read_source(joinpath(d, "river_source.csv"), M)
+            return (Float32.(H), M, src0, "real Moreton Bay bathymetry ($(size(H,1))x$(size(H,2)))")
         end
     end
     # --- idealised fallback (NY x NX = 100 x 190, same aspect as the real bay)
@@ -74,7 +75,8 @@ function load_or_make_bay()
             H[j, i] = 1.0f0
         end
     end
-    return (H, M, "idealised bay (100x190)")
+    jr0 = clamp(round(Int, 0.33NY), 2, NY-1)
+    return (H, M, (jr0, _first_water_col(M, jr0)), "idealised bay (100x190)")
 end
 
 function _readcsv_float(path)
@@ -87,12 +89,32 @@ function _readcsv_float(path)
     return reduce(vcat, [permutedims(r) for r in rows])
 end
 
+_first_water_col(M, row) = (for i in 1:size(M, 2); M[row, i] == 1 && return max(i, 3); end; 3)
+
+# The REAL Brisbane River-mouth cell (row = iy = north, col = ix = east) read from
+# river_source.csv, so the GPU surge starts where the actual source is — not at a
+# synthetic 1/3-up-the-coast guess. Falls back to that heuristic if the file is absent.
+function _read_source(path, M)
+    if isfile(path)
+        lines = readlines(path)
+        if length(lines) >= 2
+            cols = split(strip(lines[2]), ',')
+            if length(cols) >= 6
+                ix = tryparse(Int, cols[5]); iy = tryparse(Int, cols[6])
+                ix !== nothing && iy !== nothing && return (iy, ix)
+            end
+        end
+    end
+    jr = clamp(round(Int, 0.33size(M, 1)), 2, size(M, 1) - 1)
+    return (jr, _first_water_col(M, jr))
+end
+
 # Nearest-neighbour integer refinement of a field (each cell -> r x r block).
 refine_field(A, r) = r == 1 ? A : repeat(A, inner = (r, r))
 
 # --- Build all the static arrays a solve needs, on a given backend ----------
 # `dev` is `identity` for CPU or `CuArray` for GPU.
-function build_state(Hc, Mc, refine, dev)
+function build_state(Hc, Mc, src0, refine, dev)
     H  = Float32.(refine_field(Hc, refine))
     M  = refine_field(Mc, refine)
     NY, NX = size(H)
@@ -114,13 +136,21 @@ function build_state(Hc, Mc, refine, dev)
     spu = 0.5f0 .* (sponge[:, 1:NX-1] .+ sponge[:, 2:NX])
     spv = 0.5f0 .* (sponge[1:NY-1, :] .+ sponge[2:NY, :])
 
-    # river-mouth source cell: western shelf, a third of the way up the coast
-    jr = clamp(round(Int, 0.33NY), 2, NY-1)
-    ir = 0
-    @inbounds for i in 1:NX            # first water column on row jr
-        if M[jr, i] == 1; ir = i; break; end
+    # river-mouth source cell — the REAL mouth (src0 = base-grid row/col), mapped
+    # into the refined grid and nudged onto water if the centre lands on land.
+    jr0, ir0 = src0
+    half = cld(refine, 2)
+    jr = clamp((jr0 - 1) * refine + half, 2, NY - 1)
+    ir = clamp((ir0 - 1) * refine + half, 2, NX - 1)
+    if M[jr, ir] == 0
+        best = (jr, ir); bestd = typemax(Int)
+        @inbounds for jj in 1:NY, ii in 1:NX
+            M[jj, ii] == 1 || continue
+            d = (jj - jr)^2 + (ii - ir)^2
+            d < bestd && (bestd = d; best = (jj, ii))
+        end
+        jr, ir = best
     end
-    ir = max(ir, 3)
     src = zeros(Float32, NY, NX); src[jr, ir] = 1.0f0
 
     return (; H, maskf, Hu, Hv, uopen, vopen, sponge, spu, spv,
@@ -138,9 +168,9 @@ psi(t) = 0.45f0 * exp(-((t - 2.0f0*3600) / (0.55f0*3600))^2) +
 const G_GRAV = 9.81f0
 const B_DRAG = 5.0f-5
 
-function swe_solve(Hc, Mc, refine, dev; dx0 = 500.0f0, t_end = 3*3600.0f0,
+function swe_solve(Hc, Mc, src0, refine, dev; dx0 = 500.0f0, t_end = 3*3600.0f0,
                    nwarm = 5, capture::Int = 0)
-    s = build_state(Hc, Mc, refine, dev)
+    s = build_state(Hc, Mc, src0, refine, dev)
     NY, NX = s.NY, s.NX
     dx = dx0 / refine; dy = dx
     cmax = sqrt(G_GRAV * maximum(s.H))
@@ -194,7 +224,7 @@ end
 println("="^64)
 println("Unit 1 — Moreton Bay shallow-water surge on CPU vs GPU")
 println("="^64)
-Hc, Mc, src_desc = load_or_make_bay()
+Hc, Mc, src0, src_desc = load_or_make_bay()
 @printf("geometry: %s\n", src_desc)
 @printf("GPU available: %s%s\n", HAVE_GPU,
         HAVE_GPU ? "  ($(CUDA.name(CUDA.device())), $(round(CUDA.totalmem(CUDA.device())/2^30; digits=1)) GiB)" : "")
@@ -207,8 +237,8 @@ println("-"^72)
 refines = [1, 2, 3, 4]
 fine_field = nothing
 for r in refines
-    cpu = swe_solve(Hc, Mc, r, identity)
-    gpu = HAVE_GPU ? swe_solve(Hc, Mc, r, CuArray) : nothing
+    cpu = swe_solve(Hc, Mc, src0, r, identity)
+    gpu = HAVE_GPU ? swe_solve(Hc, Mc, src0, r, CuArray) : nothing
     spd = gpu === nothing ? NaN : cpu.elapsed / gpu.elapsed
     @printf("%-8d %-12s %-9d %-7d %10.2f %10.2f %8.1fx\n",
             r, "$(cpu.NY)x$(cpu.NX)", cpu.ncells, cpu.nt,
@@ -233,7 +263,7 @@ try
     fine_mask = refine_field(Mc, rfac)
     dxkm      = 0.5 / rfac                       # 500 m base grid, refined ×rfac
 
-    run  = swe_solve(Hc, Mc, rfac, HAVE_GPU ? CuArray : identity; capture = 48)
+    run  = swe_solve(Hc, Mc, src0, rfac, HAVE_GPU ? CuArray : identity; capture = 48)
     NYf, NXf = size(run.field)
     vlim = max(0.05f0, 0.6f0 * maximum(maximum(abs, F) for F in run.frames))
 
