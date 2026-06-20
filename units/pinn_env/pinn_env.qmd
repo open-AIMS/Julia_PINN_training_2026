@@ -71,26 +71,55 @@ personal environment and `@pinn` both pull in the same dependency but resolve it
 *different* versions, one wins, and any precompiled code built against the *other*
 version is suddenly stale.
 
-::: {.callout-note collapse="true"}
-## Why `Pkg.status` looks empty (but `using NeuralPDE` still works)
+### Why `Pkg.status` looks empty (but `using NeuralPDE` still works)
 
 `Pkg` commands act on the **active project** only — your personal `@v1.12`
 environment, which starts empty. `@pinn` is stacked *below* it on the load path,
 so its 28 packages **don't appear in `Pkg.status`**. But `using` searches the
 **whole stack**, so it finds `NeuralPDE` in `@pinn` and loads it fine. Hence the
-apparent paradox: `using NeuralPDE` succeeds while `Pkg.status` shows nothing.
+apparent paradox: `using NeuralPDE` succeeds while `Pkg.status` shows nothing. The
+mental model in one line: **`using` searches the whole stack; `Pkg.status` reports
+only your active project.**
 
-To inspect the course stack itself:
+### Confirming `@pinn` is there, and inspecting it
+
+Four ways to see the stack for yourself — paste any of these into a notebook cell.
+
+**1. Look at the load path** — the quickest "is it really there?" check:
+
+```julia
+Base.load_path()
+```
+
+You'll see your home environment first, then a `…/environments/pinn/Project.toml`
+entry further down the stack.
+
+**2. Look at the depot stack** — where the packages and precompiled cache live:
+
+```julia
+DEPOT_PATH
+```
+
+Your writable `~/.julia` comes first, then the shared, read-only
+`/home/efs/_shared/julia-depot` — and that second one is where `@pinn` and its
+precompiled images actually live.
+
+**3. List the 28 packages in `@pinn`** — activate it read-only, look, switch back:
 
 ```julia
 import Pkg
 Pkg.activate("pinn"; shared = true)   # read-only; just for looking
-Pkg.status()                          # now you see the 28 @pinn packages
+Pkg.status()                          # now you see the @pinn packages
 Pkg.activate()                        # back to your own env
 ```
 
-or, without switching, `Base.load_path()` prints the stacked environments in order.
-:::
+**4. Prove a course package loads with nothing installed** — the simplest
+"it's under the hood" demonstration:
+
+```julia
+using NeuralPDE        # works, even though Pkg.status showed nothing
+pkgdir(NeuralPDE)      # its path is under the shared depot, not your home
+```
 
 ## The packages
 
