@@ -48,11 +48,12 @@ Vocabulary worth keeping straight:
   *nonlinear* otherwise. Linear systems have explicit solutions
   via matrix exponentials; nonlinear systems generally do not.
 
-The next three subsubsections walk three ODEs in increasing
-complexity — exponential decay, the undamped harmonic oscillator,
-and a second-order system *with* damping. Each comes with Julia and
-Python code so the ecosystem fluency built in [Unit 2](../unit_02/unit_02.qmd)
-carries over.
+The next subsubsections walk a sequence of ODEs in increasing
+complexity — exponential decay, the undamped harmonic oscillator, a
+damped oscillator, and then two **nonlinear** systems: predator–prey
+(closed cycles) and the chaotic Lorenz attractor. The linear cases
+come with Julia and Python code so the ecosystem fluency built in
+[Unit 2](../unit_02/unit_02.qmd) carries over.
 
 ### The simplest ODE: exponential decay
 
@@ -128,19 +129,27 @@ using OrdinaryDiffEq, Plots
 ω = 2π                                # one cycle per second
 oscillator(u, p, t) = [u[2], -ω^2 * u[1]]
 
-u0s  = [[1.0, 0.0], [1.5, 0.0], [2.0, 0.0]]
-tspan = (0.0, 2.0)
+u0s   = [0.5, 1.0, 1.5, 2.0]          # starting positions (all released from rest)
+tspan = (0.0, 1.0)                    # exactly one period
+pal   = cgrad(:viridis, length(u0s), categorical = true)
 
-plt = plot(xlabel = "x", ylabel = "v",
-           title = "Harmonic oscillator phase portrait",
-           aspect_ratio = :equal, legend = :outerright)
-for u0 in u0s
-    sol = solve(ODEProblem(oscillator, u0, tspan), Tsit5();
-                saveat = 0.01)
-    plot!(plt, sol[1, :], sol[2, :], label = "x(0) = $(u0[1])")
+plt = plot(xlabel = "position  x", ylabel = "velocity  v",
+           title = "Harmonic oscillator — phase portrait",
+           legend = :outerright, size = (720, 460),
+           framestyle = :box, gridalpha = 0.25)
+for (k, a) in enumerate(u0s)
+    sol = solve(ODEProblem(oscillator, [a, 0.0], tspan), Tsit5(); saveat = 0.005)
+    plot!(plt, sol[1, :], sol[2, :], lw = 2.6, c = pal[k], label = "x(0) = $a")
+    scatter!(plt, [a], [0.0], c = pal[k], ms = 5, msw = 0, label = "")   # release point
 end
+annotate!(plt, 0.0, 11.0, text("↻  clockwise flow", 9, :gray))
 plt
 ```
+
+Each closed loop is a constant-energy orbit; the dots mark where the mass
+is released from rest. The loops never cross or decay — energy is conserved
+exactly, which is precisely the structure the Hamiltonian networks of §3.3
+are built to respect.
 
 `OrdinaryDiffEq.Tsit5()` is a 5th-order explicit Runge–Kutta solver
 — a sensible default for non-stiff problems. For stiff systems
@@ -217,6 +226,91 @@ recovering $\zeta$ from a noisy trajectory is the simplest possible
 "physics parameter from data" problem and a useful sanity check
 before attempting the AIMS capstone in [Units 8–10](../unit_08/unit_08.qmd).
 
+### Nonlinearity: predator and prey
+
+Everything so far has been **linear** — $f(\mathbf{x}) = A\mathbf{x}$, solvable in
+closed form with a matrix exponential. Real systems are usually **nonlinear**, and
+nonlinearity changes the *qualitative* behaviour, not just the numbers. The classic
+example is **Lotka–Volterra**, a two-species predator–prey model:
+
+$$
+\dot{R} = \alpha R - \beta R F, \qquad
+\dot{F} = \delta R F - \gamma F,
+$$
+
+with prey $R$ (rabbits) and predators $F$ (foxes). The $RF$ terms — prey eaten in
+proportion to *both* populations — are what make it nonlinear: you cannot write the
+right-hand side as a matrix times $\mathbf{x}$, and solutions no longer superpose.
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+function lotka(u, p, t)
+    α, β, δ, γ = p
+    R, F = u
+    [α*R - β*R*F, δ*R*F - γ*F]
+end
+
+p  = (1.5, 1.0, 1.0, 3.0)            # prey growth, predation, predator gain, predator death
+u0 = [1.0, 1.0]
+sol = solve(ODEProblem(lotka, u0, (0.0, 12.0), p), Tsit5(); saveat = 0.02)
+
+p1 = plot(sol.t, [u[1] for u in sol.u], lw = 2.6, c = :seagreen, label = "prey (rabbits)",
+          xlabel = "time  t", ylabel = "population", legend = :topright,
+          title = "Predator–prey (Lotka–Volterra)", framestyle = :box, gridalpha = 0.25)
+plot!(p1, sol.t, [u[2] for u in sol.u], lw = 2.6, c = :firebrick, label = "predator (foxes)")
+
+p2 = plot([u[1] for u in sol.u], [u[2] for u in sol.u], lw = 2.4, c = :purple,
+          xlabel = "prey", ylabel = "predator", title = "phase portrait (closed orbit)",
+          legend = false, framestyle = :box, gridalpha = 0.25)
+scatter!(p2, [u0[1]], [u0[2]], c = :black, ms = 5, msw = 0)
+plot(p1, p2, layout = (1, 2), size = (960, 400), bottom_margin = 4Plots.mm, left_margin = 4Plots.mm)
+```
+
+The populations cycle forever, **out of phase**: prey boom, predators follow, prey
+crash, predators starve, prey recover. In the phase plane that is a *closed orbit*
+— like the oscillator's ellipses, but bent by the nonlinearity. Systems like this
+generally have **no closed-form solution**, which is exactly why we reach for
+numerical solvers (and, later, networks that learn the dynamics directly). We meet
+this **same predator–prey system again in [Unit 4 §4.1](../unit_04/unit_04.qmd)**,
+where its closed orbits turn out to hide a *conserved quantity* — making it a
+standard testbed for the structure-preserving methods of this unit.
+
+### Chaos: the Lorenz system
+
+Turn the nonlinearity up and you can get **chaos** — bounded, deterministic motion
+that never repeats and depends sensitively on the starting point. Edward Lorenz's
+1963 three-variable model of atmospheric convection is the iconic example:
+
+$$
+\dot{x} = \sigma(y - x), \qquad
+\dot{y} = x(\rho - z) - y, \qquad
+\dot{z} = x y - \beta z.
+$$
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+function lorenz(u, p, t)
+    σ, ρ, β = p
+    x, y, z = u
+    [σ*(y - x), x*(ρ - z) - y, x*y - β*z]
+end
+
+sol = solve(ODEProblem(lorenz, [1.0, 1.0, 1.0], (0.0, 60.0), (10.0, 28.0, 8/3)),
+            Tsit5(); saveat = 0.005)
+xs = [u[1] for u in sol.u]; ys = [u[2] for u in sol.u]; zs = [u[3] for u in sol.u]
+plot(xs, ys, zs; lw = 0.7, line_z = sol.t, c = cgrad(:viridis), colorbar = false,
+     legend = false, xlabel = "x", ylabel = "y", zlabel = "z",
+     title = "Lorenz attractor (σ=10, ρ=28, β=8/3)", size = (720, 560), camera = (30, 25))
+```
+
+The trajectory winds forever around two lobes — the **Lorenz attractor**, the
+original "butterfly". Two trajectories starting a millimetre apart diverge
+exponentially, which is why weather is unpredictable beyond a week or so. We meet
+this exact system again in §3.4, where **SINDy** recovers these three equations
+from data alone.
+
 ### Why ODEs matter for the rest of the unit
 
 Every Sci-ML idea in §§3.2–3.5 starts from an ODE picture:
@@ -278,6 +372,33 @@ efficiency and out-of-distribution extrapolation. The benefit over
 pure physics — flexibility where the physics is genuinely unknown.
 Universal differential equations (UDEs) in
 [Unit 4](../unit_04/unit_04.qmd) are exactly this construction.
+
+In code the shape is short — a known physics term plus a small network
+spliced into the same right-hand side, handed to an ordinary ODE solver:
+
+```{.julia}
+# Illustrative skeleton — the full *trainable* version is Unit 4 §4.3.
+using Lux, OrdinaryDiffEq, Random
+
+r, K = 1.2, 10.0                                  # known logistic growth
+immigration = Lux.Chain(Lux.Dense(1 => 8, tanh), Lux.Dense(8 => 1))   # learned term Nθ
+ps, st = Lux.setup(Random.default_rng(), immigration)
+
+function hybrid!(du, u, p, t)
+    known   = r * u[1] * (1 - u[1] / K)           # the physics we trust
+    learned = first(immigration([u[1]], p, st))[1]  # the bit we don't
+    du[1] = known + learned
+end
+
+prob = ODEProblem(hybrid!, [1.0], (0.0, 10.0), ps)
+sol  = solve(prob, Tsit5())     # a forward pass; training then fits θ to observed data
+```
+
+Training fits only $\theta$ (the network) while the logistic term stays
+fixed — so the model can bend to data *without* discarding the physics
+you already know. [Unit 4 §4.3](../unit_04/unit_04.qmd) builds this out
+into two full worked examples: a pendulum with unknown friction, and a
+Crown-of-Thorns starfish / coral-reef model on the Great Barrier Reef.
 
 ### Surrogate models for expensive simulations
 
@@ -646,52 +767,67 @@ detail.
 
 ### Worked example: damped oscillator chain
 
-A chain of $M = 50$ masses coupled by springs, given a localised
-initial push and lightly damped, is a useful test bench. The
-state-space dimension is 100 (positions + velocities) but a handful
-of normal modes carry almost all the energy:
+A chain of $M = 50$ masses coupled by springs, given a smooth initial
+bump and lightly damped, is a useful test bench. The state-space
+dimension is 100 (positions + velocities), yet the motion is a
+superposition of just a few **normal modes** — standing-wave shapes,
+each ringing at its own frequency. A smooth initial push excites mainly
+the low-frequency modes, so the snapshot SVD should compress the field
+into a handful of POD modes. We check three things in one figure: how
+fast the singular values fall, how the reconstruction error drops as we
+keep more modes, and what the leading mode *shapes* actually look like.
 
-```{.julia filename="units/unit_03/scripts/pod_chain.jl"}
+```{julia}
 using OrdinaryDiffEq, LinearAlgebra, Plots
 
-# 50-mass chain: x¨ᵢ = ω²(xᵢ₋₁ - 2xᵢ + xᵢ₊₁) - 2ζω x˙ᵢ  (free at endpoints)
+# 50-mass chain: x¨ᵢ = ω²(xᵢ₋₁ - 2xᵢ + xᵢ₊₁) - 2ζω x˙ᵢ  (fixed at endpoints)
 M, ω, ζ = 50, 2π, 0.02
 function chain!(du, u, p, t)
     x, v = @views u[1:M], u[M+1:end]
     du[1:M] .= v
     @inbounds for i in 1:M
-        l = i == 1     ? 0.0 : x[i - 1]
-        r = i == M     ? 0.0 : x[i + 1]
-        du[M + i] = ω^2 * (l - 2x[i] + r) - 2ζ * ω * v[i]
+        l = i == 1 ? 0.0 : x[i-1]
+        r = i == M ? 0.0 : x[i+1]
+        du[M+i] = ω^2 * (l - 2x[i] + r) - 2ζ * ω * v[i]
     end
 end
 
-u0 = zeros(2M); u0[M ÷ 2] = 1.0          # localised initial displacement
+u0 = zeros(2M)
+for i in 1:M; u0[i] = exp(-((i - M/2) / 5.0)^2); end   # smooth Gaussian bump
 sol = solve(ODEProblem(chain!, u0, (0.0, 8.0)), Tsit5(); saveat = 0.02)
 
-# Snapshot matrix: rows = positions, columns = time samples
+# Snapshot matrix (rows = positions, columns = time samples), then SVD
 X = reduce(hcat, [u[1:M] for u in sol.u])
 U, Σ, V = svd(X)
 
-println("first 10 singular values (relative):")
-foreach(i -> println("  σ_$i / σ_1 = ", round(Σ[i] / Σ[1]; digits = 4)),
-        1:10)
+p1 = plot(1:15, Σ[1:15] ./ Σ[1]; lw = 2.4, marker = :circle, ms = 4, c = :steelblue,
+          yaxis = :log, xlabel = "mode i", ylabel = "σᵢ / σ₁", legend = false,
+          title = "singular-value spectrum", framestyle = :box, gridalpha = 0.25)
 
-# Reconstruction error vs number of modes kept
-k_range = 1:15
-errs = [norm(X - U[:, 1:k] * Diagonal(Σ[1:k]) * V[:, 1:k]') / norm(X)
-        for k in k_range]
-plot(k_range, errs; lw = 2, marker = :circle,
-     xlabel = "modes kept k", ylabel = "relative reconstruction error",
-     title = "POD spectrum: 50-mass damped chain", yaxis = :log)
+errs = [norm(X - U[:, 1:k] * Diagonal(Σ[1:k]) * V[:, 1:k]') / norm(X) for k in 1:15]
+p2 = plot(1:15, errs; lw = 2.4, marker = :circle, ms = 4, c = :firebrick,
+          yaxis = :log, xlabel = "modes kept k", ylabel = "rel. reconstruction error",
+          legend = false, title = "reconstruction error", framestyle = :box, gridalpha = 0.25)
+
+p3 = plot(xlabel = "mass index", ylabel = "mode amplitude", title = "first 3 POD modes",
+          framestyle = :box, gridalpha = 0.25, legend = :topright)
+for k in 1:3
+    plot!(p3, 1:M, U[:, k]; lw = 2.2, label = "mode $k")
+end
+
+plot(p1, p2, p3; layout = (1, 3), size = (1200, 360),
+     bottom_margin = 5Plots.mm, left_margin = 5Plots.mm)
 ```
 
-Typical behaviour: ~6 modes recover $>99\%$ of the variance even
-though the system has 100 state-space dimensions. The first mode is
-the symmetric breathing of the chain, the second is the
-first-overtone shape, and so on — modes hierarchically encoded by
-spatial frequency, exactly as a Fourier basis would predict for
-this linear system.
+The singular values fall off fast and the reconstruction error drops
+below 1% by about nine modes — so the effective dimensionality is far
+below the 100 state variables. The leading mode shapes are exactly the
+chain's smooth normal modes: mode 1 is the half-sine "breathing" shape,
+mode 2 the full sine, mode 3 the next overtone — modes ordered by
+spatial frequency, just as a Fourier basis would predict for this linear
+system. (A localised single-cell push, by contrast, excites *all*
+frequencies and compresses far less — POD rewards smooth, low-rank
+structure.)
 
 Same workflow in Python — `scipy.linalg.svd` is the SVD; the rest
 is `numpy`:
