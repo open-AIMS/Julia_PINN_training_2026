@@ -11,7 +11,7 @@ train_x, train_y = MLDatasets.MNIST(split = :train)[:]
 
 # First 40 digits in a 5×8 grid, each panel titled with its label.
 panels = map(1:40) do i
-    heatmap(train_x[:, :, i]';                       # transpose + yflip ⇒ upright digit
+    heatmap(transpose(train_x[:, :, i]);             # transpose + yflip ⇒ upright digit
             yflip = true, color = :grays, aspect_ratio = 1,
             axis = false, ticks = false, colorbar = false, legend = false,
             title = string(train_y[i]), titlefontsize = 7)
