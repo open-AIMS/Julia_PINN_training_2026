@@ -45,7 +45,7 @@ function bay_map(field, mask, dx_km;
     p = heatmap(nkm, ekm, rot(Z);
         c = cmap, clims = clims, xflip = true, aspect_ratio = 1,
         size = (1040, 650), xlims = (0, Ln), ylims = (0, Le),
-        xlabel = "north  (km)        ← N", ylabel = "east  (km)   ↑ E",
+        xlabel = "north  (km)        ← N", ylabel = "east  (km)    E →",
         colorbar = true, colorbar_title = clabel, legend = false,
         title = title, titlefontsize = 11,
         right_margin = 9Plots.mm, left_margin = 4Plots.mm,
