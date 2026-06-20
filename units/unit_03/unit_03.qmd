@@ -1,18 +1,21 @@
 ---
-title: "Unit 3: Scientific Machine Learning and Physics-Informed Machine Learning"
+title: "Unit 3: Scientific Machine Learning and Physics-Informed Machine Learning — an overview"
 engine: julia
-toc-title: "Unit 3: Sci-ML and PIML"
+toc-title: "Unit 3: Sci-ML & PIML — overview"
 date: today
 date-format: "DD/MM/YYYY"
 ---
 
 [Unit 2](../unit_02/unit_02.qmd) gave us a function-approximation
 view of ML — pick a function class, minimise a loss, generalise.
-This unit takes that picture and adds **physics** to it, in three
-flavours: hybrid models, conservation-aware architectures, and
-equation discovery. The unit closes with a conceptual preview of
-**physics-informed machine learning (PIML)** — the framing that
-[Units 5–9](../unit_05/unit_05.qmd) implement against the AIMS
+This unit takes that picture and adds **physics** to it. It is a deliberately
+**broad overview** — a guided tour that samples the main physics-aware ML ideas
+(hybrid models, conservation-aware architectures, equation discovery, reduced-order
+modelling) at survey depth, to map the landscape rather than drill into any one
+corner. The very next unit, [Unit 4](../unit_04/unit_04.qmd), then goes *deep* on
+one of those corners — Neural ODEs and universal differential equations. This unit
+closes with a conceptual preview of **physics-informed machine learning (PIML)** —
+the framing that [Units 5–9](../unit_05/unit_05.qmd) implement against the AIMS
 capstone.
 
 Before any of that, an ODE refresher — the dynamics language we

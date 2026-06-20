@@ -87,10 +87,11 @@ on the MNIST 60k/10k benchmark throughout.
 - Closes with an introduction to Kolmogorov-Arnold Networks
   (KANs) with `KolmogorovArnold.jl` and `pykan` examples.
 
-## [Unit 3: Scientific Machine Learning and Physics-Informed Machine Learning](units/unit_03/unit_03.qmd)
+## [Unit 3: Scientific Machine Learning and Physics-Informed Machine Learning — an overview](units/unit_03/unit_03.qmd)
 
-A guided tour of the physics-aware ML landscape, with Julia and
-Python implementations side by side throughout.
+A broad **overview** — a guided tour of the physics-aware ML landscape (the
+deep dive on Neural ODEs is [Unit 4](units/unit_04/unit_04.qmd)) — with Julia
+and Python implementations side by side throughout.
 
 - ODE refresher: three problems of increasing complexity (1-D
   exponential decay, undamped harmonic oscillator, damped harmonic
