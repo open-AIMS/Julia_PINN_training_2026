@@ -443,7 +443,47 @@ What the three trajectories show, mapped to the §2.5 failure modes:
 [← Back to Unit 2 §2.5](../unit_02/unit_02.qmd#ex-2-5)
 :::
 
-### Solution 2.6 — parameters, accuracy, and a two-phase finetune {#sol-2-6}
+### Solution 2.6 — differentiate a network's output, then its loss {#sol-2-6}
+
+**(a) Second derivative two ways.** Nesting `ForwardDiff.derivative` matches the
+hand derivative exactly:
+
+```julia
+using ForwardDiff
+u(x)  = exp(sin(x))
+u2(x) = ForwardDiff.derivative(t -> ForwardDiff.derivative(u, t), x)
+u2(0.7)                                   # -0.11281…
+(cos(0.7)^2 - sin(0.7)) * exp(sin(0.7))   # -0.11281…  (u'' by hand)
+```
+
+**(b) Forward-over-reverse shape.** The parameter gradient from
+`ForwardDiff.gradient` agrees with a finite-difference check to ~6 digits:
+
+```julia
+unet(x, p) = p[1] * tanh(p[2] * x)
+uxx(x, p)  = ForwardDiff.derivative(z -> ForwardDiff.derivative(y -> unet(y, p), z), x)
+xs   = range(0, 1; length = 10)
+loss(p) = sum((uxx(x, p) + unet(x, p))^2 for x in xs)   # wants u'' = -u
+
+p0  = [1.0, 2.0]
+g   = ForwardDiff.gradient(loss, p0)                    # ≈ [42.63, 45.02]
+h   = 1e-6
+gfd = [(loss(p0 .+ h .* (1:2 .== i)) - loss(p0)) / h for i in 1:2]
+@assert maximum(abs, g .- gfd) < 1e-3                   # matches
+```
+
+**Which mode at scale?** Reverse. With thousands of parameters and one scalar
+loss, reverse mode costs ≈ one extra backward pass *regardless* of the parameter
+count, while forward mode would cost one pass per parameter. So a real PINN keeps
+forward mode for the few-input spatial derivative (inner) and switches to reverse
+mode for the many-parameter gradient (outer) — the forward-over-reverse nesting of
+§2.6.
+
+::: {.exercise-solution-link}
+[← Back to Unit 2 §2.6](../unit_02/unit_02.qmd#ex-2-6)
+:::
+
+### Solution 2.7 — parameters, accuracy, and a two-phase finetune {#sol-2-7}
 
 **1. Parameter counts** (each from `Lux.parameterlength`):
 
@@ -481,10 +521,10 @@ fast-then-careful pattern is a miniature of the **Adam → L-BFGS**
 schedule every PINN in Units 5–10 uses.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.6](../unit_02/unit_02.qmd#ex-2-6)
+[← Back to Unit 2 §2.7](../unit_02/unit_02.qmd#ex-2-7)
 :::
 
-### Solution 2.7 — KAN vs MLP on a sharp feature {#sol-2-7}
+### Solution 2.8 — KAN vs MLP on a sharp feature {#sol-2-8}
 
 ```julia
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics, Plots
@@ -494,8 +534,8 @@ n  = 512
 X  = reshape(collect(Float32, range(-1, 1; length = n)), 1, n)
 y  = reshape(abs.(X[1, :]) .+ 0.2f0 .* sin.(5f0 .* X[1, :]), 1, n)
 
-kan = Lux.Chain(KDense(1 => 6; basis_func = rbf, normalizer = softsign),
-                KDense(6 => 1; basis_func = rbf, normalizer = softsign))
+kan = Lux.Chain(KDense(1, 6, 6; basis_func = rbf, normalizer = softsign),
+                KDense(6, 1, 6; basis_func = rbf, normalizer = softsign))   # (in, out, grid_len)
 mlp = Lux.Chain(Lux.Dense(1 => 14, tanh), Lux.Dense(14 => 14, tanh),
                 Lux.Dense(14 => 1))   # ≈ same parameter count; check with
                                       # Lux.parameterlength(...)
@@ -529,14 +569,14 @@ which is the honest summary of the KAN literature: an advantage in
 expressiveness.
 
 The Python check, if you want it, is a five-line edit of the
-`pykan` script in §2.7 — replace the dataset function with
+`pykan` script in §2.8 — replace the dataset function with
 `f = lambda x: torch.abs(x[:, [0]]) + 0.2 * torch.sin(5 * x[:, [0]])`.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.7](../unit_02/unit_02.qmd#ex-2-7)
+[← Back to Unit 2 §2.8](../unit_02/unit_02.qmd#ex-2-8)
 :::
 
-### Solution 2.8 — translate the vocabulary {#sol-2-8}
+### Solution 2.9 — translate the vocabulary {#sol-2-9}
 
 | Supervised concept | PINN counterpart | What changes |
 |---|---|---|
@@ -556,7 +596,7 @@ Past a modest density, the binding constraint is **optimisation**
 everywhere — see Unit 7), not data volume.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.8](../unit_02/unit_02.qmd#ex-2-8)
+[← Back to Unit 2 §2.9](../unit_02/unit_02.qmd#ex-2-9)
 :::
 
 ## Unit 3 — Sci-ML and PIML

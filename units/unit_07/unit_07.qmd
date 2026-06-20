@@ -663,7 +663,7 @@ worth flagging.
   comparison ("naïve PINN fits the gauges but misses the source
   amplitude") is exactly this story.
 - **Discontinuous unknowns** (step changes, shocks). Smooth-MLP
-  PINNs round them off. KANs ([Unit 2 §2.7](../unit_02/unit_02.qmd))
+  PINNs round them off. KANs ([Unit 2 §2.8](../unit_02/unit_02.qmd))
   or spectral basis ansätze are alternatives worth trying.
 - **Very noisy data.** Without a noise model in the loss, PINNs
   overfit observation noise. Adding a Gaussian-likelihood
@@ -750,7 +750,7 @@ PINN workflow touches:
 | [`SciMLSensitivity.jl`](https://docs.sciml.ai/SciMLSensitivity/stable/){target="_blank"} | Forward / adjoint backends (`InterpolatingAdjoint`, `BacksolveAdjoint`, `EnzymeVJP`) for gradients through ODE/PDE solves. |
 | [`Zygote.jl`](https://github.com/FluxML/Zygote.jl){target="_blank"} / [`ForwardDiff.jl`](https://github.com/JuliaDiff/ForwardDiff.jl){target="_blank"} / [`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl){target="_blank"} | Reverse-mode, dual-number forward, and LLVM-level AD. Compose as Unit 5 §5.2 describes; Enzyme is increasingly the default in 2025–26. |
 | [`NeuralOperators.jl`](https://github.com/SciML/NeuralOperators.jl){target="_blank"} | DeepONet, FNO, Markov NO, NOMAD — pairs with `NeuralPDE` for PINO-style losses. |
-| [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"} | Lux-compatible KAN layers (see [Unit 2 §2.7](../unit_02/unit_02.qmd)). |
+| [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"} | Lux-compatible KAN layers (see [Unit 2 §2.8](../unit_02/unit_02.qmd)). |
 
 A consolidation note worth knowing: the older Flux-based stack
 (`DiffEqFlux`, `FluxNeuralOperators`) is being superseded by the

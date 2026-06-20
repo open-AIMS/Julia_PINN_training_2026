@@ -143,7 +143,7 @@ we're about to do.
 Before training anything, it's worth *looking* at the data. Each MNIST sample is
 a $28 \times 28$ grayscale image; flattened to a length-784 vector of pixel
 intensities, that raw vector is all every model in this unit — forest, softmax,
-MLP — ever sees (only the convolutional network in §2.6 keeps the 2-D grid). Load
+MLP — ever sees (only the convolutional network in §2.7 keeps the 2-D grid). Load
 the training split and show the first 40 digits with their labels:
 
 ```{.julia}
@@ -529,40 +529,25 @@ that disqualify it from any diffusion-type PDE residual?
 :::
 :::
 
-## 2.5 Optimisation and autodiff {#sec-optimisation-and-autodiff}
+## 2.5 Optimisation {#sec-optimisation}
 
 Training a neural network — or fitting a PINN — comes down to
 **minimising a scalar loss over a large parameter vector $\theta
-\in \mathbb{R}^P$**. The subsubsections below cover the
-machinery: how gradients of the loss are *computed* (computational
-graph + backprop), the family of first-order methods that *use*
-those gradients (SGD, momentum, Adam), the quasi-Newton method
-that often finishes the job (L-BFGS), the batching choices that
-determine how noisy each gradient estimate is, and finally
-automatic differentiation itself — dual numbers, the backprop tape,
-and the forward-over-reverse nesting that PINNs depend on.
+\in \mathbb{R}^P$**, given its gradient $g = \nabla_\theta \mathcal{L}$.
+This section is about the optimisers that *use* that gradient: plain
+gradient descent and its geometry, the stochastic / mini-batch
+variants, momentum and Adam, and the quasi-Newton method (L-BFGS)
+that often finishes the job. *How* the gradient itself is computed —
+automatic differentiation — is the next section
+([§2.6](#sec-autodiff)).
 Most of this material is treated at greater depth in
 [*Mathematical Engineering of Deep Learning*, Chapter 4 (*Optimization Algorithms*)](../references/references.qmd#ref-liquet2024){target="_blank"},
 our primary reference throughout this unit — with the classic,
-encyclopedic treatment in
+thorough treatment in
 [Goodfellow, Bengio & Courville (2016)](../references/references.qmd#ref-goodfellow2016){target="_blank"}
 Chapter 8 as the standard alternative. The goal here is a working
 understanding sufficient to read PINN training code and know which
 knob to turn when it doesn't converge.
-
-### Computational graphs and backprop
-
-Every neural-network loss is the output of a finite computation
-graph — a DAG whose nodes are tensors and whose edges are
-elementary operations.
-
-![A small computational graph. Forward evaluation flows left-to-right; reverse-mode AD (backpropagation) populates gradients right-to-left. (Figure from *MEDL*, §4.4.)](figures/figure4-7-computational_graph.svg)
-
-**Backpropagation** is exactly reverse-mode automatic
-differentiation applied to that graph: one forward pass evaluates
-intermediate quantities, one backward pass propagates gradients
-using the chain rule. Cost is $O(\text{nodes})$ per gradient — i.e.,
-similar to one forward pass.
 
 ### Gradient descent: the geometric core
 
@@ -727,11 +712,37 @@ after Adam has done the rough work. The recipe across
 > a few hundred iterations (drive the residual to convergence with
 > exact gradients).
 
-### How autodiff actually works: dual numbers and the tape
+::: {#ex-2-5 .callout-note .section-exercise icon="false" collapse="true"}
+## ✏️ Section exercise — race the optimisers down a ravine
 
-Every method above needs the gradient $\nabla_\theta \mathcal{L}$, and we have
-been getting it "for free." It is worth seeing *how*, because PINNs lean on the
-machinery harder than ordinary deep learning does.
+Implement gradient descent, momentum ($\mu = 0.9$), and Adam *by
+hand* — each is under ten lines — and race them on the Rosenbrock
+function $f(x, y) = (1 - x)^2 + 100\,(y - x^2)^2$ from
+$(-1.5, 2)$. Plot the three trajectories over the loss contours and
+the loss-vs-iteration curves (log scale, 5 000 iterations, tune
+each learning rate to the largest stable value). Which method
+zig-zags across the valley, which one tracks the valley floor, and
+where does Adam's per-parameter scaling visibly help?
+
+::: {.exercise-hint tabindex="0"}
+💡 Hint
+
+::: {.exercise-hint-text}
+Each optimiser is under ten lines if you mutate the iterate in place and keep state in a NamedTuple. The hard part is fair tuning: push each learning rate up until the method just diverges, then back off (GD lands near `1e-3`, Adam near `1e-2`). Plot `log10 ∘ f` for the contours or the colour scale saturates.
+:::
+:::
+
+::: {.exercise-solution-link}
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-5)
+:::
+:::
+
+## 2.6 Automatic differentiation {#sec-autodiff}
+
+Every optimiser in §2.5 needs the gradient $\nabla_\theta \mathcal{L}$, and so
+far we have taken it "for free." This section is *how* you get it — and it
+matters more for PINNs than for ordinary deep learning, because a PINN
+differentiates its own network *inside* the loss.
 
 **Automatic differentiation is neither of the two things people first guess.**
 It is *not* symbolic differentiation (manipulating formulas, which blows up in
@@ -740,6 +751,22 @@ $\bigl(f(x+h)-f(x)\bigr)/h$ (which forces a bad trade between truncation error a
 large $h$ and round-off at small $h$). Instead it computes the **exact**
 derivative — to machine precision — by applying the chain rule to the elementary
 operations your code already runs. There are two ways to do it.
+
+### Computational graphs and backprop
+
+Every neural-network loss is the output of a finite computation
+graph — a DAG whose nodes are tensors and whose edges are
+elementary operations.
+
+![A small computational graph. Forward evaluation flows left-to-right; reverse-mode AD (backpropagation) populates gradients right-to-left. (Figure from *MEDL*, §4.4.)](figures/figure4-7-computational_graph.svg)
+
+**Backpropagation** is exactly reverse-mode automatic
+differentiation applied to that graph: one forward pass evaluates
+intermediate quantities, one backward pass propagates gradients
+using the chain rule. Cost is $O(\text{nodes})$ per gradient — i.e.,
+similar to one forward pass.
+
+### Dual numbers and the tape
 
 **Forward mode = dual numbers.** Carry each value together with its derivative as
 a pair $(x, \dot x)$. Formally, adjoin a symbol $\varepsilon$ with
@@ -847,32 +874,35 @@ modes compose. Picking and nesting these backends correctly is a large part of
 what the SciML stack does so that the residual you write in maths comes out
 differentiated correctly *and* fast.
 
-::: {#ex-2-5 .callout-note .section-exercise icon="false" collapse="true"}
-## ✏️ Section exercise — race the optimisers down a ravine
+::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
+## ✏️ Section exercise — differentiate a network's output, then its loss
 
-Implement gradient descent, momentum ($\mu = 0.9$), and Adam *by
-hand* — each is under ten lines — and race them on the Rosenbrock
-function $f(x, y) = (1 - x)^2 + 100\,(y - x^2)^2$ from
-$(-1.5, 2)$. Plot the three trajectories over the loss contours and
-the loss-vs-iteration curves (log scale, 5 000 iterations, tune
-each learning rate to the largest stable value). Which method
-zig-zags across the valley, which one tracks the valley floor, and
-where does Adam's per-parameter scaling visibly help?
+No training — just the autodiff. **(a)** For $u(x) = e^{\sin x}$, compute
+$u''(0.7)$ by nesting `ForwardDiff.derivative` twice, and check it against the
+hand derivative $u'' = (\cos^2 x - \sin x)\,e^{\sin x}$. **(b)** Now the
+forward-over-reverse shape: take the toy "network" $u(x; p) = p_1 \tanh(p_2 x)$,
+form the residual loss
+$\mathcal{L}(p) = \sum_i \bigl(u''(x_i; p) + u(x_i; p)\bigr)^2$ over ten points
+$x_i \in [0, 1]$ (so it wants $u'' = -u$, the oscillator), and compute
+$\nabla_p \mathcal{L}$ — once with `ForwardDiff.gradient` and once by a
+finite-difference check on each component. They should agree. Finally: once $p$
+has *thousands* of entries, which mode would you switch the **outer** pass to,
+and why?
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
 
 ::: {.exercise-hint-text}
-Each optimiser is under ten lines if you mutate the iterate in place and keep state in a NamedTuple. The hard part is fair tuning: push each learning rate up until the method just diverges, then back off (GD lands near `1e-3`, Adam near `1e-2`). Plot `log10 ∘ f` for the contours or the colour scale saturates.
+The second derivative is `ForwardDiff.derivative(t -> ForwardDiff.derivative(u, t), x)`. For (b), `uxx(x, p)` nests the same way over the spatial argument while carrying `p`; then `ForwardDiff.gradient(loss, p)` is the whole parameter gradient at once. The finite-difference check is `(loss(p .+ h .* eᵢ) - loss(p)) / h` with `h = 1e-6`. For the last part, count inputs vs outputs: reverse mode is the cheap direction when there are many parameters and one scalar loss.
 :::
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-5)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-6)
 :::
 :::
 
-## 2.6 Training a model in practice
+## 2.7 Training a model in practice
 
 The previous sections set up everything we need — a function class
 (MLP), an autodiff engine, an optimiser, and a dataset (MNIST) with
@@ -905,7 +935,7 @@ have to *learn* them — so it needs far fewer parameters and generalises
 better. Hold onto this idea, because it is exactly how **PINNs** work too:
 there the inductive bias is the *PDE itself*, wired into the loss, telling
 the network what physics the solution must satisfy
-(§2.8, [Unit 5](../unit_05/unit_05.qmd)). A CNN biases the model toward
+(§2.9, [Unit 5](../unit_05/unit_05.qmd)). A CNN biases the model toward
 image structure; a PINN biases it toward physics — same principle, with
 the prior coming from a law of nature instead of an architecture.
 Convolutional networks are the subject of
@@ -988,8 +1018,9 @@ PDE residual itself is a powerful regulariser, as we'll see from
 
 ### The same MLP in Python — `scikit-learn`
 
-For the cross-language picture, here is that same MLP in the Python
-ecosystem. These listings are **static** — we don't execute them in the
+For the cross-language picture, here is that same MLP — the
+`784 → 256 → 128 → 10` network we just trained on the GPU above — in the
+Python ecosystem. These listings are **static** — we don't execute them in the
 build; they're the Python mirror of the Julia workflow above. First the
 few-line `scikit-learn` version; expect **~98% test accuracy** —
 comfortably beating the softmax baseline, edging out the random forest:
@@ -1080,7 +1111,7 @@ step. The Julia version makes the parameter state explicit;
 PyTorch and `scikit-learn` hide it. The only meaningful differences
 are surface-level. Pick by ecosystem.
 
-::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — parameters, accuracy, and a two-phase finetune
 
 The unit has now climbed the whole MNIST ladder: random forest (~97%),
@@ -1108,11 +1139,11 @@ the LeNet CNN above (~98.8%). Two questions about that ladder:
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-6)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-7)
 :::
 :::
 
-## 2.7 Kolmogorov-Arnold networks (KANs)
+## 2.8 Kolmogorov-Arnold networks (KANs)
 
 A recent alternative to the MLP that's been picking up traction in
 the PINN community: **Kolmogorov-Arnold networks**
@@ -1161,10 +1192,12 @@ n = 1000
 X = 2f0 .* rand(rng, Float32, 2, n) .- 1f0
 y = reshape(exp.(sinpi.(X[1, :]) .+ X[2, :].^2), 1, n)
 
-# KAN: 2 → 5 → 1, B-spline basis ──────────────────────────────────────
+# KAN 2 → 5 → 1.  KDense(in, out, grid_len): grid_len = number of RBF basis
+# centres on each edge — the spline resolution (more = a finer learnable φ).
+grid_len = 6
 model = Lux.Chain(
-    KDense(2 => 5; basis_func = rbf,    normalizer = softsign),
-    KDense(5 => 1; basis_func = rbf,    normalizer = softsign),
+    KDense(2, 5, grid_len; basis_func = rbf, normalizer = softsign),
+    KDense(5, 1, grid_len; basis_func = rbf, normalizer = softsign),
 )
 ps, st = Lux.setup(rng, model)
 
@@ -1186,6 +1219,22 @@ re-resolves your personal environment, so your **next `using
 NeuralPDE` may recompile once** (a few minutes — one-off); do it at
 a break. See [The `@pinn` Julia
 environment](../pinn_env/pinn_env.qmd#adding-packages).
+
+**What's actually on each edge — the splines and the parameters.** Every edge's
+learnable function $\phi$ is a weighted sum of `grid_len` fixed *basis bumps* —
+B-splines in the original Liu et al. paper, **radial basis functions** (smooth
+Gaussian-like bumps) in `KolmogorovArnold.jl`. So the three `KDense` arguments are
+`(in_dims, out_dims, grid_len)`: an `in → out` layer has `in × out` edges, and
+each edge carries `grid_len` trainable coefficients — the heights of its bumps —
+so the layer holds roughly `in × out × grid_len` parameters. The `normalizer`
+(here `softsign`) squashes each input into the fixed range the bumps live on, so
+one grid covers any input. **Turning `grid_len` up makes every $\phi$ more
+flexible — it captures sharper features, but adds parameters and slows the forward
+pass;** it is the KAN's main capacity knob, the way width and depth are an MLP's.
+The `2 → 5 → 1` network above has $2{\times}5 + 5{\times}1 = 15$ edges at
+`grid_len = 6`, for **105 trainable parameters** — and it fits the demo target to
+a test MSE of $\approx 10^{-3}$. (Contrast the MLP, where each edge holds a single
+weight; a KAN moves the parameters *onto* the edges as little functions.)
 
 ### KAN in Python (`pykan`)
 
@@ -1233,7 +1282,7 @@ We won't return to KANs in the worked examples — Units 5–9 stick
 with MLP-PINNs — but they belong in the working vocabulary of any
 practitioner reading the 2024–26 PINN literature.
 
-::: {#ex-2-7 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-8 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — KAN vs MLP on a sharp feature
 
 Sharp features are where KANs claim an edge. Fit both a 2-layer
@@ -1249,16 +1298,16 @@ what happens to the MLP if you give it 10× the training iterations?
 💡 Hint
 
 ::: {.exercise-hint-text}
-`KolmogorovArnold.jl` needs a one-off `Pkg.add`; `KDense(1 => 6; basis_func = rbf, normalizer = softsign)` mirrors the section's script. Match parameter counts with `Lux.parameterlength` before comparing — an unmatched comparison is meaningless. Zoom the comparison plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the action is.
+`KolmogorovArnold.jl` needs a one-off `Pkg.add`; `KDense(1, 6, 6; basis_func = rbf, normalizer = softsign)` (in, out, grid_len) mirrors the section's script. Match parameter counts with `Lux.parameterlength` before comparing — an unmatched comparison is meaningless. Zoom the comparison plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the action is.
 :::
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-7)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-8)
 :::
 :::
 
-## 2.8 What carries over to PINNs
+## 2.9 What carries over to PINNs
 
 Three ideas from this unit survive the journey to physics-informed
 networks:
@@ -1278,7 +1327,7 @@ function-approximation idea into a SciML landscape, and
 [Unit 4](../unit_04/unit_04.qmd) introduces the ODE side that PINNs
 will meet head-on in [Unit 5](../unit_05/unit_05.qmd).
 
-::: {#ex-2-8 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-9 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — translate the vocabulary
 
 A quick dictionary drill before moving on. For each supervised-learning
@@ -1297,6 +1346,6 @@ For each concept, ask: what supplies the supervision signal in a PINN (the equat
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-8)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-9)
 :::
 :::

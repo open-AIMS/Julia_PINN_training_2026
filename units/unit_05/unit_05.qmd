@@ -99,7 +99,7 @@ For part 1, the zero-residual set is exactly the ODE's solution family — write
 
 ## 5.2 Autodiff for PINNs: forward, reverse, and second derivatives
 
-[Unit 2 §2.5](../unit_02/unit_02.qmd#sec-optimisation-and-autodiff)
+[Unit 2 §2.6](../unit_02/unit_02.qmd#sec-autodiff)
 introduced forward vs reverse mode at the level of "scalar loss
 gradient over parameters". PINNs need more than that. The residual
 $r_\theta(x, t) = \partial_t u_\theta - \alpha\,\partial_{xx} u_\theta$

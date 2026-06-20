@@ -1,14 +1,14 @@
 #!/usr/bin/env julia
 # ===========================================================================
-# Unit 2.6 — a convolutional network in Lux.jl (LeNet-5 on MNIST).
+# Unit 2.7 — a convolutional network in Lux.jl (LeNet-5 on MNIST).
 #
 # A real, multi-layer CONVOLUTIONAL network — the architecture family of
 # *Mathematical Engineering of Deep Learning* Chapter 6 (Convolutional Neural
-# Networks), and the headline model of §2.6. It is the classic LeNet-5
+# Networks), and the headline model of §2.7. It is the classic LeNet-5
 # (LeCun et al., 1998): two conv+pool blocks that learn local 2-D features,
 # then three dense layers that classify them.
 #
-# Why convolutions? The softmax (§2.3) and MLP (§2.6) flatten each 28×28 image
+# Why convolutions? The softmax (§2.3) and MLP (§2.7) flatten each 28×28 image
 # to a length-784 vector, throwing away the 2-D spatial structure. A conv layer
 # instead slides small learnable filters over the image, sharing weights across
 # locations — far fewer parameters, and translation-aware. On the same MNIST

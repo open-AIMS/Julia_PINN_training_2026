@@ -14,9 +14,13 @@ n = 1000
 X = 2f0 .* rand(rng, Float32, 2, n) .- 1f0
 y = reshape(exp.(sinpi.(X[1, :]) .+ X[2, :] .^ 2), 1, n)
 
+# KAN 2 → 5 → 1. KDense(in, out, grid_len): grid_len is the number of basis
+# centres on each edge — the spline/RBF resolution. More grid points = a more
+# flexible per-edge function = more parameters.
+grid_len = 6
 model = Lux.Chain(
-    KDense(2 => 5; basis_func = rbf, normalizer = softsign),
-    KDense(5 => 1; basis_func = rbf, normalizer = softsign),
+    KDense(2, 5, grid_len; basis_func = rbf, normalizer = softsign),
+    KDense(5, 1, grid_len; basis_func = rbf, normalizer = softsign),
 )
 ps, st = Lux.setup(rng, model)
 

@@ -7,7 +7,7 @@
 # the field (q̇, ṗ) directly from the SAME noisy data. On a long rollout the HNN's
 # energy barely drifts while the vanilla MLP's wanders off.
 #
-# This is the §2.5 nested-autodiff pattern in the wild: the field uses ForwardDiff
+# This is the §2.6 nested-autodiff pattern in the wild: the field uses ForwardDiff
 # for the INPUT gradient of H_θ, and training differentiates the loss w.r.t. the
 # PARAMETERS. We keep the net tiny and use ForwardDiff for the parameter gradient
 # too, so the nesting is transparent and needs no extra packages.

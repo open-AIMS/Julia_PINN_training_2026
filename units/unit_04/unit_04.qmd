@@ -261,7 +261,7 @@ end
 ```
 
 Three structural differences from the standard supervised-learning
-loop in [Unit 2 §2.6](../unit_02/unit_02.qmd):
+loop in [Unit 2 §2.7](../unit_02/unit_02.qmd):
 
 1. The **forward pass** is an ODE solve, not a feed-forward
    evaluation. Cost is dominated by the integrator.
