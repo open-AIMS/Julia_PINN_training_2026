@@ -36,6 +36,27 @@ SciML stack at a slower pace; this PINNs workshop assumes
 that level of comfort with Julia.
 :::
 
+## Workshop schedule
+
+The material is more than fits in a week, so it is built to be paced. For a
+**four-day workshop**, a suggested route:
+
+- **Day 1** — System setup, and Units [1](units/unit_01/unit_01.qmd),
+  [2](units/unit_02/unit_02.qmd), and [3](units/unit_03/unit_03.qmd).
+- **Day 2** — Follow-ups from Unit [3](units/unit_03/unit_03.qmd), then Units
+  [4](units/unit_04/unit_04.qmd) and [5](units/unit_05/unit_05.qmd).
+- **Day 3** — Skimming Unit [6](units/unit_06/unit_06.qmd) (the PDE bootcamp),
+  then Units [7](units/unit_07/unit_07.qmd) and
+  [8](units/unit_08/unit_08.qmd), and **starting the project** (Unit
+  [9](units/unit_09/unit_09.qmd)).
+- **Day 4** — Continuation of the project (Units
+  [9](units/unit_09/unit_09.qmd) and [10](units/unit_10/unit_10.qmd)).
+- **Extra day** — Finalisation, specific questions, and further work on the
+  project.
+
+The unit-by-unit outline below has the full detail; this is just a guide to
+pacing.
+
 ## [Unit 1: Introduction](units/unit_01/unit_01.qmd)
 
 A worked end-to-end PINN inverse problem — recover the
