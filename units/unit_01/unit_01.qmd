@@ -526,9 +526,9 @@ actually use.
 | Gauge | Location | Lat, Lon | Cell | Depth |
 |---|---|---|---|---|
 | **G1** | Mud Island | $-27.210°S$, $153.215°E$ | (39, 143) | 6.0 m |
-| **G2** | Wellington Point | $-27.480°S$, $153.236°E$ | (41, 84) | 6.0 m |
+| **G2** | Wellington Point | $-27.480°S$, $153.236°E$ | (43, 84) | 6.0 m |
 | **G3** | Tangalooma Roads | $-27.205°S$, $153.320°E$ | (60, 144) | 18.2 m |
-| **G4** | Russell Channel | $-27.660°S$, $153.290°E$ | (60, 57) | 6.0 m |
+| **G4** | Russell Channel | $-27.660°S$, $153.290°E$ | (60, 48) | 6.0 m |
 
 These four timeseries, the bathymetry, and the physics are
 **all the information the inverse solver gets**. The river-mouth

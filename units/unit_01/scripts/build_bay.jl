@@ -305,58 +305,14 @@ function depth_at(λ, φ)
     return max(1.5, d_base + bonus_trough + bonus_river + bonus_nwc + shoal_pen)
 end
 
-# --- Land / water mask from the REAL OpenStreetMap coastline ---------------
-# Rasterise the OSM `natural=coastline` ways (data/moreton_coastline.json,
-# © OpenStreetMap contributors, ODbL) onto the grid as a 1-cell-thick barrier,
-# then flood-fill WATER inward from the open-ocean edges. Everything the flood
-# can't reach (enclosed by coastline) is land. This makes the bay shape match
-# real Moreton Bay — long thin Moreton Island, the mainland coast, the mid-bay
-# islands and the SE Stradbroke chain. (Depths below stay synthetic; only the
-# shape is from data.)
+# --- Land / water mask -----------------------------------------------------
+# The mask is built from rendered OpenStreetMap tiles by thresholding the water
+# colour (scripts/build_mask_from_tiles.py writes data/bay_mask.csv). That gives
+# a genuine Moreton Bay land/water shape — Moreton Island, North Stradbroke, the
+# mainland coast, the mid-bay islands — far cleaner than rasterising vector
+# coastline at 500 m. Here we just LOAD it; depths below stay synthetic.
 
-function coastline_mask()
-    cl = JSON3.read(read(joinpath(DATA_DIR, "moreton_coastline.json"), String))
-    to_ij(lon, lat) = ((lon - LON_MIN) * M_PER_DEG_LON / DX + 0.5,
-                       (lat - LAT_MIN) * M_PER_DEG_LAT / DY + 0.5)
-    barrier = falses(NY, NX)
-    mark(i, j) = let ii = round(Int, i), jj = round(Int, j)
-        (1 ≤ ii ≤ NX && 1 ≤ jj ≤ NY) && (barrier[jj, ii] = true)
-    end
-    for way in cl.ways, k in 1:length(way)-1
-        i1, j1 = to_ij(way[k][1],   way[k][2])
-        i2, j2 = to_ij(way[k+1][1], way[k+1][2])
-        steps = max(1, ceil(Int, 4 * hypot(i2 - i1, j2 - j1)))   # ~¼-cell sampling
-        for s in 0:steps
-            t = s / steps; mark(i1 + t*(i2-i1), j1 + t*(j2-j1))
-        end
-    end
-    # dilate barrier by one cell (8-neighbour) to seal sub-cell gaps
-    dil = copy(barrier)
-    for j in 1:NY, i in 1:NX
-        barrier[j, i] || continue
-        for dj in -1:1, di in -1:1
-            (1 ≤ j+dj ≤ NY && 1 ≤ i+di ≤ NX) && (dil[j+dj, i+di] = true)
-        end
-    end
-    # flood-fill water from the eastern (open-ocean) edge + the northern opening
-    water = falses(NY, NX); stack = Tuple{Int,Int}[]
-    for j in 1:NY; dil[j, NX] || (water[j, NX] = true; push!(stack, (j, NX))); end
-    for i in 1:NX; dil[NY, i] || (water[NY, i] = true; push!(stack, (NY, i))); end
-    while !isempty(stack)
-        r, c = pop!(stack)
-        for (dr, dc) in ((1,0), (-1,0), (0,1), (0,-1))
-            nr, nc = r+dr, c+dc
-            if 1 ≤ nr ≤ NY && 1 ≤ nc ≤ NX && !water[nr, nc] && !dil[nr, nc]
-                water[nr, nc] = true; push!(stack, (nr, nc))
-            end
-        end
-    end
-    return Int.(water)
-end
-
-# --- Rasterise -------------------------------------------------------------
-
-mask  = coastline_mask()
+mask  = round.(Int, readdlm(joinpath(DATA_DIR, "bay_mask.csv"), ',', Int))
 bathy = fill(NaN, NY, NX)
 for j in 1:NY, i in 1:NX
     mask[j, i] == 1 && (bathy[j, i] = depth_at(lon_of_x(xc(i)), lat_of_y(yc(j))))
@@ -389,32 +345,23 @@ const GAUGES = [
 const RIVER_MOUTH = ("RM", "Brisbane River mouth", -27.378, 153.165,
     "unknown surge inflow ψ(t)")
 
-function snap_to_water(lat, lon; max_r = 25)
+function snap_to_water(lat, lon)
     i0 = clamp(round(Int, x_of_lon(lon) / DX + 0.5), 1, NX)
     j0 = clamp(round(Int, y_of_lat(lat) / DY + 0.5), 1, NY)
-    if mask[j0, i0] == 1
-        return (i0, j0)
-    end
-    # spiral outward — return nearest water cell within max_r
-    best = (0, 0); bestd = Inf
-    for r in 1:max_r, di in -r:r, dj in -r:r
-        ii, jj = i0 + di, j0 + dj
-        (1 ≤ ii ≤ NX && 1 ≤ jj ≤ NY) || continue
+    # "open" = water with a 1-cell buffer of water on every side, so gauges sit in
+    # the bay rather than hugging the coast (where a real lat/lon often lands).
+    open_water(ii, jj) = mask[jj, ii] == 1 && all(
+        (1 ≤ jj+dj ≤ NY && 1 ≤ ii+di ≤ NX) ? mask[jj+dj, ii+di] == 1 : true
+        for dj in -1:1, di in -1:1)
+    best = (0, 0);  bestd = Inf      # nearest open-water cell (preferred)
+    anyw = (0, 0);  anywd = Inf      # nearest water cell of any kind (fallback)
+    for jj in 1:NY, ii in 1:NX
         mask[jj, ii] == 1 || continue
-        d = hypot(di, dj)
-        d < bestd && (bestd = d; best = (ii, jj))
-        bestd ≤ r && r ≥ 1 && return best
+        d = hypot(ii - i0, jj - j0)
+        d < anywd && (anywd = d; anyw = (ii, jj))
+        open_water(ii, jj) && d < bestd && (bestd = d; best = (ii, jj))
     end
-    # fallback: nearest water cell anywhere on the grid (real coastline can put a
-    # nominal lat/lon well inside land; we still want a defined gauge cell)
-    if best == (0, 0)
-        for jj in 1:NY, ii in 1:NX
-            mask[jj, ii] == 1 || continue
-            d = hypot(ii - i0, jj - j0)
-            d < bestd && (bestd = d; best = (ii, jj))
-        end
-    end
-    return best
+    return best == (0, 0) ? anyw : best
 end
 
 snapped_gauges = map(GAUGES) do (id, name, lat, lon, blurb)
