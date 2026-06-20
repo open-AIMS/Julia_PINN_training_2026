@@ -487,10 +487,10 @@ println("""
     cap.textContent = "t = " + f.t_hr.toFixed(2) + " h  ·  ψ(t) = " + fmt(f.psi) + " m";
   }
   function tick() { i = (i + 1) % frames.length; show(i); }
-  function play() { if (!timer) timer = setInterval(tick, 140); }
+  function play() { if (!timer) timer = setInterval(tick, 280); }
   function pause() { if (timer) { clearInterval(timer); timer = null; } }
   img.addEventListener("click", () => timer ? pause() : play());
-  show(0); play();   // a slow auto-looping movie (~140 ms/frame)
+  show(0); play();   // a slow auto-looping movie (~280 ms/frame)
 })();
 </script>
 """)
@@ -766,7 +766,7 @@ the GPU is **>20× faster** while the CPU solve has crossed $30\,\text{s}$. The
 two never disagree by more than a centimetre: it is genuinely the same physics,
 just spread across thousands of cores. The surge at the finest resolution:
 
-![Surface elevation $\eta$ three hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (← N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
+![Surface elevation $\eta$ five hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (← N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
 
 And because it is the *same* solver stepping through time, we can watch it run.
 Here is the refined-grid surge as a movie — the same Moreton Bay as the CPU
@@ -801,10 +801,10 @@ println("""
   let i = 0, timer = null;
   function show(k) { const f = frames[k]; img.src = f.src; cap.textContent = "t = " + f.t_hr.toFixed(2) + " h"; }
   function tick() { i = (i + 1) % frames.length; show(i); }
-  function play() { if (!timer) timer = setInterval(tick, 140); }
+  function play() { if (!timer) timer = setInterval(tick, 280); }
   function pause() { if (timer) { clearInterval(timer); timer = null; } }
   img.addEventListener("click", () => timer ? pause() : play());
-  show(0); play();   // a slow auto-looping movie (~140 ms/frame)
+  show(0); play();   // a slow auto-looping movie (~280 ms/frame)
 })();
 </script>
 """)

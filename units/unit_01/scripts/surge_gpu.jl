@@ -263,7 +263,8 @@ try
     fine_mask = refine_field(Mc, rfac)
     dxkm      = 0.5 / rfac                       # 500 m base grid, refined ×rfac
 
-    run  = swe_solve(Hc, Mc, src0, rfac, HAVE_GPU ? CuArray : identity; capture = 48)
+    run  = swe_solve(Hc, Mc, src0, rfac, HAVE_GPU ? CuArray : identity;
+                     t_end = 5*3600.0f0, capture = 48)   # movie runs to t = 5 h
     NYf, NXf = size(run.field)
     vlim = max(0.05f0, 0.6f0 * maximum(maximum(abs, F) for F in run.frames))
 
@@ -273,7 +274,7 @@ try
     # static field (final state)
     p = bay_map(run.field, fine_mask, dxkm;
         clims = (-vlim, vlim), cmap = :balance, clabel = "η  (m)",
-        title = "Surge η at t = 3 h — refined $(NYf)×$(NXf) Moreton Bay grid")
+        title = "Surge η at t = 5 h — refined $(NYf)×$(NXf) Moreton Bay grid")
     savefig(p, joinpath(figdir, "surge_gpu_field.png"))
     println("wrote figures/surge_gpu_field.png")
 
