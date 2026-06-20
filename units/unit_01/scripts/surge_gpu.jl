@@ -23,7 +23,7 @@
 # and includes the captured output.
 # ===========================================================================
 
-using Printf, Statistics
+using Printf, Statistics, JSON3
 
 # CUDA is optional: on the GPU hub it drives the real benchmark; on a CPU-only
 # machine (e.g. a laptop regenerating just the figure) we skip it gracefully and
@@ -138,13 +138,16 @@ psi(t) = 0.45f0 * exp(-((t - 2.0f0*3600) / (0.55f0*3600))^2) +
 const G_GRAV = 9.81f0
 const B_DRAG = 5.0f-5
 
-function swe_solve(Hc, Mc, refine, dev; dx0 = 500.0f0, t_end = 3*3600.0f0, nwarm = 5)
+function swe_solve(Hc, Mc, refine, dev; dx0 = 500.0f0, t_end = 3*3600.0f0,
+                   nwarm = 5, capture::Int = 0)
     s = build_state(Hc, Mc, refine, dev)
     NY, NX = s.NY, s.NX
     dx = dx0 / refine; dy = dx
     cmax = sqrt(G_GRAV * maximum(s.H))
     dt = 0.45f0 / (cmax * sqrt(1/dx^2 + 1/dy^2))        # CFL-safe
     nt = Int(floor(t_end / dt))
+    frames = Matrix{Float32}[]; ftimes = Float64[]      # for the movie (capture>0)
+    cap_every = capture > 0 ? max(1, nt ÷ capture) : typemax(Int)
 
     η = dev(zeros(Float32, NY, NX))
     u = dev(zeros(Float32, NY, NX-1))
@@ -173,12 +176,18 @@ function swe_solve(Hc, Mc, refine, dev; dx0 = 500.0f0, t_end = 3*3600.0f0, nwarm
     fill!(η, 0); fill!(u, 0); fill!(v, 0)
     dev === identity || CUDA.synchronize()
     t0 = time()
-    for n in 1:nt; step!(n*dt); end
+    for n in 1:nt
+        step!(n*dt)
+        if capture > 0 && n % cap_every == 0
+            push!(frames, Array(η)); push!(ftimes, n*dt)
+        end
+    end
     dev === identity || CUDA.synchronize()
     elapsed = time() - t0
 
     env = maximum(abs, Array(η))
-    return (; field = Array(η), elapsed, nt, dt, NY, NX, ncells = NY*NX, env)
+    return (; field = Array(η), elapsed, nt, dt, NY, NX, ncells = NY*NX, env,
+            frames, ftimes)
 end
 
 # ---------------------------------------------------------------------------
@@ -213,22 +222,49 @@ end
 println()
 println("CPU and GPU fields agree to < 1e-2 m at every resolution (same code, same physics).")
 
-# --- Figure: the surge field on the finest grid ----------------------------
-# Rotated landscape, North ◀ left, land greyed, km axes — same look as the rest
-# of Unit 1's bay maps (units/unit_01/scripts/_mapfig.jl).
+# --- Figure + movie: the surge on the finest grid --------------------------
+# Rotated landscape, North ← left, land greyed, km axes — same look as the rest
+# of Unit 1's bay maps (units/unit_01/scripts/_mapfig.jl). We re-run the finest
+# grid once more (NOT timed) capturing frames, then render a static field PNG and
+# a sequence of movie frames that unit_01.qmd plays back with a JS widget.
 try
     include(joinpath(@__DIR__, "_mapfig.jl"))
     rfac      = last(refines)
     fine_mask = refine_field(Mc, rfac)
     dxkm      = 0.5 / rfac                       # 500 m base grid, refined ×rfac
-    NYf, NXf  = size(fine_field)
-    p = bay_map(fine_field, fine_mask, dxkm;
-        clims = (-0.3, 0.3), cmap = :balance, clabel = "η  (m)",
-        title = "Surge η at t = 3 h — refined $(NYf)×$(NXf) Moreton Bay grid")
+
+    run  = swe_solve(Hc, Mc, rfac, HAVE_GPU ? CuArray : identity; capture = 48)
+    NYf, NXf = size(run.field)
+    vlim = max(0.05f0, 0.6f0 * maximum(maximum(abs, F) for F in run.frames))
+
     figdir = get(ENV, "GPU_FIG_DIR", joinpath(@__DIR__, "..", "figures"))
     isdir(figdir) || mkpath(figdir)
+
+    # static field (final state)
+    p = bay_map(run.field, fine_mask, dxkm;
+        clims = (-vlim, vlim), cmap = :balance, clabel = "η  (m)",
+        title = "Surge η at t = 3 h — refined $(NYf)×$(NXf) Moreton Bay grid")
     savefig(p, joinpath(figdir, "surge_gpu_field.png"))
     println("wrote figures/surge_gpu_field.png")
+
+    # movie frames + metadata (played back by the widget in unit_01.qmd)
+    moviedir = joinpath(figdir, "surge_gpu_frames")
+    isdir(moviedir) || mkpath(moviedir)
+    for f in readdir(moviedir; join = true); endswith(f, ".png") && rm(f); end
+    recs = Dict{String, Any}[]
+    for (k, (Fk, tk)) in enumerate(zip(run.frames, run.ftimes))
+        pp = bay_map(Fk, fine_mask, dxkm;
+            clims = (-vlim, vlim), cmap = :balance, clabel = "η  (m)",
+            title = @sprintf("GPU surge (refined %d×%d) — t = %.2f h", NYf, NXf, tk/3600))
+        fn = @sprintf("frame_%03d.png", k - 1)
+        savefig(pp, joinpath(moviedir, fn))
+        push!(recs, Dict("idx" => k - 1, "file" => fn, "t_hr" => tk/3600))
+    end
+    open(joinpath(moviedir, "frames_meta.json"), "w") do io
+        JSON3.pretty(io, Dict("nframes" => length(recs),
+                              "grid" => "$(NYf)x$(NXf)", "frames" => recs))
+    end
+    println("wrote ", length(recs), " GPU movie frames into figures/surge_gpu_frames/")
 catch e
-    println("(figure skipped: ", e, ")")
+    println("(figure/movie skipped: ", e, ")")
 end

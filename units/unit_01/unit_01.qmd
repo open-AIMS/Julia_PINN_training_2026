@@ -227,7 +227,7 @@ the shoals around the river mouth, the eastern shelf outside
 Moreton Island, and the way the southern bay is constricted by
 the Russell / Macleay / Karragarra island cluster and the South
 Stradbroke spit. This is what the SWE solver actually sees. The map is drawn in
-landscape with **north to the left** (◀ N) and east up, so the bay's long
+landscape with **north to the left** (← N) and east up, so the bay's long
 95 km north–south axis runs across the page.](figures/bathymetry.png){width=92%}
 
 ::: {.callout-note}
@@ -738,7 +738,50 @@ the GPU is **>20× faster** while the CPU solve has crossed $30\,\text{s}$. The
 two never disagree by more than a centimetre: it is genuinely the same physics,
 just spread across thousands of cores. The surge at the finest resolution:
 
-![Surface elevation $\eta$ three hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (◀ N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
+![Surface elevation $\eta$ three hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (← N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
+
+And because it is the *same* solver stepping through time, we can watch it run.
+Here is the refined-grid surge as a movie — the same Moreton Bay as the CPU
+walkthrough above, just resolved four times finer in each direction:
+
+```{julia}
+#| echo: false
+#| output: asis
+using JSON3, Base64
+gmeta   = JSON3.read(read(joinpath("figures", "surge_gpu_frames", "frames_meta.json"), String))
+gframes = gmeta["frames"]
+
+# Inline each frame as a base64 data URI so the rendered HTML is self-contained.
+guri(idx) = "data:image/png;base64," *
+            base64encode(read(joinpath("figures", "surge_gpu_frames",
+                                       "frame_" * lpad(idx, 3, '0') * ".png")))
+gdata_js = "[" * join(["{t_hr:" * string(round(Float64(f["t_hr"]); digits = 3)) *
+                       ",src:\"" * guri(f["idx"]) * "\"}" for f in gframes], ",") * "]"
+
+println("```{=html}")
+println("""
+<div class="surge-movie-widget" style="text-align:center;margin:1em 0;">
+<img id="gpu-movie-img" alt="GPU surge on the refined Moreton Bay grid" style="max-width:820px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;cursor:pointer;" title="click to pause / resume"/>
+<div id="gpu-movie-caption" style="font-size:0.9em;color:#555;margin-top:0.4em;font-family:ui-monospace,Menlo,monospace;">t = 0.00 h</div>
+<div style="font-size:0.85em;color:#777;margin-top:0.4em;"><em>The same shallow-water solver on the refined $(gmeta["grid"]) grid, run on the GPU — it loops automatically; click to pause or resume.</em></div>
+</div>
+<script>
+(function() {
+  const frames = $gdata_js;
+  const img = document.getElementById("gpu-movie-img");
+  const cap = document.getElementById("gpu-movie-caption");
+  let i = 0, timer = null;
+  function show(k) { const f = frames[k]; img.src = f.src; cap.textContent = "t = " + f.t_hr.toFixed(2) + " h"; }
+  function tick() { i = (i + 1) % frames.length; show(i); }
+  function play() { if (!timer) timer = setInterval(tick, 140); }
+  function pause() { if (timer) { clearInterval(timer); timer = null; } }
+  img.addEventListener("click", () => timer ? pause() : play());
+  show(0); play();   // a slow auto-looping movie (~140 ms/frame)
+})();
+</script>
+""")
+println("```")
+```
 
 ### What you have just seen
 

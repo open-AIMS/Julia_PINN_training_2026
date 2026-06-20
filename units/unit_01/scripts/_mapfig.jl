@@ -3,7 +3,7 @@
 # Orientation convention — stated once, used everywhere:
 #   * Figures are LANDSCAPE (the bay's long N–S axis runs horizontally), so they
 #     fit the page instead of being a tall, mostly-empty strip.
-#   * NORTH points LEFT  (◀ N)   and   EAST points UP  (▲ E).
+#   * NORTH points LEFT  (← N)   and   EAST points UP  (↑ E).
 # Model arrays are (NY, NX) = (north, east). We transpose the field and put north
 # on a *flipped* horizontal axis and east on the vertical axis to get that view.
 
@@ -16,7 +16,7 @@ rot(A) = permutedims(A)
 # of the rotated frame). We use a bold text glyph rather than a plotted arrow:
 # under `xflip` a plotted arrowhead points the wrong way, but text is reliable.
 function north_arrow!(p, Ln, Le)
-    annotate!(p, 0.93 * Ln, 0.92 * Le, text("◀ N", 14, :black, :bold, :left))
+    annotate!(p, 0.93 * Ln, 0.92 * Le, text("← N", 14, :black, :bold, :left))
 end
 
 """
@@ -45,7 +45,7 @@ function bay_map(field, mask, dx_km;
     p = heatmap(nkm, ekm, rot(Z);
         c = cmap, clims = clims, xflip = true, aspect_ratio = 1,
         size = (1040, 650), xlims = (0, Ln), ylims = (0, Le),
-        xlabel = "north  (km)        ◀ N", ylabel = "east  (km)   ▲ E",
+        xlabel = "north  (km)        ← N", ylabel = "east  (km)   ↑ E",
         colorbar = true, colorbar_title = clabel, legend = false,
         title = title, titlefontsize = 11,
         right_margin = 9Plots.mm, left_margin = 4Plots.mm,

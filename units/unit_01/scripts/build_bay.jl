@@ -446,7 +446,7 @@ end
 
 # --- Render bathymetry figure for the qmd --------------------------------
 
-include(joinpath(@__DIR__, "_mapfig.jl"))   # rotated landscape bay map (N ◀ left)
+include(joinpath(@__DIR__, "_mapfig.jl"))   # rotated landscape bay map (N ← left)
 
 FIG_DIR = normpath(joinpath(@__DIR__, "..", "figures"))
 isdir(FIG_DIR) || mkpath(FIG_DIR)
@@ -461,9 +461,9 @@ depths = filter(!isnan, vec(bathy))
 p = bay_map(bathy, mask, DX / 1000;
     clims = (floor(minimum(depths)), ceil(maximum(depths))),
     cmap = cgrad(:deep), clabel = "depth  (m)",
-    title = "Moreton Bay bathymetry — $(NX)×$(NY) at $(round(Int, DX)) m  (N ◀ left)",
+    title = "Moreton Bay bathymetry — $(NX)×$(NY) at $(round(Int, DX)) m  (N ← left)",
     gauge_e = ge, gauge_n = gn, gauge_id = String[g[1] for g in snapped_gauges],
     river_e = re, river_n = rn)
 
 savefig(p, joinpath(FIG_DIR, "bathymetry.png"))
-println("\nWrote figures/bathymetry.png  (rotated landscape, North ◀ left)")
+println("\nWrote figures/bathymetry.png  (rotated landscape, North ← left)")

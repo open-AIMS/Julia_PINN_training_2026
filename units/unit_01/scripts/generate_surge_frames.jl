@@ -11,7 +11,7 @@
 #   figures/surge_frames/frames_meta.json  — t in seconds + ψ(t) per frame
 
 using DelimitedFiles, CSV, DataFrames, JSON3, Plots, Printf
-include(joinpath(@__DIR__, "_mapfig.jl"))   # rotated landscape bay maps (N ◀ left)
+include(joinpath(@__DIR__, "_mapfig.jl"))   # rotated landscape bay maps (N ← left)
 
 const HERE     = @__DIR__
 const DATA_DIR = joinpath(HERE, "..", "data")
