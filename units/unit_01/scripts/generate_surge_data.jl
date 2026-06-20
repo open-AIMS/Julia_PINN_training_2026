@@ -11,8 +11,9 @@
 #
 # Model: Arakawa C-grid, forward-backward time stepping, linearised SWE
 # (de Wolff eq. 6–7).  Land cells: η doesn't update, velocity faces
-# touching land are clamped to zero.  East-edge sponge layer (Rayleigh
-# damping) lets surge waves leave the domain.  Source: Dirichlet on η at
+# touching land are clamped to zero.  Sponge layers (Rayleigh damping) on
+# every open rim — north / east / south — let surge waves leave the domain
+# without reflecting back.  Source: Dirichlet on η at
 # the river-mouth cell so the "unknown" ψ(t) is exactly the surface
 # elevation perturbation at the source.
 
@@ -83,16 +84,25 @@ end
     v_open[j, i] = (mask[j, i] == 1 && mask[j+1, i] == 1)
 end
 
-# Sponge layer along the eastern edge of the domain (outside Moreton Is.)
-# Absorbs outgoing waves so the bay doesn't ring forever.
+# Absorbing sponge along every OPEN (non-mainland) edge of the domain.  The
+# bay exchanges water with the ocean through its wide NORTHERN entrance (the
+# Northwest Channel), the eastern strip outside Moreton Is., and the southern
+# Broadwater outlet — so all three rims get a Rayleigh-damped strip.  The
+# western edge is solid mainland coast and stays a reflecting wall.  Damping
+# ramps quadratically to a 60-s e-folding time at the rim so outgoing surge
+# waves leave without bouncing back into the bay.
 sponge = zeros(Float64, NY, NX)
 const SPONGE_WIDTH = 5             # cells
 const SPONGE_PEAK  = 1.0 / 60      # 1/s → e-folding time 60 s at the edge
 @inbounds for j in 1:NY, i in 1:NX
-    di = i - (NX - SPONGE_WIDTH)
-    if di > 0
-        sponge[j, i] = SPONGE_PEAK * (di / SPONGE_WIDTH)^2
-    end
+    de = i - (NX - SPONGE_WIDTH)   # depth into the domain from the east rim
+    dn = j - (NY - SPONGE_WIDTH)   #                          … north rim
+    ds = (SPONGE_WIDTH + 1) - j    #                          … south rim
+    s = 0.0
+    de > 0 && (s = max(s, SPONGE_PEAK * (de / SPONGE_WIDTH)^2))
+    dn > 0 && (s = max(s, SPONGE_PEAK * (dn / SPONGE_WIDTH)^2))
+    ds > 0 && (s = max(s, SPONGE_PEAK * (ds / SPONGE_WIDTH)^2))
+    sponge[j, i] = s
 end
 
 # --- Surge profile ψ(t) ----------------------------------------------------

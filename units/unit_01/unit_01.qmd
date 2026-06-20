@@ -358,11 +358,22 @@ where $\psi(t)$ is the surface-elevation anomaly imposed by the
 river inflow. In the forward problem we *prescribe* $\psi(t)$; in
 the inverse problem we will *recover* it from gauge data. Solid
 coasts get the no-flux condition $\mathbf{u}\cdot\hat{\mathbf{n}}=0$
-(water doesn't cross the coast), and a thin **Rayleigh-damped
-sponge** — a strip of cells where we add an artificial $-\sigma\eta$
-relaxation term — along the eastern edge of the domain lets surge
-waves leave through the open ocean without bouncing back into the
-solution.
+(water doesn't cross the coast).
+
+The bay is not closed, though: it exchanges water with the open
+ocean through its wide **northern entrance** (the Northwest Channel),
+the strip of sea **east** of Moreton Island, and the **southern**
+Broadwater outlet. Modelling those as walls would bounce the surge
+straight back into the gauges. We don't have a true radiation
+boundary condition here — instead we approximate one with a thin
+**Rayleigh-damped sponge**: a strip of cells along each of those
+three open rims where we add an artificial $-\sigma\eta$ relaxation
+term, ramping up toward the edge, so outgoing surge waves are bled
+to zero before they reach the domain rim and reflect. (The western
+edge is solid mainland, so it stays a reflecting coast — which is
+physically correct.) A genuine open boundary is one of the things a
+fuller model would improve; here the sponge is enough to keep
+spurious reflections out of the synthetic gauge records.
 
 ### A synthetic surge, propagated by finite differences
 
@@ -411,7 +422,8 @@ for step in 1:NT
                          (flux_y_n - flux_y_s) / DY)
     end
 
-    # 2. Sponge layer near the east boundary absorbs outgoing waves
+    # 2. Sponge layers on the open rims (north / east / south) absorb
+    #    outgoing waves; `sponge` is pre-built with the per-cell damping rate.
     @inbounds for j in 1:NY, i in 1:NX
         sponge[j, i] > 0 && (η[j, i] -= DT * sponge[j, i] * η[j, i])
     end
@@ -439,8 +451,9 @@ $500\,\text{m}$ resolution.
 
 The movie below plays through the FD solution: 73 snapshots, 5 minutes of real
 time per step, total 6 hours. It loops automatically (click the image to pause or
-resume); watch the surge rise from rest, through the two peaks, to the trailing
-ring-down. The red triangle is the Brisbane River source, the gold discs are the
+resume); watch the surge rise from rest, through the two peaks, and then the
+slow drain-out as the piled-up water leaks back to the ocean through the bay's
+open rims. The red triangle is the Brisbane River source, the gold discs are the
 four tide gauges, and grey is land.
 
 ```{julia}

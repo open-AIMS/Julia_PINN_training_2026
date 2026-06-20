@@ -126,12 +126,19 @@ function build_state(Hc, Mc, src0, refine, dev)
     uopen = Float32.((M[:, 1:NX-1] .== 1) .& (M[:, 2:NX] .== 1))
     vopen = Float32.((M[1:NY-1, :] .== 1) .& (M[2:NY, :] .== 1))
 
-    # eastern sponge (Rayleigh damping that grows toward the open boundary)
+    # absorbing sponge on every open rim — northern entrance, eastern ocean
+    # strip, southern Broadwater outlet (west is solid mainland → no sponge).
     sponge = zeros(Float32, NY, NX)
     SPONGE_W = 5 * refine
     @inbounds for j in 1:NY, i in 1:NX
-        di = i - (NX - SPONGE_W)
-        di > 0 && (sponge[j, i] = (1.0f0 / 60) * (di / SPONGE_W)^2)
+        de = i - (NX - SPONGE_W)
+        dn = j - (NY - SPONGE_W)
+        ds = (SPONGE_W + 1) - j
+        s = 0.0f0
+        de > 0 && (s = max(s, (1.0f0 / 60) * (de / SPONGE_W)^2))
+        dn > 0 && (s = max(s, (1.0f0 / 60) * (dn / SPONGE_W)^2))
+        ds > 0 && (s = max(s, (1.0f0 / 60) * (ds / SPONGE_W)^2))
+        sponge[j, i] = s
     end
     spu = 0.5f0 .* (sponge[:, 1:NX-1] .+ sponge[:, 2:NX])
     spv = 0.5f0 .* (sponge[1:NY-1, :] .+ sponge[2:NY, :])

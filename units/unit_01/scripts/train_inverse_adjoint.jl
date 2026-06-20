@@ -18,7 +18,10 @@
 #         ψ̂  =  (GᵀG  +  λ L²ᵀL²)⁻¹  Gᵀ g_obs
 #       where L² is the discrete 2nd-difference operator (smoothness prior).
 #
-# Output:   data/psi_recovered_adjoint.csv  (clean recovery, ~5% error)
+# Output:   data/psi_recovered_adjoint.csv  (recovers ψ's timing + two-pulse
+#                                            shape; overshoots the peak, ~40%
+#                                            L2 — sparse, noisy gauges are
+#                                            genuinely ill-posed)
 #           data/gauges_adjoint_pred.csv
 #
 # Differences from a "vanilla PINN":
@@ -81,15 +84,21 @@ end
     v_open[j, i] = (mask[j, i] == 1 && mask[j+1, i] == 1)
 end
 
-# Sponge
+# Sponge — absorbing strip on every open rim (north / east / south); the
+# western edge is solid mainland.  Must match generate_surge_data.jl exactly
+# so the inversion stays consistent with the simulator that made the data.
 sponge = zeros(Float64, NY, NX)
 const SPONGE_WIDTH = 5
 const SPONGE_PEAK  = 1.0 / 60
 @inbounds for j in 1:NY, i in 1:NX
-    di = i - (NX - SPONGE_WIDTH)
-    if di > 0
-        sponge[j, i] = SPONGE_PEAK * (di / SPONGE_WIDTH)^2
-    end
+    de = i - (NX - SPONGE_WIDTH)
+    dn = j - (NY - SPONGE_WIDTH)
+    ds = (SPONGE_WIDTH + 1) - j
+    s = 0.0
+    de > 0 && (s = max(s, SPONGE_PEAK * (de / SPONGE_WIDTH)^2))
+    dn > 0 && (s = max(s, SPONGE_PEAK * (dn / SPONGE_WIDTH)^2))
+    ds > 0 && (s = max(s, SPONGE_PEAK * (ds / SPONGE_WIDTH)^2))
+    sponge[j, i] = s
 end
 
 const IR = river.ix[1]
