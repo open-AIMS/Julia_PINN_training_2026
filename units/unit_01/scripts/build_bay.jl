@@ -305,21 +305,61 @@ function depth_at(λ, φ)
     return max(1.5, d_base + bonus_trough + bonus_river + bonus_nwc + shoal_pen)
 end
 
+# --- Land / water mask from the REAL OpenStreetMap coastline ---------------
+# Rasterise the OSM `natural=coastline` ways (data/moreton_coastline.json,
+# © OpenStreetMap contributors, ODbL) onto the grid as a 1-cell-thick barrier,
+# then flood-fill WATER inward from the open-ocean edges. Everything the flood
+# can't reach (enclosed by coastline) is land. This makes the bay shape match
+# real Moreton Bay — long thin Moreton Island, the mainland coast, the mid-bay
+# islands and the SE Stradbroke chain. (Depths below stay synthetic; only the
+# shape is from data.)
+
+function coastline_mask()
+    cl = JSON3.read(read(joinpath(DATA_DIR, "moreton_coastline.json"), String))
+    to_ij(lon, lat) = ((lon - LON_MIN) * M_PER_DEG_LON / DX + 0.5,
+                       (lat - LAT_MIN) * M_PER_DEG_LAT / DY + 0.5)
+    barrier = falses(NY, NX)
+    mark(i, j) = let ii = round(Int, i), jj = round(Int, j)
+        (1 ≤ ii ≤ NX && 1 ≤ jj ≤ NY) && (barrier[jj, ii] = true)
+    end
+    for way in cl.ways, k in 1:length(way)-1
+        i1, j1 = to_ij(way[k][1],   way[k][2])
+        i2, j2 = to_ij(way[k+1][1], way[k+1][2])
+        steps = max(1, ceil(Int, 4 * hypot(i2 - i1, j2 - j1)))   # ~¼-cell sampling
+        for s in 0:steps
+            t = s / steps; mark(i1 + t*(i2-i1), j1 + t*(j2-j1))
+        end
+    end
+    # dilate barrier by one cell (8-neighbour) to seal sub-cell gaps
+    dil = copy(barrier)
+    for j in 1:NY, i in 1:NX
+        barrier[j, i] || continue
+        for dj in -1:1, di in -1:1
+            (1 ≤ j+dj ≤ NY && 1 ≤ i+di ≤ NX) && (dil[j+dj, i+di] = true)
+        end
+    end
+    # flood-fill water from the eastern (open-ocean) edge + the northern opening
+    water = falses(NY, NX); stack = Tuple{Int,Int}[]
+    for j in 1:NY; dil[j, NX] || (water[j, NX] = true; push!(stack, (j, NX))); end
+    for i in 1:NX; dil[NY, i] || (water[NY, i] = true; push!(stack, (NY, i))); end
+    while !isempty(stack)
+        r, c = pop!(stack)
+        for (dr, dc) in ((1,0), (-1,0), (0,1), (0,-1))
+            nr, nc = r+dr, c+dc
+            if 1 ≤ nr ≤ NY && 1 ≤ nc ≤ NX && !water[nr, nc] && !dil[nr, nc]
+                water[nr, nc] = true; push!(stack, (nr, nc))
+            end
+        end
+    end
+    return Int.(water)
+end
+
 # --- Rasterise -------------------------------------------------------------
 
+mask  = coastline_mask()
 bathy = fill(NaN, NY, NX)
-mask  = zeros(Int, NY, NX)
-
 for j in 1:NY, i in 1:NX
-    λ = lon_of_x(xc(i))
-    φ = lat_of_y(yc(j))
-    if is_land(λ, φ)
-        bathy[j, i] = NaN
-        mask[j, i]  = 0
-    else
-        bathy[j, i] = depth_at(λ, φ)
-        mask[j, i]  = 1
-    end
+    mask[j, i] == 1 && (bathy[j, i] = depth_at(lon_of_x(xc(i)), lat_of_y(yc(j))))
 end
 
 # --- Gauges + river source -------------------------------------------------
@@ -349,27 +389,31 @@ const GAUGES = [
 const RIVER_MOUTH = ("RM", "Brisbane River mouth", -27.378, 153.165,
     "unknown surge inflow ψ(t)")
 
-function snap_to_water(lat, lon; max_r = 10)
+function snap_to_water(lat, lon; max_r = 25)
     i0 = clamp(round(Int, x_of_lon(lon) / DX + 0.5), 1, NX)
     j0 = clamp(round(Int, y_of_lat(lat) / DY + 0.5), 1, NY)
     if mask[j0, i0] == 1
         return (i0, j0)
     end
     # spiral outward — return nearest water cell within max_r
-    best = (0, 0)
-    bestd = Inf
+    best = (0, 0); bestd = Inf
     for r in 1:max_r, di in -r:r, dj in -r:r
         ii, jj = i0 + di, j0 + dj
         (1 ≤ ii ≤ NX && 1 ≤ jj ≤ NY) || continue
         mask[jj, ii] == 1 || continue
         d = hypot(di, dj)
-        if d < bestd
-            bestd = d
-            best = (ii, jj)
-        end
-        bestd ≤ r && r ≥ 1 && return best   # found something at this radius
+        d < bestd && (bestd = d; best = (ii, jj))
+        bestd ≤ r && r ≥ 1 && return best
     end
-    best == (0, 0) && error("no water cell within $max_r cells of ($lat, $lon)")
+    # fallback: nearest water cell anywhere on the grid (real coastline can put a
+    # nominal lat/lon well inside land; we still want a defined gauge cell)
+    if best == (0, 0)
+        for jj in 1:NY, ii in 1:NX
+            mask[jj, ii] == 1 || continue
+            d = hypot(ii - i0, jj - j0)
+            d < bestd && (bestd = d; best = (ii, jj))
+        end
+    end
     return best
 end
 

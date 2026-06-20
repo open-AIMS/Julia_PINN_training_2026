@@ -175,8 +175,9 @@ end
 # nearly the same as the true impulse response — and we deconvolve it
 # out below by including the Gaussian shape in the basis.
 
-const σ_PULSE = 4.0 * DT
-const t_pulse = 6.0 * σ_PULSE       # leave room for the pulse to ring up
+const σ_PULSE = 2.0 * DT            # narrow Gaussian pulse — about as close to a
+                                    # delta as the FD time step can resolve
+const t_pulse = 8.0 * σ_PULSE       # leave room for the pulse to ring up
 
 pulse_traj = [(1.0 / (σ_PULSE * sqrt(2π))) * exp(-((tn - t_pulse) / σ_PULSE)^2)
               for tn in t_axis]
@@ -242,21 +243,33 @@ end
 
 L2 = build_L2(N_REC)
 
-# Hyper-parameters chosen by L-curve heuristic — λ trades data fit vs smoothness
-const λ_smooth = 3.0e3
-const λ_anchor = 3.0e2
+# Smoothing weight λ chosen by the DISCREPANCY PRINCIPLE: sweep λ and keep the
+# one whose data residual ‖Gψ - g_obs‖ matches the known observation-noise floor.
+# This is data-driven (no peeking at the truth) and re-tunes itself automatically
+# to the grid/gauge geometry, instead of a hard-coded constant that goes stale
+# whenever the bay is rebuilt.
+const SIGMA_OBS  = 0.015                              # tide-gauge noise (see generate_surge_data.jl)
+const TARGET_RES = sqrt(length(g_obs)) * SIGMA_OBS    # expected ‖Gψ-g_obs‖ near the true ψ
+const e1 = reshape(vcat(1.0, zeros(N_REC - 1)), 1, N_REC)
+b_full   = vcat(g_obs, zeros(size(L2, 1)), zeros(1))
 
-A_full = vcat(G_full,
-              λ_smooth .* L2,
-              λ_anchor .* reshape(vcat(1.0, zeros(N_REC - 1)), 1, N_REC))
-b_full = vcat(g_obs,
-              zeros(size(L2, 1)),
-              zeros(1))
-
-println("Solving regularised least squares …")
+println("Choosing λ by the discrepancy principle (target residual = ",
+        round(TARGET_RES; digits = 3), " m) …")
 tic = time()
-ψ_recovered = A_full \ b_full
-@printf("  solved in %.2f s\n", time() - tic)
+λ_grid = 10.0 .^ range(1.0, 4.5; length = 16)
+best = (λ = first(λ_grid), gap = Inf, ψ = zeros(N_REC))
+for λ in λ_grid
+    ψ   = vcat(G_full, λ .* L2, (λ / 10) .* e1) \ b_full
+    res = sqrt(sum((G_full * ψ .- g_obs) .^ 2))
+    gap = abs(res - TARGET_RES)
+    @printf("    λ = %8.1f   residual = %.3f m\n", λ, res)
+    if gap < best.gap
+        global best = (λ = λ, gap = gap, ψ = ψ)
+    end
+end
+const λ_smooth = best.λ
+ψ_recovered = best.ψ
+@printf("  chose λ_smooth = %.1f   (solved in %.2f s)\n", λ_smooth, time() - tic)
 
 # --- Predicted gauges with the recovered ψ --------------------------------
 

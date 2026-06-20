@@ -526,9 +526,9 @@ actually use.
 | Gauge | Location | Lat, Lon | Cell | Depth |
 |---|---|---|---|---|
 | **G1** | Mud Island | $-27.210°S$, $153.215°E$ | (39, 143) | 6.0 m |
-| **G2** | Wellington Point | $-27.480°S$, $153.236°E$ | (43, 83) | 6.0 m |
+| **G2** | Wellington Point | $-27.480°S$, $153.236°E$ | (41, 84) | 6.0 m |
 | **G3** | Tangalooma Roads | $-27.205°S$, $153.320°E$ | (60, 144) | 18.2 m |
-| **G4** | Russell Channel | $-27.660°S$, $153.290°E$ | (54, 43) | 6.0 m |
+| **G4** | Russell Channel | $-27.660°S$, $153.290°E$ | (60, 57) | 6.0 m |
 
 These four timeseries, the bathymetry, and the physics are
 **all the information the inverse solver gets**. The river-mouth
@@ -626,7 +626,28 @@ function total_loss(θ, Xphys, Kx, Ky, Xz, Xt, Xsm)
 end
 ```
 
-**Method B — Adjoint inverse using the simulator as a forward map.**
+**Method B — the simulator as a forward map, run backwards.** Here is
+the plain-English version before the equations. We already have a
+*simulator* of the bay: hand it a source signal $\psi(t)$ at the river
+mouth and it predicts what each tide gauge will read. Call that the
+**forward map** — source in, gauge readings out. The inverse problem is
+to run it the other way: given the gauge readings, find the source that
+must have produced them.
+
+Two facts make this clean. First, the bay physics is **linear**: double
+the source and every gauge reading doubles, and the response to two
+pushes is just the sum of the two separate responses. Second — and
+because of that — the entire simulator is captured by a *single*
+experiment: its response to one sharp **ping** at the source (a brief
+pulse). That ping-response is the bay's **Green's function**. Once you
+have it, the gauge reading for *any* source is just that ping-response
+slid along in time and added up — one copy for each moment of the
+source. So "predict the gauges" becomes a matrix multiply, and "find
+the source" becomes solving a linear system. The only snag is that
+solving it *exactly* is unstable, and the cure — regularisation — is
+the idea worth dwelling on. The precise version:
+
+**Adjoint inverse, precisely.**
 Because the linearised SWE is *linear* in $\psi$, the forward map
 $G: \psi(\cdot) \mapsto \eta_g(\cdot)$ is a linear operator. Its
 columns are the **Green's function** of the bay — the response at
