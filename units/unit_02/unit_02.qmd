@@ -1236,6 +1236,19 @@ The `2 → 5 → 1` network above has $2{\times}5 + 5{\times}1 = 15$ edges at
 a test MSE of $\approx 10^{-3}$. (Contrast the MLP, where each edge holds a single
 weight; a KAN moves the parameters *onto* the edges as little functions.)
 
+![On one KAN edge the basis bumps are **fixed** (left): six smooth Gaussian-like humps spaced across the input range. The edge's learnable function $\phi$ (right, thick black) is just their **weighted sum** — training only slides the six heights $w_k$ up and down (the faint dashed curves are the scaled bumps that add up to it). Turning `grid_len` up adds more bumps, so $\phi$ can bend more sharply.](figures/kan_splines.png)
+
+A **spline**, in plain terms, is a curve built from simple *local* pieces instead
+of one global formula. Each bump only matters near its own centre, so changing one
+height $w_k$ reshapes $\phi$ *near that bump* and leaves the rest of the curve
+alone. That locality is the whole point: a spline can capture a sharp feature — a
+kink, a steep front — by adjusting a couple of nearby bumps, without disturbing the
+function everywhere else. It is exactly the property KANs lean on for PINNs, where
+a few well-placed bumps can resolve a steep PDE solution that a single smooth
+global activation would smear out. (The original Liu et al. paper uses **B-splines**
+— piecewise-polynomial bumps tied to a grid of *knots*; `KolmogorovArnold.jl` uses
+radial basis functions, which behave the same way for our purposes.)
+
 ### KAN in Python (`pykan`)
 
 The reference Liu-et-al. implementation, in Python:
