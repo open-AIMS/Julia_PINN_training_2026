@@ -50,7 +50,11 @@ admit qualitative behaviours linear systems can't:
 
 ### Worked example: Lotka–Volterra
 
-A classical two-species predator–prey model:
+We return to the **predator–prey system from
+[Unit 3 §3.1](../unit_03/unit_03.qmd)** — there it introduced what
+nonlinearity *looks* like (out-of-phase population cycles); here we use
+it to expose a hidden *conserved quantity* that motivates the
+structure-preserving methods below. The model again:
 
 $$\dot{x} = \alpha x - \beta x y, \qquad \dot{y} = \delta x y - \gamma y.$$
 
@@ -155,9 +159,34 @@ skeleton. All four together form one of the two patterns
 ([Unit 9](../unit_09/unit_09.qmd)) the capstone inverse problem
 uses.
 
+### Residual networks: the ML backstory
+
+Before 2015, making a network *deeper* eventually made it **worse** — and
+not from overfitting: the *training* error itself went up once you stacked
+enough layers. Gradients backpropagated through many layers shrank toward
+zero (or blew up), so the early layers barely learned. This was the
+**degradation problem** — depth was supposed to help, and past a point it
+hurt.
+
+The fix, from **He et al. 2015** ("Deep Residual Learning for Image
+Recognition"), was a one-line change to how a block of layers is wired. Instead of asking the block to output the full transformed signal
+$H(h)$, ask it to output only the **residual** $f_\theta(h)$ — the *change*
+to make — and add the input back through a **skip connection**:
+
+$$h_{\ell+1} = h_\ell + f_\theta(h_\ell).$$
+
+Now each block only has to learn a small *correction* to its input. If the
+best thing a layer can do is nothing, it just learns $f_\theta \approx 0$ —
+trivial — and the skip connection carries the signal (and the gradient)
+straight through. That single idea made networks of 50, 150, even 1000+
+layers trainable, won ImageNet 2015, and is now everywhere (transformers are
+stacks of residual blocks). With that in hand, the bridge to continuous time
+is almost a relabelling.
+
 ### The Euler-step analogy
 
-A **residual network** layer is
+A **residual network** layer — the skip-connection block we just met, with a
+step size $\Delta t$ written in — is
 
 $$h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell, \ell).$$
 
