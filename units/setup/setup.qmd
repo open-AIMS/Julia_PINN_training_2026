@@ -14,7 +14,14 @@ working on your projects once the cloud servers are switched off.
 
 The environment is packaged as a single **Docker image**. It contains the same
 Julia 1.12 + PINN stack, the same Python (PyTorch / JAX) stack, and the course
-materials that are used on the cloud hub.
+materials that are used on the cloud hub. The image is built from the public
+repository
+[`AccumulationPoint/pinns-course-core`](https://github.com/AccumulationPoint/pinns-course-core){target="_blank"}
+— where you can read exactly how it's assembled (the `Dockerfile`, the package
+list, and the build) — and published to the GitHub Container Registry.
+
+Prefer not to use Docker? There's a [native-install path](#without-docker) at the
+bottom of this page.
 
 ## Prerequisites
 
@@ -26,6 +33,38 @@ materials that are used on the cloud hub.
   extra setup on your part, but training runs are noticeably slower than on a
   native x86-64 machine.
 - ~10 GB of free disk (the image unpacks to about 9 GB, plus some working space).
+
+## Getting Docker running
+
+You need Docker installed and its **engine running**. Pick your platform:
+
+**Windows.** Install
+[Docker Desktop](https://www.docker.com/products/docker-desktop/){target="_blank"}
+and enable the **WSL 2** backend when prompted (if it complains, run `wsl --install`
+in an *administrator* PowerShell and reboot). Launch Docker Desktop and wait until
+the whale icon says **"Engine running."** Run the commands in **PowerShell**;
+`docker version` should show **both** a *Client* and a *Server* section. If you get
+`error during connect … the target machine actively refused it`, the engine isn't up
+(start Docker Desktop) or a stray `DOCKER_HOST` is set — clear it with
+`Remove-Item Env:DOCKER_HOST` and retry.
+
+**Inside WSL (Ubuntu on Windows).** Easiest: keep Docker Desktop on Windows and turn
+on **Settings → Resources → WSL Integration** for your distro — then `docker` works
+in the WSL shell. (Or install Docker Engine inside the distro, as for Linux.)
+
+**macOS.** Install Docker Desktop, launch it, wait for **"Engine running."** You can
+**skip the Docker Hub sign-in** — it isn't needed. On **Apple Silicon** the image
+runs under emulation automatically (a one-line `--platform` warning is harmless).
+
+**Linux.** Install
+[Docker Engine](https://docs.docker.com/engine/install/){target="_blank"}; the
+service is usually already running (`sudo systemctl start docker` if not). Either use
+`sudo`, or add yourself to the `docker` group once
+(`sudo usermod -aG docker $USER`, then log out and back in).
+
+**Everyone.** The first run prints `Unable to find image … locally` and then
+downloads it — that's **normal**, not an error. No login is needed (the image is
+public). Stop a running container with **Ctrl-C**.
 
 ## Run it
 
@@ -84,3 +123,61 @@ docker pull ghcr.io/accumulationpoint/pinns-course-core
 
 (The very first `docker run` already downloads the image, so you only need this
 later, to refresh an image you downloaded earlier.)
+
+## Without Docker — a native Julia install {#without-docker}
+
+If you'd rather not use Docker, you can install the course stack natively. This is
+**slower to set up** — it downloads and precompiles the whole stack from scratch
+(expect 15–30 min the first time, where Docker ships it precompiled) — and it's a
+CPU setup, but it needs no Docker and plugs into your own editor / VS Code.
+
+**1. Install Julia with [Juliaup](https://github.com/JuliaLang/juliaup){target="_blank"}**
+(the Julia version manager — it lets you add and switch Julia versions later):
+
+- **macOS / Linux:** `curl -fsSL https://install.julialang.org | sh`
+- **Windows:** `winget install julia -s msstore` (or the installer from
+  [julialang.org/install](https://julialang.org/install/){target="_blank"}).
+
+Then match the course's Julia version:
+
+```bash
+juliaup add 1.12
+juliaup default 1.12
+```
+
+(Handy later: `juliaup update`, `juliaup status`, and `juliaup default <version>` to
+switch the version your `julia` command points at.)
+
+**2. Get the course materials and environment.** The course repo's `Project.toml`
+pins the same packages (`NeuralPDE`, `Lux`, `ModelingToolkit`, …):
+
+```bash
+git clone https://github.com/open-AIMS/Julia_PINN_training_2026
+cd Julia_PINN_training_2026
+```
+
+**3. Build the environment** (the slow, one-time download + precompile) and add the
+Jupyter kernel:
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.add("IJulia")'
+```
+
+**4. Run it.** Either work in the **REPL / VS Code** (with the Julia extension) via
+`julia --project=.`, or launch JupyterLab straight from Julia (IJulia installs a
+minimal Jupyter for you if you don't have one):
+
+```bash
+julia --project=. -e 'using IJulia; jupyterlab(dir=pwd())'
+```
+
+**Python side (optional)** — for the Python notebooks, install the Python packages
+into a virtual environment:
+
+```bash
+pip install numpy scipy pandas scikit-learn matplotlib jupyterlab jax torch
+```
+
+> For most people Docker is the easier path — one command, everything precompiled.
+> The native install is for those who want a local Julia toolchain or to fold the
+> course into their own setup.

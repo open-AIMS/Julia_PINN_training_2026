@@ -24,8 +24,25 @@ the slow ones), and describes how Julia's **depot** works — including why addi
 your own packages can occasionally set off a long recompilation.
 
 - **Julia version:** 1.12.6
-- **Direct dependencies:** 28 (listed below)
+- **Direct dependencies:** 28 on the cloud GPU hub (listed below); the take-home
+  Docker image is **CPU-only** and ships the same set **minus the three GPU
+  packages** (`CUDA`, `LuxCUDA`, `cuDNN`), so 25.
 - **Total packages with transitive dependencies:** ~552
+
+::: {.callout-note}
+## Two places this environment lives — and which bits are which
+
+- **The take-home Docker image** (`ghcr.io/accumulationpoint/pinns-course-core`,
+  built from the public repo
+  [`AccumulationPoint/pinns-course-core`](https://github.com/AccumulationPoint/pinns-course-core){target="_blank"}).
+  This is the **durable** way to run the course — on your own computer, during the
+  workshop or for years afterwards. The general statements in this appendix describe it.
+- **The cloud JupyterHub** — provided to **June 2026 course participants only**, and
+  switched off after the course. A few details below are hub-specific and flagged as
+  such (e.g. the shared depot lives at `/home/efs/_shared/julia-depot`, and the GPU
+  packages are present). In the Docker image the shared depot is `/opt/julia-depot`
+  and there are no GPU packages.
+:::
 
 ## What `@pinn` is
 
@@ -100,9 +117,10 @@ entry further down the stack.
 DEPOT_PATH
 ```
 
-Your writable `~/.julia` comes first, then the shared, read-only
-`/home/efs/_shared/julia-depot` — and that second one is where `@pinn` and its
-precompiled images actually live.
+Your writable `~/.julia` comes first, then the shared, read-only course depot —
+that second one is where `@pinn` and its precompiled images actually live. (On the
+cloud hub that path is `/home/efs/_shared/julia-depot`; in the Docker image it's
+`/opt/julia-depot`.)
 
 **3. List the 28 packages in `@pinn`** — activate it read-only, look, switch back:
 
@@ -123,8 +141,10 @@ pkgdir(NeuralPDE)      # its path is under the shared depot, not your home
 
 ## The packages
 
-These are the 28 packages named directly in `@pinn`'s `Project.toml`. Everything
-else (the ~552 total) is pulled in automatically as a dependency of one of these.
+These are the 28 packages named directly in `@pinn`'s `Project.toml` on the cloud
+GPU hub. Everything else (the ~552 total) is pulled in automatically as a
+dependency of one of these. The take-home Docker image has the same list **minus
+the three GPU packages** in the "GPU" group below.
 
 ### PINN / SciML core — the heart of the course
 
@@ -153,10 +173,13 @@ else (the ~552 total) is pulled in automatically as a dependency of one of these
 - **`ComponentArrays`** — structured, named parameter vectors that keep network
   weights tidy while staying a flat array the optimiser can use.
 
-### GPU
+### GPU — *cloud GPU hub only*
 
-- **`CUDA`** — NVIDIA GPU arrays and kernels (the GPU hub only; degrades gracefully
-  on the CPU hub and laptop image).
+These three are in `@pinn` **on the cloud GPU hub**. The take-home Docker image is
+CPU-only and does **not** include them (every PINN exercise runs fine on CPU; GPU
+acceleration is what the cloud GPU hub is for).
+
+- **`CUDA`** — NVIDIA GPU arrays and kernels.
 - **`LuxCUDA`** — the glue that moves `Lux` models/data onto the GPU.
 - **`cuDNN`** — NVIDIA's deep-learning primitives, used by the GPU path.
 
@@ -188,7 +211,10 @@ the course environment is **precompiled ahead of time** in two layers:
 1. **A system image.** The kernel boots from a custom system image
    (`course-1.12.so`) that already has `Plots`, `CairoMakie` and `IJulia` *loaded
    and code-generated* inside it. That is why your **first plot is instant** and
-   the kernel starts ready to draw.
+   the kernel starts ready to draw. *(A `.so` file is a "shared object" — a file of
+   ready-to-run native machine code that the operating system loads straight into
+   memory. Here it holds the Julia runtime plus those packages, already compiled.)*
+   Both the cloud hub and the take-home Docker image boot the kernel from this image.
 2. **A precompiled depot cache.** Every other `@pinn` package — `NeuralPDE`,
    `ModelingToolkit`, `Lux`, … — is precompiled into **package images**
    (`.ji`/`.so` files in the depot) when the environment is built. On the Docker
@@ -217,21 +243,27 @@ time, that is normal — it is not stuck.
 
 A **depot** is a directory where Julia keeps everything package-related: the
 registry, downloaded source, and the precompiled package-image cache. Julia
-actually searches a **list** of depots (`DEPOT_PATH`), in order. On the hubs your
-list is:
+actually searches a **list** of depots (`DEPOT_PATH`), in order — a writable
+personal depot first, then a read-only shared course depot:
 
 ```
-~/.julia                      ← your personal depot (writable; on your EFS home)
-/home/efs/_shared/julia-depot ← the shared course depot (read-only)
+~/.julia        ← your personal depot (writable; your Pkg.add + caches land here)
+<shared depot>  ← read-only course depot, where @pinn + its precompiled images live
 ```
+
+The `<shared depot>` path depends on where you run: on the **cloud hub** it's
+`/home/efs/_shared/julia-depot` (shared network storage); in the **Docker image**
+it's `/opt/julia-depot` (baked into the image).
 
 Two consequences follow from this layout:
 
-- **Your `Pkg.add` lands in your own home depot** and **persists** — across kernel
-  restarts, across both hubs, and after the cloud servers are switched off (it is
-  on your EFS home, which is backed up). It never touches the shared base.
-- **`@pinn`'s packages load from the shared depot's precompiled cache** — so the
-  whole class shares one precompiled copy and you start fast.
+- **Your `Pkg.add` lands in your own home depot** and never touches the shared
+  base. On the **cloud hub** your home is on backed-up network storage, so your
+  additions persist across sessions, across both hubs, and after the servers are
+  switched off. In the **Docker image**, mount a folder to keep them (see the
+  [laptop page](../setup/setup.qmd)).
+- **`@pinn`'s packages load from the shared depot's precompiled cache** — so you
+  start fast whether on the hub or the laptop image.
 
 A precompiled **package image** is only valid for one exact context: the package
 version *and* all its dependency versions, the Julia version, the CPU target, and
@@ -252,8 +284,8 @@ to see what the resolver actually does.
 Every package declares the versions of each dependency it is *compatible* with (its
 `[compat]` bounds). The resolver must find **one** version of **every** package —
 direct *and* transitive — that satisfies *all* of those bounds at once, then write
-the result into your `Manifest.toml`. So adding a single package can quietly change
-the chosen version of packages you never named.
+the result into your `Manifest.toml`. **So adding a single package can quietly
+change the chosen version of packages you never named.**
 
 ### Why the SciML stack is sensitive
 
