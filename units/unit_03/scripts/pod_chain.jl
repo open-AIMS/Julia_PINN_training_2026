@@ -45,7 +45,7 @@ for k in 1:3
     plot!(p3, 1:M, U[:, k]; lw = 2.2, label = "mode $k")
 end
 
-plt = plot(p1, p2, p3; layout = (1, 3), size = (1200, 360),
+plt = plot(p1, p2, p3; layout = @layout([a b; c _]), size = (900, 660),
            bottom_margin = 5Plots.mm, left_margin = 5Plots.mm)
 savefig(plt, joinpath(@__DIR__, "..", "figures", "pod_spectrum.png"))
 println("wrote figures/pod_spectrum.png")

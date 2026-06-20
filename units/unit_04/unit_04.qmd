@@ -183,6 +183,12 @@ layers trainable, won ImageNet 2015, and is now everywhere (transformers are
 stacks of residual blocks). With that in hand, the bridge to continuous time
 is almost a relabelling.
 
+![A residual block. The input $h_\ell$ skips around a small learned branch
+$f_\theta$ (two weight layers and an activation) and is **added back**, so the
+block only has to learn a *correction* to its input: $h_{\ell+1} = h_\ell +
+f_\theta(h_\ell)$. The skip connection is what lets gradients — and the signal —
+pass straight through, making very deep stacks trainable.](figures/resnet_block.png){width=52%}
+
 ### The Euler-step analogy
 
 A **residual network** layer — the skip-connection block we just met, with a
@@ -227,6 +233,43 @@ That's a *forward pass* of an untrained Neural ODE. Training fits
 $\theta$ so the integrated trajectory matches data — and that
 training is what the workshop's later units use.
 
+### What are Neural ODEs actually good for?
+
+A fair question: if a Neural ODE is "just" a very deep ResNet, why
+bother solving an ODE? The honest answer is that for plain image
+classification they **don't** beat a discrete ResNet — they're slower
+and no more accurate. Their real wins are the places where
+*continuous time* is genuinely part of the problem:
+
+- **Irregularly-sampled time series.** Because the model is defined
+  for *every* $t$, you can evaluate it at whatever ragged timestamps
+  your data actually has — no resampling onto a fixed grid. This is
+  the big practical use: **Latent ODEs / ODE-RNNs** for medical
+  records, climate sensors, and finance, where readings arrive at
+  uneven times ([Rubanova et al. 2019](https://arxiv.org/abs/1907.03907){target="_blank"}).
+- **Continuous normalizing flows.** Use the ODE to transport a simple
+  probability density into a complicated one, giving an exact,
+  invertible generative model (**FFJORD**); the same
+  continuous-transport idea underlies today's **flow-matching** and
+  diffusion-style generators.
+- **Memory-efficient very deep models.** The adjoint (next
+  subsection) trains with memory that doesn't grow with depth — the
+  original selling point.
+- **Learning physical dynamics from data.** Fit $f_\theta$ to
+  observed trajectories of a real system — the direct bridge to the
+  **universal differential equations** of §4.3 and the scientific
+  applications this workshop is about.
+
+**State of the art.** The active frontier is mostly about making the
+above *practical*: faster and more accurate adjoints (the JAX library
+[`diffrax`](https://docs.kidger.site/diffrax/){target="_blank"} is the
+modern reference), solvers that cope with **stiff** learned dynamics,
+and hybrids that splice Neural-ODE blocks into transformers and
+diffusion models. For this course the takeaway is narrower: a Neural
+ODE is the right tool when the data is a *trajectory* and the dynamics
+are unknown — exactly the capstone setting in
+[Unit 9](../unit_09/unit_09.qmd).
+
 ### Adjoint sensitivities (sketch)
 
 Naively `Zygote.gradient` through an ODE solver stores every
@@ -258,35 +301,43 @@ exceptional adjoint support). `SciMLSensitivity.jl` is left out of
 the workshop default `Project.toml` to keep precompile light, but
 a one-line addition when you reach for it.
 
-### Training a Neural ODE (illustrative)
+### Training a Neural ODE — a complete run
 
-The skeleton — define the vector field, integrate, compute the
-trajectory-misfit loss, gradient-descend on $\theta$:
+Not a sketch — the whole thing end to end: make data from a known system,
+let a small MLP *be* the vector field, train **through** the ODE solver with
+adjoint sensitivities, and check the fit. This is the full
+[`scripts/neural_ode_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/neural_ode_train.jl){target="_blank"}
+(needs `SciMLSensitivity` + `ComponentArrays` added to the environment):
 
-```{.julia code-fold="true" code-summary="Neural-ODE training skeleton (illustrative)"}
-using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity
-# `SciMLSensitivity` extends `solve` with adjoint backends used
-# by Zygote; add it to Project.toml before running.
+```{.julia filename="units/unit_04/scripts/neural_ode_train.jl"}
+using Lux, OrdinaryDiffEq, SciMLSensitivity, Zygote, Optimisers,
+      ComponentArrays, Random
 
-rng     = Random.MersenneTwister(0)
-f_θ     = Lux.Chain(Lux.Dense(2 => 16, tanh), Lux.Dense(16 => 2))
-ps, st  = Lux.setup(rng, f_θ)
+rng = Random.MersenneTwister(0)
 
-function predict(ps, u0, ts)
-    rhs!(du, u, p, t) = (y, _ = f_θ(u, p, st); du .= y)
-    sol = solve(ODEProblem(rhs!, u0, (ts[1], ts[end]), ps),
-                Tsit5(); saveat = ts,
-                sensealg = InterpolatingAdjoint())
-    Array(sol)                          # (state, time)
+# ground-truth system: a damped spiral, sampled at 40 times
+A_true = Float32[-0.1 2.0; -2.0 -0.1]
+u0, tspan = Float32[2.0, 0.0], (0.0f0, 6.0f0)
+ts   = range(tspan[1], tspan[2]; length = 40)
+data = Array(solve(ODEProblem((u,p,t) -> A_true*u, u0, tspan), Tsit5(); saveat = ts))
+
+# the Neural ODE: a small MLP IS the vector field f_θ(u)
+fθ      = Lux.Chain(Lux.Dense(2 => 16, tanh), Lux.Dense(16 => 2))
+ps0, st = Lux.setup(rng, fθ)
+ps      = ComponentArray(ps0)               # flat params the solver can carry
+
+rhs(u, p, t) = first(fθ(u, p, st))
+predict(p) = Array(solve(ODEProblem(rhs, u0, tspan, p), Tsit5();
+                   saveat = ts, sensealg = InterpolatingAdjoint(autojacvec = ZygoteVJP())))
+loss(p) = sum(abs2, predict(p) .- data)
+
+# train: Adam on θ; the gradient flows through the solver via the adjoint
+opt_state = Optimisers.setup(Optimisers.Adam(0.05f0), ps)
+for epoch in 1:300
+    l, back = Zygote.pullback(loss, ps)
+    opt_state, ps = Optimisers.update(opt_state, ps, back(one(l))[1])
 end
-
-loss(ps, u0, ts, ŷ) = sum(abs2, predict(ps, u0, ts) .- ŷ)
-
-opt_state = Optimisers.setup(Optimisers.Adam(1.0f-2), ps)
-for epoch in 1:1000
-    g = first(Zygote.gradient(p -> loss(p, u0, ts, data), ps))
-    opt_state, ps = Optimisers.update(opt_state, ps, g)
-end
+# `predict(ps)` now tracks the true damped spiral; the script saves the fit + loss curve.
 ```
 
 Three structural differences from the standard supervised-learning

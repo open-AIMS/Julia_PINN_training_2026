@@ -815,7 +815,7 @@ for k in 1:3
     plot!(p3, 1:M, U[:, k]; lw = 2.2, label = "mode $k")
 end
 
-plot(p1, p2, p3; layout = (1, 3), size = (1200, 360),
+plot(p1, p2, p3; layout = @layout([a b; c _]), size = (900, 660),
      bottom_margin = 5Plots.mm, left_margin = 5Plots.mm)
 ```
 
@@ -879,9 +879,18 @@ contemporary work:
 POD's nonlinear cousins — **autoencoders**, **dynamic mode
 decomposition (DMD)**, **Koopman operators** — generalise the
 idea: project the dynamics onto a learned (possibly nonlinear)
-low-dimensional manifold, then evolve there. We won't go deep into
-them in the workshop, but the POD picture is the right mental
-starting point.
+low-dimensional manifold, then evolve there. An **autoencoder** is
+the most direct generalisation: a neural network trained to
+reconstruct its input through a narrow *bottleneck* layer, so the
+bottleneck learns a compressed code. POD is exactly the **linear**
+special case — a linear encoder/decoder with a squared-error loss
+recovers the same subspace the leading POD modes span — and an
+autoencoder simply lets the encoder and decoder be nonlinear, which
+can capture curved low-dimensional structure that a linear basis
+cannot. See [*Mathematical Engineering of Deep Learning*
+(Liquet, Moka & Nazarathy, 2024)](https://deeplearningmath.org/){target="_blank"}
+for the autoencoder construction. We won't go deep into these in the
+workshop, but the POD picture is the right mental starting point.
 
 ::: {#ex-3-5 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — POD on a diffusing field
