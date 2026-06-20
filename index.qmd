@@ -62,8 +62,8 @@ pacing.
 A worked end-to-end PINN inverse problem — recover the
 unknown Brisbane River freshwater surge from sparse Moreton Bay tide gauges.
 
-- A `MethodOfLines` shallow-water reference solve produces a
-  slider-driven animation.
+- A hand-written finite-difference shallow-water reference solve
+  produces a slider-driven animation.
 - *Two* recovery methods (adjoint Tikhonov inverse vs naive PINN)
   trained against the same noisy gauge data, to make the
   ill-posedness visible.

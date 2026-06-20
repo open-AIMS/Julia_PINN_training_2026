@@ -80,6 +80,13 @@ prob = discretize(pde_system, discretization)
 res = Optimization.solve(prob, LBFGS(); maxiters=1500)
 ```
 
+If the `@parameters` / `@variables` / `Differential` / `~` / `PDESystem`
+/ `PhysicsInformedNN` / `discretize` machinery above looks unfamiliar,
+it is dissected line-by-line in
+[§7.6 — anatomy of a `NeuralPDE` program](#sec-npde-anatomy); the
+examples here use it without ceremony so you see the *shape* of a PINN
+program before the parts list.
+
 ### Laplace on a Disk: Where Mesh-Free Helps
 
 A clean elliptic example. The PINN handles the circular geometry
@@ -727,10 +734,14 @@ Make α trainable by log-parameterising it (`logα`) and appending it to a `Comp
 ## 7.6 The PINN software ecosystem {#sec-software}
 
 A practitioner reading the 2026 PINN literature will hit at least
-three software stacks. The next three subsubsections lay out the
-Julia, Python, and commercial offerings so the reader can place
-*any* PINN paper or product on the map. All claims are sourced from
-canonical project pages or release notes as of mid-2026.
+three software stacks. The subsections below lay out the Julia,
+Python, and commercial offerings so the reader can place *any* PINN
+paper or product on the map — and, because the workshop is Julia-first,
+a dedicated walkthrough dissects the actual `NeuralPDE` /
+`ModelingToolkit` building blocks (`@parameters`, `@variables`,
+`Differential`, `PDESystem`, …) that the §7.1–§7.2 code used without
+ceremony. All claims are sourced from canonical project pages or
+release notes as of mid-2026.
 
 ### Julia: the SciML stack
 
@@ -756,6 +767,84 @@ A consolidation note worth knowing: the older Flux-based stack
 (`DiffEqFlux`, `FluxNeuralOperators`) is being superseded by the
 `Lux + Reactant + Enzyme` stack across SciML; new projects should
 start with the right column.
+
+### Anatomy of a `NeuralPDE` program {#sec-npde-anatomy}
+
+The package table says *which* libraries you load. This subsection
+says *how they fit together* — the symbolic pipeline that turns a PDE
+written on paper into a trained network. Every code block in §7.1–§7.2
+is an instance of the same six-stage skeleton; learn it once and the
+rest of the unit reads as variations.
+
+The headline idea — and what distinguishes the Julia stack from a
+hand-rolled PINN like the one Unit 5 §5.3 builds — is that **you never
+write the loss function**. You declare the PDE *symbolically* with
+`ModelingToolkit`, and `NeuralPDE` differentiates that symbolic
+expression to assemble the residual, IC, and BC loss terms
+automatically. The vocabulary you need is small:
+
+| Building block | Package | What it does |
+|---|---|---|
+| `@parameters x t` | ModelingToolkit | Declares the **independent** variables — the PDE's coordinates (space, time). These become the *inputs* of the network. |
+| `@variables u(..)` | ModelingToolkit | Declares the **dependent** variable(s) — the unknown field(s) being solved for. The `(..)` means "a function whose arguments I'll supply later" (e.g. `u(x, t)`); these become the *outputs*. |
+| `Differential(t)` | ModelingToolkit | A symbolic derivative operator. `Dₜ = Differential(t)` gives `Dₜ(u(x,t))` $=\partial_t u$. Compose with `∘` for higher order: `Differential(x) ∘ Differential(x)` is $\partial_{xx}$. |
+| `~` | Symbolics | Symbolic **equality** — builds an equation, *not* an assignment. `Dₜ(u) ~ α*Dₓₓ(u)` is the heat equation as a data structure the solver can read. |
+| `x ∈ ClosedInterval(0, 1)` | DomainSets | The geometric **domain** each independent variable ranges over. One entry per coordinate. |
+| `PDESystem(eqs, bcs, domains, ivs, dvs)` | ModelingToolkit | Bundles the whole symbolic problem — equation(s), boundary/initial conditions (also written with `~`), domains, and the lists of independent (`ivs`) and dependent (`dvs`) variables — into one object. `@named` tags it for readable error messages. |
+| `Lux.Chain(Dense(…), …)` | Lux | The trial function $u_\theta$. Input width = number of `@parameters`; output width = number of `@variables`. For a *system*, pass a vector of chains, one per dependent variable. |
+| `GridTraining(dx)` | NeuralPDE | A **training strategy** — *where* the residual is sampled. `GridTraining` lays a fixed lattice with spacing `dx`; the alternatives (below) resample instead. |
+| `PhysicsInformedNN(chain, strategy)` | NeuralPDE | Bundles network + sampling strategy and is the object that *builds the physics-informed loss by autodiff* when discretized. |
+| `discretize(pdesys, disc)` | NeuralPDE | Compiles the symbolic `PDESystem` + the `PhysicsInformedNN` into a concrete `OptimizationProblem` — a plain loss-minimisation problem with no PDE symbols left in it. |
+| `Optimization.solve(prob, opt; maxiters)` | Optimization | Minimises that loss. Idiom: a few hundred steps of `Adam()` to get into the basin, then `LBFGS()` to polish — exactly what §7.1 does. |
+| `disc.phi`, `res.u` | NeuralPDE | After solving, `res.u` is the optimal parameter vector and `disc.phi([x,t], res.u)` evaluates the trained solution at any coordinate. For a system, `phi` is a vector — `phi[1]`, `phi[2]`, …. |
+
+Read against the heat-equation block of [§7.1](#sec-heat), the six
+stages are:
+
+1. **Declare the symbols** — `@parameters x t`, `@variables u(..)`,
+   the `Differential`s.
+2. **Write the physics** — the equation and the `domains`/`bcs`, all
+   in `~` form.
+3. **Assemble** — `@named pde_system = PDESystem(…)`.
+4. **Choose the ansatz** — a `Lux.Chain` of the right input/output width.
+5. **Discretize** — `PhysicsInformedNN(chain, strategy)` then
+   `discretize(…)` → an `OptimizationProblem`.
+6. **Train** — `Optimization.solve(…)`, then query `disc.phi`.
+
+**Which training strategy?** This is the one knob with real
+performance consequences, and it connects straight to the GPU story in
+[§7.6 ▸ *Why a GPU changes which PINNs you can afford*](#sec-gpu):
+
+- `GridTraining(dx)` — a fixed lattice. Cheap, deterministic, fine for
+  the low-dimensional textbook problems of §7.1; scales badly because
+  the point count is $\mathcal{O}(\text{res}^{d})$.
+- `StochasticTraining(n)` / `QuasiRandomTraining(n)` — draw `n` fresh
+  (pseudo- or low-discrepancy) collocation points each iteration. This
+  is the resampling that the §7.3 fixes (adaptive sampling, curriculum
+  schedules) build on, and the workload the GPU benchmark feeds.
+- `QuadratureTraining()` — integrate the residual with an adaptive
+  quadrature rule rather than a Monte-Carlo average; most accurate per
+  point, best in low dimension.
+
+**Extending the skeleton to inverse problems.** Workflows W2/W3
+(§7.4) reuse *all six stages* and bolt on two hooks:
+
+- For an unknown **scalar** (W2 — e.g. recover the diffusivity $\alpha$
+  in [ex-7-5](#ex-7-5)): add it to the system's parameter list with a
+  starting guess and pass `param_estim = true` to `PhysicsInformedNN`,
+  so the optimiser tunes $\alpha$ jointly with $\theta$.
+- For the **data-misfit** term (W2 *and* W3): pass an
+  `additional_loss` callback to `PhysicsInformedNN` that evaluates
+  `phi` at the sensor coordinates and returns the misfit scalar — this
+  is the $\mathcal{L}_{\text{data}}$ of §7.2 added on top of the
+  auto-built residual loss.
+- For an unknown **function** (W3 — e.g. Unit 1's $\psi(t)$): give it
+  its own `@variables` and a second `Lux.Chain`, trained jointly.
+
+And `adaptive_loss = GradientScaleAdaptiveLoss(…)` (or
+`MiniMaxAdaptiveLoss`) is the built-in switch for the §7.3 adaptive
+loss-weighting — so the whole §7.3 toolkit is reachable through
+keyword arguments to the *same* `PhysicsInformedNN` constructor.
 
 ### Python: DeepXDE, PhysicsNeMo, JAX, PyTorch
 
