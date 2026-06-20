@@ -226,8 +226,9 @@ the dredged Brisbane River channel running east from the source,
 the shoals around the river mouth, the eastern shelf outside
 Moreton Island, and the way the southern bay is constricted by
 the Russell / Macleay / Karragarra island cluster and the South
-Stradbroke spit. This is what the SWE solver actually
-sees.](figures/bathymetry.png){width=70%}
+Stradbroke spit. This is what the SWE solver actually sees. The map is drawn in
+landscape with **north to the left** (◀ N) and east up, so the bay's long
+95 km north–south axis runs across the page.](figures/bathymetry.png){width=92%}
 
 ::: {.callout-note}
 ## What this isn't
@@ -469,7 +470,7 @@ data_js = "[" * join([
 println("```{=html}")
 println("""
 <div class="surge-movie-widget" style="text-align:center;margin:1em 0;">
-<img id="surge-movie-img" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:560px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;cursor:pointer;" title="click to pause / resume"/>
+<img id="surge-movie-img" alt="Brisbane River surge propagating across Moreton Bay" style="max-width:820px;width:100%;height:auto;border:1px solid #ddd;border-radius:4px;cursor:pointer;" title="click to pause / resume"/>
 <div id="surge-movie-caption" style="font-size:0.9em;color:#555;margin-top:0.4em;font-family:ui-monospace,Menlo,monospace;">t = 0.00 h  ·  ψ(t) = +0.000 m</div>
 <div style="font-size:0.85em;color:#777;margin-top:0.4em;"><em>A slow movie of the surge — it loops automatically; click the image to pause or resume. The red triangle marks the unknown source ψ(t).</em></div>
 </div>
@@ -737,7 +738,7 @@ the GPU is **>20× faster** while the CPU solve has crossed $30\,\text{s}$. The
 two never disagree by more than a centimetre: it is genuinely the same physics,
 just spread across thousands of cores. The surge at the finest resolution:
 
-![Surface elevation $\eta$ three hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. The land mask (islands, mainland coast) appears as the pale cut-outs; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png)
+![Surface elevation $\eta$ three hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (◀ N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
 
 ### What you have just seen
 

@@ -11,6 +11,7 @@
 #   figures/surge_frames/frames_meta.json  — t in seconds + ψ(t) per frame
 
 using DelimitedFiles, CSV, DataFrames, JSON3, Plots, Printf
+include(joinpath(@__DIR__, "_mapfig.jl"))   # rotated landscape bay maps (N ◀ left)
 
 const HERE     = @__DIR__
 const DATA_DIR = joinpath(HERE, "..", "data")
@@ -45,9 +46,7 @@ gy = [(gauges.iy[k] - 0.5) * DY / 1000 for k in 1:nrow(gauges)]
 rx = (river.ix[1] - 0.5) * DX / 1000
 ry = (river.iy[1] - 0.5) * DY / 1000
 
-# Land overlay
-land_layer = fill(NaN, NY, NX)
-land_layer[mask .== 0] .= 1.0
+const DXKM = DX / 1000
 
 # Colour scale — symmetric, saturate slightly so far-field wakes are visible
 const ηmax = maximum(abs, snap)
@@ -71,37 +70,17 @@ frame_records = Vector{Dict{String, Any}}()
 
 for f in 1:NF
     η_frame = copy(snap[:, :, f])
-    η_frame[mask .== 0] .= NaN
 
     t_s = FRAME_TIMES[f]
     t_hr = t_s / 3600
     psi_t = psi.psi[nearest_idx(psi.t, t_s)]
 
-    p = heatmap(xkm, ykm, η_frame;
-        c = :balance, clims = (-VLIM, VLIM),
-        aspect_ratio = 1, size = (560, 870),
-        xlims = (0, NX * DX / 1000),
-        ylims = (0, NY * DY / 1000),
-        xlabel = "east  (km)", ylabel = "north  (km)",
-        colorbar_title = "η  (m)",
-        background_color_inside = :white,
+    p = bay_map(η_frame, mask, DXKM;
+        clims = (-VLIM, VLIM), cmap = :balance, clabel = "η  (m)",
         title = @sprintf("Brisbane River surge — t = %.2f h    ψ(t) = %+.3f m",
                          t_hr, psi_t),
-        titlefontsize = 11)
-    heatmap!(p, xkm, ykm, land_layer;
-        c = cgrad([RGB(0.82, 0.82, 0.82), RGB(0.82, 0.82, 0.82)]),
-        clims = (0, 1), colorbar = false)
-
-    scatter!(p, gx, gy;
-        marker = :circle, c = :gold, ms = 6, msc = :black, msw = 1.2)
-    for k in 1:nrow(gauges)
-        annotate!(p, gx[k] + 1.0, gy[k],
-                  text(gauges.gauge_id[k], 8, :left, :black))
-    end
-
-    scatter!(p, [rx], [ry];
-        marker = :utriangle, c = :crimson, ms = 9, msc = :black, msw = 1.2)
-    annotate!(p, rx - 1.0, ry + 1.5, text("ψ", 11, :right, :crimson))
+        gauge_e = gx, gauge_n = gy, gauge_id = String.(gauges.gauge_id),
+        river_e = rx, river_n = ry)
 
     fname = @sprintf("frame_%03d.png", f - 1)
     savefig(p, joinpath(FIG_DIR, fname))

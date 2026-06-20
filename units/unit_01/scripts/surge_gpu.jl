@@ -23,9 +23,19 @@
 # and includes the captured output.
 # ===========================================================================
 
-using CUDA, Printf, Statistics
+using Printf, Statistics
 
-const HAVE_GPU = CUDA.functional()
+# CUDA is optional: on the GPU hub it drives the real benchmark; on a CPU-only
+# machine (e.g. a laptop regenerating just the figure) we skip it gracefully and
+# the identical vectorised solver runs on `Array`. The field is the same either way.
+const HAVE_CUDA = try
+    @eval using CUDA
+    true
+catch
+    @info "CUDA.jl not available — running CPU-only (benchmark GPU column blank; figure still rendered)"
+    false
+end
+const HAVE_GPU = HAVE_CUDA && CUDA.functional()
 
 # --- Bay geometry ----------------------------------------------------------
 # Prefer the real Unit 1 bathymetry/mask if we can find them (on the hub the
@@ -204,17 +214,20 @@ println()
 println("CPU and GPU fields agree to < 1e-2 m at every resolution (same code, same physics).")
 
 # --- Figure: the surge field on the finest grid ----------------------------
+# Rotated landscape, North ◀ left, land greyed, km axes — same look as the rest
+# of Unit 1's bay maps (units/unit_01/scripts/_mapfig.jl).
 try
-    using CairoMakie
-    f = Figure(size = (720, 460))
-    ax = Axis(f[1, 1], title = "Surge η at t = 3 h (finest grid, GPU)",
-              xlabel = "i (east →)", ylabel = "j (north →)")
-    hm = heatmap!(ax, permutedims(fine_field), colormap = :balance,
-                  colorrange = (-0.3, 0.3))
-    Colorbar(f[1, 2], hm, label = "η (m)")
+    include(joinpath(@__DIR__, "_mapfig.jl"))
+    rfac      = last(refines)
+    fine_mask = refine_field(Mc, rfac)
+    dxkm      = 0.5 / rfac                       # 500 m base grid, refined ×rfac
+    NYf, NXf  = size(fine_field)
+    p = bay_map(fine_field, fine_mask, dxkm;
+        clims = (-0.3, 0.3), cmap = :balance, clabel = "η  (m)",
+        title = "Surge η at t = 3 h — refined $(NYf)×$(NXf) Moreton Bay grid")
     figdir = get(ENV, "GPU_FIG_DIR", joinpath(@__DIR__, "..", "figures"))
     isdir(figdir) || mkpath(figdir)
-    save(joinpath(figdir, "surge_gpu_field.png"), f)
+    savefig(p, joinpath(figdir, "surge_gpu_field.png"))
     println("wrote figures/surge_gpu_field.png")
 catch e
     println("(figure skipped: ", e, ")")

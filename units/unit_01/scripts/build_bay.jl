@@ -446,53 +446,24 @@ end
 
 # --- Render bathymetry figure for the qmd --------------------------------
 
-using Plots
-gr()
+include(joinpath(@__DIR__, "_mapfig.jl"))   # rotated landscape bay map (N ◀ left)
 
 FIG_DIR = normpath(joinpath(@__DIR__, "..", "figures"))
 isdir(FIG_DIR) || mkpath(FIG_DIR)
 
-display_bathy = copy(bathy)
-display_bathy[mask .== 0] .= NaN
+# Gauge / river positions in km (cell-centre), east & north.
+ge = [(g[5] - 0.5) * DX / 1000 for g in snapped_gauges]
+gn = [(g[6] - 0.5) * DY / 1000 for g in snapped_gauges]
+re = (snapped_river[5] - 0.5) * DX / 1000
+rn = (snapped_river[6] - 0.5) * DY / 1000
 
-# X/Y axes in km (cell-centre coordinates) so the figure reads physically
-xkm = [(i - 0.5) * DX / 1000 for i in 1:NX]
-ykm = [(j - 0.5) * DY / 1000 for j in 1:NY]
-
-p = heatmap(xkm, ykm, display_bathy;
-            c = cgrad(:deep, rev = false),
-            yflip = false,
-            aspect_ratio = 1,
-            size = (560, 870),
-            background_color_inside = RGB(0.85, 0.85, 0.85),  # grey land
-            xlabel = "east  (km)", ylabel = "north  (km)",
-            colorbar_title = "depth  (m)",
-            title = "Moreton Bay bathymetry — $(NX)×$(NY) at $(round(Int, DX)) m",
-            titlefontsize = 11)
-
-# overlay gauges
-scatter!(p,
-         [g[8] |> x -> x_of_lon(x) / 1000 for g in snapped_gauges],   # snap_lon → km
-         [g[9] |> x -> y_of_lat(x) / 1000 for g in snapped_gauges];
-         marker = :circle, c = :gold, ms = 6, msc = :black, msw = 1.0,
-         label = "tide gauges")
-for g in snapped_gauges
-    xk = x_of_lon(g[8]) / 1000
-    yk = y_of_lat(g[9]) / 1000
-    annotate!(p, xk + 1.0, yk, text(g[1], 8, :left, :black))
-end
-
-# river source
-let g = snapped_river
-    xk = x_of_lon(g[8]) / 1000
-    yk = y_of_lat(g[9]) / 1000
-    scatter!(p, [xk], [yk];
-             marker = :utriangle, c = :crimson, ms = 9, msc = :black, msw = 1.2,
-             label = "river source ψ(t)")
-    annotate!(p, xk - 1.0, yk + 1.5, text("ψ", 11, :right, :crimson))
-end
-
-plot!(p, legend = :topright, legendfontsize = 7)
+depths = filter(!isnan, vec(bathy))
+p = bay_map(bathy, mask, DX / 1000;
+    clims = (floor(minimum(depths)), ceil(maximum(depths))),
+    cmap = cgrad(:deep), clabel = "depth  (m)",
+    title = "Moreton Bay bathymetry — $(NX)×$(NY) at $(round(Int, DX)) m  (N ◀ left)",
+    gauge_e = ge, gauge_n = gn, gauge_id = String[g[1] for g in snapped_gauges],
+    river_e = re, river_n = rn)
 
 savefig(p, joinpath(FIG_DIR, "bathymetry.png"))
-println("\nWrote figures/bathymetry.png")
+println("\nWrote figures/bathymetry.png  (rotated landscape, North ◀ left)")
