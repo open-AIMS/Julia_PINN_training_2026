@@ -545,6 +545,13 @@ measures ψ(t) directly (travel time ~3 min, no smoothing), so the
 inversion from that gauge alone reduces to a one-to-one read-off
 and the broader four-gauge machinery looks like overkill.
 
+Put another way: recovering $\psi(t)$ from the four *bay* gauges is
+exactly the problem you would face **if the Brisbane Bar gauge were
+broken or offline** — reconstructing the near-source signal it *would*
+have measured from the other, more distant gauges. That sensor-outage
+scenario is the realistic one, and it is what makes the bay's smoothing
+(and the whole four-gauge inversion) worth the trouble.
+
 **Mud Island** (~18 km NNE of the mouth, real mid-bay tide-gauge
 site) is the closest gauge where the Green's-function smoothing,
 geometric spreading, and reflection paths actually *do something*

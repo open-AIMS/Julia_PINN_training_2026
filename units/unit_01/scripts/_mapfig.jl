@@ -16,7 +16,7 @@ rot(A) = permutedims(A)
 # of the rotated frame). We use a bold text glyph rather than a plotted arrow:
 # under `xflip` a plotted arrowhead points the wrong way, but text is reliable.
 function north_arrow!(p, Ln, Le)
-    annotate!(p, 0.93 * Ln, 0.92 * Le, text("← N", 14, :black, :bold, :left))
+    annotate!(p, 0.93 * Ln, 0.92 * Le, text("← N", 14, :black, :left))
 end
 
 """
