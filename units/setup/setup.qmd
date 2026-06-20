@@ -25,7 +25,7 @@ materials that are used on the cloud hub.
   (M1/M2/M3/M4), Docker Desktop runs it through its built-in emulation layer — no
   extra setup on your part, but training runs are noticeably slower than on a
   native x86-64 machine.
-- ~8 GB of free disk for the image.
+- ~10 GB of free disk (the image unpacks to about 9 GB, plus some working space).
 
 ## Run it
 
