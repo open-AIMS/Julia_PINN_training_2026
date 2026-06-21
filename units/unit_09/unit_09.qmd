@@ -86,8 +86,10 @@ $$
 
 and report which integrated contribution dominates over the storm
 window. The single-driver inversion plus the partition plot is what
-turns "we recovered $\tau$" into "the storm cooling at Davies Reef
-was 65% upwelling, 30% mixing, 5% reduced heating".
+turns "we recovered $\tau$" into a statement like "the storm cooling here
+was mostly upwelling, with a smaller mixing contribution and little change
+in surface heating" — see [Unit 10 §10.3](../unit_10/unit_10.qmd#sec-mechanism-partition)
+for the partitions the worked solution actually recovers.
 
 If you want a *direct* mechanism-discrimination inverse instead
 (recover $\tau_w, \tau_\kappa, \tau_Q$ separately), that's a
@@ -281,7 +283,7 @@ $$
 $$
 
 The downward diffusive heat flux *into* the ocean from the air–sea
-interface equals the *non-penetrative* part of the surface heat
+interface equals the *non-penetrating* part of the surface heat
 budget, divided by the volumetric heat capacity of seawater (so
 units come out as K·m/s, matching $\kappa\, \partial_z T$). With
 $z$ measured upward, $\partial_z T > 0$ corresponds to a warmer
@@ -289,7 +291,7 @@ surface, and $\kappa\, \partial_z T$ is the *downward* heat flux —
 positive $Q_{\text{np}}$ heats the ocean by driving the surface
 temperature up.
 
-- **$Q_{\text{np}}(t)$** — net non-penetrative heat flux at the
+- **$Q_{\text{np}}(t)$** — net non-penetrating heat flux at the
   surface. Sum of: longwave radiation, sensible heat, latent heat
   (evaporation). Units: W/m². Positive means heat *into* the ocean.
 - **$\rho_0$** — reference seawater density, $\approx 1025\,\text{kg/m}^3$.
@@ -455,7 +457,7 @@ Assemble with `plot(p1, p2, p3, p4, layout = (2,2))`, pulling every number from 
 | $T_{\text{deep}}$ | 18 | °C | deep reservoir |
 | $z_t,\, \delta_t$ | $-30$, 5 | m | thermocline depth, width |
 | $Q_{\text{SW}}^{\max}$ | 800 | W/m² | peak noon SW |
-| $Q_{\text{cool}}$ | 200 | W/m² | non-penetrative net cooling |
+| $Q_{\text{cool}}$ | 200 | W/m² | non-penetrating net cooling |
 | $\zeta$ | 10 | m | shortwave penetration scale |
 | $\kappa_b$ | $10^{-5}$ | m²/s | background diffusivity |
 | $\kappa_m$ | $10^{-3}$ | m²/s | mixed-layer diffusivity |
@@ -478,7 +480,7 @@ average day? Integrate over 24 hours:
    $\int_0^{\tau_d} Q_{\text{SW}}^{\max}\max(0, \cos(2\pi t/\tau_d))\,dt$
    — evaluate it analytically (the positive half of a cosine
    integrates to $\tau_d/\pi$).
-2. Total non-penetrative out: $Q_{\text{cool}} \times \tau_d$.
+2. Total non-penetrating out: $Q_{\text{cool}} \times \tau_d$.
 3. Net daily heat input in J/m², and the implied warming rate of a
    20 m mixed layer in K/day
    ($\Delta T = E_{\text{net}} / (\rho_0 c_p h_m)$).
@@ -556,7 +558,7 @@ time on commodity hardware.
   diffusion-dominated, the simplest of the three regimes). 5
   sensors at $z = -1, -4, -8, -12, -14$ m.
 - **Data.** `data/mooring_A.csv` (synthetic, $\sigma = 0.05\,°\text{C}$
-  Gaussian noise on hourly samples for 30 days = 3 600 data points).
+  Gaussian noise on hourly samples for 30 days = 5 × 720 = 3 600 data points).
 - **Unknown.** A single scalar function $\tau(t)$ — the local
   wind-stress envelope — over the 30-day window.
 - **Given.** $\kappa(z)$ (profile closure), $Q_{\text{np}}(t)$,
@@ -699,7 +701,7 @@ single coherent storm signal explains all three.
 | Sub-scale prototype matches Task A | yes, < 1.2× error | — |
 | Two-site joint $\hat\tau$ peak error | ~7% | — |
 | Full 3-site joint $\hat\tau$ peak error | — | ~5–7% |
-| Residual histogram monotone in $t$, all three sites | — | yes |
+| Residual histogram monotonically decreasing in $t$, all three sites | — | yes |
 
 ### 9.10.4 Expected runtime
 

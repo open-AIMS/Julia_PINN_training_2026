@@ -1,5 +1,5 @@
 # Activation functions used through the workshop. The smooth, bounded ones
-# (sigmoid, tanh) are the default for PINNs because their higher derivatives are
+# (tanh, sigmoid) suit PINNs because their higher derivatives are
 # nonzero everywhere — see unit_02.qmd §2.4. Generates figures/activations.png.
 
 using Plots

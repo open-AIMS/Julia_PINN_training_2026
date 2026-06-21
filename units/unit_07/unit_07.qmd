@@ -36,7 +36,7 @@ no time-stepping.
 
 The 1D diffusion equation $\partial_t u = \alpha\,\partial_x^2 u$ on
 $[0, 1]\times[0, 2]$ with a Gaussian initial bump and zero boundaries.
-Vanilla PINNs handle this well — useful as the first concrete
+Vanilla PINNs handle this well, making it a useful first concrete
 implementation.
 
 ```{julia}
@@ -339,13 +339,15 @@ The cheapest reference isn't FD at all — d'Alembert gives $\eta(x,t) = \tfrac1
 
 ### Causal Training
 
-[Wang et al. (2022)](../references/references.qmd#ref-wang2022causal){target="_blank"}: weight residual losses at later times by how
+[Wang et al. (2022)](../references/references.qmd#ref-wang2022causal){target="_blank"} weight residual losses at later times by how
 well earlier times have already converged. Concretely,
 
 $$\lambda(t_i) = \exp\!\Bigl(-\epsilon \sum_{t_j < t_i} \mathcal{L}_{\text{PDE}}(t_j)\Bigr),$$
 
 so a time slice contributes only after earlier slices have been
-resolved. Trains the network in the right *temporal causal order*
+resolved: the running sum stays large — keeping the weight near zero — until the
+earlier-time loss is small, and $\epsilon$ sets how strictly this ordering is
+enforced. This trains the network in the right *temporal causal order*
 without explicit time-stepping.
 
 ### Fourier Feature Embeddings

@@ -103,10 +103,10 @@ Design matrix: `vander(x, d) = hcat((x .^ p for p in 0:d)...)`; fit each degree 
 
 Before deep learning takes over, one quick stop on the
 non-deep-learning side of the world — and a first look at MNIST,
-the dataset we'll keep using as a running example. The next two
-subsubsections cover (a) what a random forest *is* and (b) the
-same MNIST problem in Julia and in Python, so the cross-ecosystem
-template is established up front.
+the dataset we'll keep using as a running example. The next few
+subsections cover what a random forest *is*, a first look at the
+digits, and the same MNIST problem in Julia and in Python, so the
+cross-ecosystem template is established up front.
 
 ### Decision trees, ensembled
 
@@ -289,7 +289,7 @@ The simplest possible "neural network" is a single linear layer
 followed by a smooth squashing function. It is also the first
 genuinely useful classifier — the **softmax regression** baseline
 that [*Mathematical Engineering of Deep Learning*](../references/references.qmd#ref-liquet2024){target="_blank"}
-derives in detail in Chapter 3 (*Simple Neural Networks*). The next four subsubsections
+derives in detail in Chapter 3 (*Simple Neural Networks*). The next four subsections
 walk through the theory (Bernoulli → sigmoid → softmax) and then
 fit it on MNIST in both Julia and Python, so the jump to deeper
 networks in §2.4 is a single conceptual step rather than a leap.

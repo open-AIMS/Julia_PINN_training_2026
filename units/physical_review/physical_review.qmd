@@ -37,7 +37,7 @@ nearly uniform in temperature, salinity, and density by
 wind-driven turbulent mixing and convective overturning. Depth
 ranges from a few metres (calm tropics) to hundreds of metres
 (stormy mid-latitudes). Modelled in
-[Unit 8](../unit_08/unit_08.qmd) §8.5 via large $\kappa$ in the
+[Unit 8 §8.5](../unit_08/unit_08.qmd) via large $\kappa$ in the
 upper column.
 :::
 
@@ -104,7 +104,7 @@ days; a strong night-time cooling term.
 ::: {#term-sensible-heat}
 **Sensible heat flux $Q_{\text{sens}}$.** Heat conducted from
 the ocean to the (usually cooler) air. Small compared to latent
-heat in the tropics but signs and magnitudes flip during cold
+heat in the tropics, but its sign and magnitude can flip during cold
 fronts.
 :::
 

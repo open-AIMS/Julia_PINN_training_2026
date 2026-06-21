@@ -19,7 +19,7 @@ the framing that [Units 5–9](../unit_05/unit_05.qmd) implement against the AIM
 capstone.
 
 Before any of that, an ODE refresher — the dynamics language we
-need to start meaningful Sci-ML.
+need to start doing meaningful Sci-ML.
 
 ## 3.1 An ODE refresher
 
@@ -45,10 +45,11 @@ Vocabulary worth keeping straight:
 - *Autonomous* if $f$ has no explicit $t$ dependence ($\dot{\mathbf{x}} = f(\mathbf{x})$);
   *non-autonomous* otherwise.
 - *Linear* if $f(\mathbf{x}, t) = A(t)\,\mathbf{x} + b(t)$;
-  *nonlinear* otherwise. Linear systems have explicit solutions
-  via matrix exponentials; nonlinear systems generally do not.
+  *nonlinear* otherwise. Linear systems with constant $A$ have
+  explicit solutions via matrix exponentials; nonlinear systems
+  generally do not.
 
-The next subsubsections walk a sequence of ODEs in increasing
+The next subsections walk a sequence of ODEs in increasing
 complexity — exponential decay, the undamped harmonic oscillator, a
 damped oscillator, and then two **nonlinear** systems: predator–prey
 (closed cycles) and the chaotic Lorenz attractor. The linear cases
@@ -554,7 +555,7 @@ Write `H(u) = 0.5*u[2]^2 + (1 - cos(u[1]))`. `ForwardDiff.gradient(H, u)` return
 
 ## 3.4 Equation discovery: SINDy
 
-The next three subsubsections cover (a) the sparse-regression
+The next three subsections cover (a) the sparse-regression
 idea, (b) how to choose the candidate-term library, and (c) a
 worked Lorenz example in Julia *and* Python. We then close with
 when SINDy beats — and loses to — black-box function approximators.

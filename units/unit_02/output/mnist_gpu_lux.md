@@ -1,7 +1,7 @@
 ::: {.cell-output .cell-output-stdout}
 ```text
 ================================================================
-Unit 2.6 — MNIST MLP training on CPU vs GPU (Lux.jl)
+Unit 2.7 — MNIST MLP training on CPU vs GPU (Lux.jl)
 ================================================================
 GPU available: true  (NVIDIA L4)
 loading MNIST … train=60000  test=10000  (28x28 → 784)

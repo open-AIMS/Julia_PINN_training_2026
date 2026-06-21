@@ -30,6 +30,10 @@ website:
     logo-alt: "AIMS"
     logo-href: /index.html
     title-href: /index.html
+    right:
+      - icon: github
+        href: https://github.com/open-AIMS/Julia_PINN_training_2026
+        aria-label: GitHub source repository
   sidebar:
     style: floating
     search: true

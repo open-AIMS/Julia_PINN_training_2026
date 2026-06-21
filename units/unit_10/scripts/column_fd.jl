@@ -21,7 +21,7 @@ using Printf
 const PARAMS = (
     H         = 100.0,    # column depth (m)
     ρ         = 1025.0,   # seawater density (kg/m³)
-    cp        = 4000.0,   # specific heat (J/(kg·K))
+    cp        = 3990.0,   # specific heat (J/(kg·K))
     α         = 2e-4,     # thermal expansion (1/K)
     T_surface = 28.0,     # initial SST (°C)
     T_deep    = 18.0,     # deep reservoir (°C)

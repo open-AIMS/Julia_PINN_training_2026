@@ -54,7 +54,7 @@ $$\mathcal{L}_{\text{IC}}(\theta) \;=\; \bigl|x_\theta(0) - x_0\bigr|^2$$
 (with weight $\lambda_{\text{IC}}$) selects the trajectory we want.
 The same idea applies to boundary conditions on PDEs. The *weights*
 $\lambda_{\text{IC}}, \lambda_{\text{BC}}, \lambda_{\text{PDE}}$ are
-the main hyperparameter — tuning them well is a major theme of
+the main hyperparameters — tuning them well is a major theme of
 [Unit 7](../unit_07/unit_07.qmd).
 
 ### Collocation points
@@ -597,7 +597,7 @@ everything in [Unit 7](../unit_07/unit_07.qmd):
   bump in §5.5 — locally high curvature — is the slowest-converging
   feature of the loss.
 - **Loss imbalance.** With residual, IC, and BC contributing terms
-  of very different magnitude, the optimiser zeroes the easiest one
+  of very different magnitude, the optimiser drives the easiest one to zero
   first. The PINN can land on a solution that satisfies the equation
   inside the domain but ignores the boundary, or fits the IC and the
   PDE while drifting at the BC.

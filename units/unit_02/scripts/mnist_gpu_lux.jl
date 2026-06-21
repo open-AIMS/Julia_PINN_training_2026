@@ -1,8 +1,8 @@
 #!/usr/bin/env julia
 # ===========================================================================
-# Unit 2.6 — a real deep-learning training run on the GPU (MNIST, Lux.jl).
+# Unit 2.7 — a real deep-learning training run on the GPU (MNIST, Lux.jl).
 #
-# Section 2.6 trains an MLP on MNIST in scikit-learn and PyTorch. The PyTorch
+# Section 2.7 trains an MLP on MNIST in scikit-learn and PyTorch. The PyTorch
 # version already moves tensors to `cuda`; this
 # is the *Julia* side of that story: the identical Lux model trained on the CPU
 # and on the GPU, so you can see (a) that the move is a one-liner — push the
@@ -87,7 +87,7 @@ function train_epoch!(model, ps, st, opt, Xd, Yd, n, bs)
 end
 
 # ---------------------------------------------------------------------------
-println("="^64); println("Unit 2.6 — MNIST MLP training on CPU vs GPU (Lux.jl)"); println("="^64)
+println("="^64); println("Unit 2.7 — MNIST MLP training on CPU vs GPU (Lux.jl)"); println("="^64)
 have_gpu = CUDA.functional()
 @printf("GPU available: %s%s\n", have_gpu, have_gpu ? "  ($(CUDA.name(CUDA.device())))" : "")
 

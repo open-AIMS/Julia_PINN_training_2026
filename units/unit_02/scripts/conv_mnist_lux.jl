@@ -13,7 +13,7 @@
 # instead slides small learnable filters over the image, sharing weights across
 # locations — far fewer parameters, and translation-aware. On the same MNIST
 # data that gave us random forest ~97%, softmax ~92% and the MLP ~98%, the CNN
-# reaches ~99%, the best in the unit.
+# reaches ~98.8%, the best in the unit.
 #
 # Convolutions are also where the GPU really earns its keep: each layer is many
 # small matmuls, so the per-epoch speed-up is much larger than the MLP's ~3×.
@@ -110,7 +110,7 @@ function train_epoch!(model, ps, st, opt, Xd, Yd, n, bs)
 end
 
 # ---------------------------------------------------------------------------
-println("="^64); println("Unit 2.6 — MNIST convolutional network (LeNet-5, Lux.jl)"); println("="^64)
+println("="^64); println("Unit 2.7 — MNIST convolutional network (LeNet-5, Lux.jl)"); println("="^64)
 have_gpu = CUDA.functional()
 @printf("GPU available: %s%s\n", have_gpu, have_gpu ? "  ($(CUDA.name(CUDA.device())))" : "")
 

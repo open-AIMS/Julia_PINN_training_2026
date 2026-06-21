@@ -203,7 +203,7 @@ solution** and how those solutions are derived. The classical
 techniques aren't museum pieces: they're the source of the
 *correct answers* against which every numerical scheme — finite
 differences, finite volumes, finite elements, PINNs — is
-benchmarked. The next three subsubsections walk the three main
+benchmarked. The next three subsections walk the three main
 tools: **separation of variables**, **Fourier series**, and
 **Laplace transforms**. Each is presented at a level that yields
 one concrete worked solution.
@@ -451,8 +451,8 @@ the heat equation:
 
 **Where it shows up beyond temperature.** Chemical diffusion
 (Fick's law), Brownian motion (the Fokker–Planck equation in
-its simplest form), option pricing (Black–Scholes is heat-
-equation-shaped), ocean / atmosphere turbulent mixing (Unit 8 §8.3
+its simplest form), option pricing (Black–Scholes is
+heat-equation-shaped), ocean / atmosphere turbulent mixing (Unit 8 §8.3
 with $\alpha = \kappa$). Same equation, different units.
 
 ### The Laplace equation — steady-state equilibrium
@@ -468,7 +468,7 @@ $u_t = 0$ means $\nabla^2 u = 0$. The Laplace equation describes
 
 The physical content is the **mean-value property**: the
 solution at any interior point equals the average of its
-neighbours on any small sphere around it. No interior maxima or
+values over any small sphere (in 2-D, a circle) centred on that point. No interior maxima or
 minima — the extrema live on the boundary
 (maximum principle). This is why Laplace solutions look
 "stretched-membrane smooth": rubber sheet pinned at the boundary,
@@ -657,7 +657,7 @@ Match by the one verb each movie shows: moves rigidly → advection; splits into
 ## 6.4 Finite Differences and Stability Analysis
 
 The classical workhorse — and the method actually used by Unit 1's
-shallow-water solver. The next three subsubsections cover the
+shallow-water solver. The next three subsections cover the
 discretisation rules, the stability constraint they impose (CFL,
 von Neumann), and a worked benchmark against the
 separation-of-variables answer.
@@ -1075,7 +1075,7 @@ depth. Two implications follow immediately:
   no-flux at solid coasts).
 - **CFL is set by the fastest wave.** $\Delta t \leq \Delta x /
   \max\sqrt{g\,H}$. Unit 1 uses $\Delta x = 500$ m and max depth
-  ~50 m → $c_{\max} \approx 22$ m/s, so $\Delta t \lesssim 22.7$ s.
+  ~50 m → $c_{\max} \approx 22$ m/s, so $\Delta t \lesssim 22.6$ s.
   The chosen $\Delta t = 12$ s sits comfortably inside that bound.
 
 ### The staggered Arakawa-C grid
@@ -1272,7 +1272,7 @@ Three quantitative checks on the claims of this section, using only
 numbers already given in Unit 1 and here:
 
 1. **CFL margin.** With $\Delta x = 500$ m and maximum depth 50 m,
-   verify the $\Delta t \lesssim 22.7$ s bound, and compute the
+   verify the $\Delta t \lesssim 22.6$ s bound, and compute the
    actual Courant number of the production run
    ($\Delta t = 12$ s). How much slack is there?
 2. **Resolution.** The deep-channel wave speed is ~15 m/s and the

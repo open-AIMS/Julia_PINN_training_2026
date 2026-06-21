@@ -101,7 +101,13 @@ through the inverse problem, not in reading our answer.
 
 The finite-difference reference solver, the four toy scenarios from
 [Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks), and the SWE driver — all
-needed regardless of whether you're solving Task A or Task B.
+are needed regardless of whether you're solving Task A or Task B.
+
+The four scenarios below follow the §9.11 ladder's steps 1–3 directly; the
+ladder's step 4 ("vary mixing") is folded into the depth-varying $\kappa$
+closure used throughout, and its step 5 (the synthetic scenario) is built here
+in two stages — scenario 4 with prescribed storm envelopes, then scenario 5
+with the full SWE driver.
 
 ### Finite-difference reference solver
 
@@ -536,7 +542,7 @@ amplitude constraint; Site A pins the quieter shoulders of the
 envelope. Removing either site sends the joint error back up — the
 two moorings genuinely constrain different parts of the same signal.
 
-### Step 5 — Mechanism partition across the three sites
+### Step 5 — Mechanism partition across the three sites {#sec-mechanism-partition}
 
 The §9.1 multi-site story made quantitative. For the *toy* nondim
 column the three right-hand-side terms — vertical advection

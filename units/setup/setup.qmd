@@ -105,7 +105,7 @@ next to where you ran the command, and stays there after the container stops.
 ## What about the GPU?
 
 This laptop image is **CPU-only** (the PyTorch / JAX / Julia stacks are CPU builds).
-That is fine for every exercise in the course — only slower on the larger training
+That is fine for every exercise in the course — just slower on the larger training
 runs. GPU acceleration is what the **cloud GPU hub** is for during the workshop; any
 notebook cell marked as GPU code is meant to be run there, on a machine with an
 NVIDIA GPU.
@@ -140,7 +140,7 @@ nothing, the tag may be momentarily unchanged — there's no harm in re-running 
 
 If you'd rather not use Docker, you can install the course stack natively. This is
 **slower to set up** — it downloads and precompiles the whole stack from scratch
-(expect 15–30 min the first time, where Docker ships it precompiled) — and it's a
+(expect 15–30 min the first time, whereas Docker ships it precompiled) — and it's a
 CPU setup, but it needs no Docker and plugs into your own editor / VS Code.
 
 **1. Install Julia with [Juliaup](https://github.com/JuliaLang/juliaup){target="_blank"}**

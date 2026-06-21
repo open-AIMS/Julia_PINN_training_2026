@@ -1,7 +1,7 @@
 ::: {.cell-output .cell-output-stdout}
 ```text
 ================================================================
-Unit 2.6 — MNIST convolutional network (LeNet-5, Lux.jl)
+Unit 2.7 — MNIST convolutional network (LeNet-5, Lux.jl)
 ================================================================
 GPU available: true  (NVIDIA L4)
 loading MNIST … train=60000  test=10000  (28×28×1 image tensors)

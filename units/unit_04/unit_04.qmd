@@ -24,9 +24,9 @@ focus on the dynamics.
 
 Before we let neural networks loose on a vector field we need one
 more layer of ODE intuition: the *qualitative* behaviours that
-distinguish interesting dynamics from boring ones. The next two
-subsubsections lay this out (equilibria, limit cycles, chaos) and
-then put one example — Lotka–Volterra — under the microscope in
+distinguish interesting dynamics from boring ones. The rest of this
+section lays this out (equilibria, limit cycles, chaos) and
+then puts one example — Lotka–Volterra — under the microscope in
 Julia and Python so the cross-ecosystem reflex from
 [Unit 3 §3.1](../unit_03/unit_03.qmd) carries over.
 
@@ -154,7 +154,7 @@ Define `V(x, y) = δ*x - γ*log(x) + β*y - α*log(y)`, set `V0 = V(u0...)`, and
 
 This section walks the *bridge* between the discrete-layer MLPs of
 [Unit 2](../unit_02/unit_02.qmd) and the continuous-time vector
-fields we'll use in the rest of the workshop. The subsubsections
+fields we'll use in the rest of the workshop. The subsections
 cover (a) the layer-as-Euler-step intuition, (b) what a Neural ODE
 looks like in `Lux.jl`, (c) the adjoint trick that makes training
 through an ODE solver feasible, and (d) an illustrative training
@@ -194,8 +194,8 @@ pass straight through, making very deep stacks trainable.](figures/resnet_block.
 
 ### The Euler-step analogy
 
-A **residual network** layer — the skip-connection block we just met, with a
-step size $\Delta t$ written in — is
+A **residual network** layer — the skip-connection block we just met, now with a
+step size $\Delta t$ written in front of $f_\theta$ — is
 
 $$h_{\ell+1} = h_\ell + \Delta t\, f_\theta(h_\ell, \ell).$$
 
@@ -204,7 +204,7 @@ $\dot{h} = f_\theta(h, t)$:
 
 $$h(t + \Delta t) \approx h(t) + \Delta t\, f_\theta(h(t), t).$$
 
-Identical. Taking $\Delta t \to 0$ and depth $L \to \infty$ gives a
+Identical. Stacking many such steps and taking $\Delta t \to 0$ as the depth $L \to \infty$ gives a
 **Neural ODE** ([Chen et al., 2018](../references/references.qmd#ref-chen2018){target="_blank"}): the network *is* a vector
 field, and the "forward pass" is an ODE solve from input
 $h(0) = \mathbf{x}$ to output $h(T) = \text{prediction}$.
@@ -286,7 +286,8 @@ control; rediscovered for Neural ODEs by
 [Chen et al. 2018](../references/references.qmd#ref-chen2018){target="_blank"}) replaces this
 by *differentiate-then-discretise*: derive an auxiliary ODE for
 the gradient — the adjoint $\boldsymbol{\lambda}(t) = \partial
-\mathcal{L} / \partial \mathbf{x}(t)$ — and solve it backward in
+\mathcal{L} / \partial \mathbf{x}(t)$, the sensitivity of the loss to the
+state at time $t$ — and solve it backward in
 time alongside the original equation. Memory cost becomes
 **constant** in trajectory length; the price is some
 numerical-accuracy bookkeeping (the backward solve has to be at
@@ -294,7 +295,7 @@ least as accurate as the forward one).
 
 A third middle-ground option, **checkpointing**, stores only a
 sparse subset of states forward, then re-integrates between them
-on the backward pass. Logarithmic-in-time memory, logarithmic-in-time
+on the backward pass — logarithmic-in-time memory at the cost of logarithmic-in-time
 extra compute.
 
 In Julia that machinery lives in `SciMLSensitivity.jl`. In Python
@@ -302,7 +303,7 @@ the equivalents are `torchdiffeq` (Chen's reference
 implementation) and `diffrax` (the modern JAX-based version with
 exceptional adjoint support). `SciMLSensitivity.jl` is left out of
 the workshop default `Project.toml` to keep precompile light, but
-a one-line addition when you reach for it.
+it's a one-line addition when you reach for it.
 
 ### Training a Neural ODE — a complete run
 

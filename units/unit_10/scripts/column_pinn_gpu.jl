@@ -44,7 +44,7 @@ using Lux, LuxCUDA, CUDA, Optimisers, Zygote, Random, Printf, Statistics
 
 # physical constants (unit_09 §9.6 / column_fd.jl PARAMS), non-dimensionalised
 const H = 100.0f0; const Tdeep = 18.0f0; const Tsurf = 28.0f0; const ΔT = Tsurf - Tdeep
-const κm = 1.0f-3; const Qcool = 200.0f0; const ρ = 1025.0f0; const cp = 4000.0f0
+const κm = 1.0f-3; const Qcool = 200.0f0; const ρ = 1025.0f0; const cp = 3990.0f0
 const Tf = 350.0f0 * 86400.0f0
 const Pe = κm * Tf / H^2                                  # ≈ 3.02
 const g_surf = -Qcool * H / (κm * ΔT * ρ * cp)            # nondim surface gradient ≈ -0.488

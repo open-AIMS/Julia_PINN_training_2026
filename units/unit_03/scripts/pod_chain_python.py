@@ -19,6 +19,9 @@ def chain(t, u):
         du[M + i] = omega**2 * (l - 2 * x[i] + r) - 2 * zeta * omega * v[i]
     return du
 
+# Localised single-cell push (vs pod_chain.jl's smooth Gaussian bump): it excites
+# *all* normal modes, so the POD spectrum decays slowly and compresses far less —
+# the contrasting case discussed in unit_03.qmd §3.5.
 u0 = np.zeros(2 * M)
 u0[M // 2] = 1.0
 sol = solve_ivp(chain, (0.0, 8.0), u0, t_eval=np.linspace(0, 8, 401))

@@ -28,10 +28,10 @@ lookup for any symbol whose meaning isn't obvious from context.
 | $\psi(t)$ | unknown boundary forcing (Unit 1's river source) |
 | $\theta$, $\phi$ | network parameter vectors (PINN unknowns) |
 
-Indices: $i$ for collocation / sample points, $j$ for components,
-$k$ for time steps. Discrete grid indices use $i, j$ over
-$(x, y)$ and $n$ over $t$ (e.g. $u_i^n$ for the value at grid
-cell $i$, time step $n$).
+Indices: on the continuous side, $i$ indexes collocation / sample
+points, $j$ components, and $k$ time steps. On the discrete grid the
+same letters are reused: $i, j$ run over $(x, y)$ and $n$ over $t$
+(e.g. $u_i^n$ for the value at grid cell $i$, time step $n$).
 
 ## Derivatives
 

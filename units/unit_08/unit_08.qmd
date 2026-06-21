@@ -147,8 +147,8 @@ T(-H, t) \;=\; T_{\text{deep}}.
 $$ {#eq-column-bcs}
 
 The Neumann condition at the surface is the **bulk air–sea heat-flux
-relation**: with $z$ measured upward, $\kappa\,\partial_z T$ is the
-*downward* diffusive heat flux entering the ocean, set equal to the
+relation**: with $z$ measured upward, $\rho_0 c_p\,\kappa\,\partial_z T$ is the
+*downward* diffusive heat flux entering the ocean (in W/m²), set equal to the
 non-penetrating heat input $Q_{\text{np}}$ (positive = heat into the
 ocean; longwave + sensible + latent combined). The Dirichlet
 condition at $z = -H$ pins the bottom to a much-slower-varying deep
@@ -395,7 +395,7 @@ is the reference):
 
 with $U_{10}$ the 10-m wind, $T_a, q_a$ air temperature/humidity,
 $T_s, q_s$ skin-temperature/saturated humidity, $C_H, C_E$ exchange
-coefficients ($\sim 1.2 \times 10^{-3}$), and
+coefficients (each $\sim 1.2 \times 10^{-3}$), and
 $\sigma_{\text{SB}} = 5.67 \times 10^{-8}\,\text{W m}^{-2} \text{K}^{-4}$
 the Stefan–Boltzmann constant. Cooling typically wins at night and
 on cloudy days; heating wins on still sunny afternoons. For our
