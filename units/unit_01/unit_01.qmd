@@ -193,7 +193,8 @@ inventory.
 in the mainland coast, Moreton Island, North & South Stradbroke,
 the Russell / Macleay / Karragarra cluster in the southern bay, and
 the open ocean to the east of Moreton. The four tide-gauge sites
-(gold) sit at plausible real locations across the bay. The red
+(gold) carry the names of real Moreton Bay sites, but their
+positions are approximate (see the note below). The red
 triangle near the western coast is the **Brisbane River mouth**,
 where the unknown surge ψ(t) is imposed. (b) Inset zoom on the river
 entrance / Pile Light area; the nearest informative gauge (G1, Mud
@@ -229,6 +230,22 @@ the Russell / Macleay / Karragarra island cluster and the South
 Stradbroke spit. This is what the SWE solver actually sees. The map is drawn in
 landscape with **north to the left** (← N) and east up, so the bay's long
 95 km north–south axis runs across the page.](figures/bathymetry.png){width=92%}
+
+::: {.callout-note}
+## A geographical apology
+This bay is a *caricature*, not a chart. The bathymetry is hand-built —
+plausible depths and the right overall shape, but not survey data — and the
+four gauges carry the names of real Moreton Bay sites only for flavour.
+Their positions are approximate, and a couple are frankly off: they were
+nudged onto the idealised grid to give a clean spread of *informative*
+observers (mid-bay, across from the river, in the island lee, down south)
+and then snapped to the nearest water cell, so several sit a few kilometres
+from their namesakes — "Tangalooma Roads" and "Russell Channel" most of
+all. Please don't navigate by this map; it exists to make the inverse
+problem legible, not to locate anything. The *physics* it carries — wave
+speeds, travel times, the way the bay smooths the source — is faithful; the
+*cartography* is impressionistic.
+:::
 
 ::: {.callout-note}
 ## What this isn't
@@ -611,7 +628,13 @@ points** (the random space-time points where we evaluate the PDE
 residual as a soft constraint on the network — covered in
 [Unit 5](../unit_05/unit_05.qmd)), and respect the zero initial
 condition. Treat the recovered source as
-$\psi_\theta(t) := \eta_\theta(x_r, y_r, t)$. This is what
+$\psi_\theta(t) := \eta_\theta(x_r, y_r, t)$. The **only data** the PINN
+ever sees are those same four noisy gauge time-series ($g_{\text{obs}}$,
+sub-sampled every few minutes) that the adjoint method uses — the wave
+equation, the zero initial condition and the smoothness preference are
+*constraints*, not data. Like the adjoint, it **never sees the true
+source**; the recovered $\psi_\theta$ is just the trained network read off
+at the river-mouth cell. This is what
 [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
 classified as the "vanilla PINN" baseline and what
 [§7.2](../unit_07/unit_07.qmd) of this course re-derives in detail.
@@ -695,6 +718,13 @@ $$
 \tfrac{1}{2}\,\|G\psi - g_{\text{obs}}\|_2^2
 \;+\; \tfrac{\lambda^2}{2}\,\|\mathrm{L}^{(2)} \psi\|_2^2,
 $$
+
+Despite the $\arg\min$ notation, solving this is **not** like training the
+naive PINN: it has a one-step **closed-form** answer — a single linear solve
+(the `A \ b` in the code sketch below), with no neural network and no
+gradient descent at all. (The naive PINN of *Method A* minimises a
+*similar-looking* objective, but by gradient descent through a network; here
+we solve the same kind of problem exactly, in one shot.)
 
 The first term says "the predicted gauges should match the observations." The
 second term is the **regularisation**, and it is worth dwelling on, because every
