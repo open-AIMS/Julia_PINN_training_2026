@@ -332,14 +332,25 @@ That gap — same method, just scale — is why Task A ships a GPU run. (This is
 shift from Task A's original CPU-only framing: the physics is unchanged, but
 at this noise level the $\leq15\%$ target is GPU-scale.)
 
+### Forward sanity check (shipped)
+
+Before debugging an inverse on top of a possibly-broken forward, certify the
+forward solve.
+[`column_pinn_gpu.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_pinn_gpu.jl){target="_blank"}
+does exactly this on the column's pure-diffusion relaxation, where a
+single-eigenmode initial condition has an **exact closed-form** solution
+$\theta^*(\zeta,\tau) = g\,\zeta + A\sin(\tfrac{\pi}{2}\zeta)\,e^{-\mathrm{Pe}(\pi/2)^2\tau}$
+to score against. Measured: the CPU sub-scale fit reaches
+$\|\theta_\theta-\theta^*\|_{L^2} = 6\times10^{-4}$, the A10G full-scale run
+(30× the collocation, ~85× the throughput) $2\times10^{-3}$ — both far inside
+any noise scale, confirming the field operator and the FD-in-input derivative
+stencil before any inversion.
+
 ### Optional extensions (not shipped as code)
 
-The single inverse script is enough to answer §9.9. To go further, these are
-good exercises — none of them ship here:
+The inverse script plus that forward check answer §9.9. To go further, these are
+good exercises — they don't ship here:
 
-- **Forward sanity check.** Before the inverse loop, fit $T_\theta$ to a
-  *known* $\tau$ and confirm $\|T_\theta - T_\text{FD}\|_{L^2} < 0.05\,°\text{C}$.
-  Debugging an inverse on top of a broken forward is a rabbit hole.
 - **Mechanism partition (the §9.1 question).** The recovered $\hat\tau(t)$
   gives the storm's strength and timing, not *which* physical mechanism
   dominated the cooling. Re-running a forward solver with $\hat\tau$ and
@@ -354,6 +365,7 @@ good exercises — none of them ship here:
 ### Files
 
 - [`scripts/task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"} — source-recovery inverse PINN: FD reference solve, synthetic mooring data, joint $T_\theta + \tau_\phi$ training, CPU sub-scale + GPU full-scale.
+- [`scripts/column_pinn_gpu.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_pinn_gpu.jl){target="_blank"} — forward sanity check: pure-diffusion forward PINN scored against the closed-form solution, CPU sub-scale + A10G full-scale.
 - [`scripts/column_fd.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_fd.jl){target="_blank"} — the finite-difference column solver used as the forward reference.
 
 
