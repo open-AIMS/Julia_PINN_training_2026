@@ -159,7 +159,7 @@ scenario_4() = (
     κ      = κ_const,
     S      = S_storm,
     Q_np   = Q_np_steady,
-    Tf     = 20 * 86400.0,
+    Tf     = 30 * 86400.0,
     saveat = 3600.0,
     alg    = QNDF(),
 )

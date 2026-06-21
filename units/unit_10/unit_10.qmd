@@ -143,11 +143,20 @@ these envelopes in scenario 5 (the synthetic scenario, forward).
 
 ![Scenario 4 output — `scenario_4()` uses prescribed Gaussian envelopes for the gust-driven upwelling and cloud cover, pending the SWE driver. The storm bump is visible around day 10.](output/storm_fingerprint_mooring.png)
 
-### Shallow-water driver
+### Shallow-water driver (scenario-5 forcing — the design)
 
-A staggered-grid finite-volume SWE reference on a 100 × 100 km
-patch of the central GBR shelf, with constant background depth
-$H = 80\,\text{m}$, the local Coriolis parameter
+The shipped column scripts use the *prescribed* Gaussian
+upwelling/cloud envelopes of toy scenario 4 (above). The natural
+next step — **scenario 5** — replaces those hand-drawn envelopes
+with a physically self-consistent horizontal current from a
+shallow-water solve. We describe that bridge here as the design;
+wiring it into the column model is the headline extension in
+[§10.5](#sec-where-to-go) rather than something the capstone
+solution ships.
+
+The driver would be a staggered-grid finite-volume SWE reference
+on a 100 × 100 km patch of the central GBR shelf, with constant
+background depth $H = 80\,\text{m}$, the local Coriolis parameter
 $f = 2\Omega\sin(-19°) \approx -4.7 \times 10^{-5}\,\text{s}^{-1}$,
 and a spatially-Gaussian wind-stress patch driving the storm:
 
@@ -159,25 +168,22 @@ $$
 with $L_\tau = 30\,\text{km}$, $(x_0, y_0)$ tracking a slow-moving
 gust centre (10 km/h drift over 3 days), and $\tau_0(t)$ the
 Gaussian-envelope time profile that **becomes the unknown** in
-the inverse problem. The forward solve runs `Trixi.jl`-style FV
-on a $200 \times 200$ grid with $\Delta t = 30\,\text{s}$ for the
-30-day window — about 1.5 minutes on a laptop.
+the inverse problem.
 
-What gets piped to the column model: $\mathbf{u}_h(t)$ at each of
-the three mooring locations, from which $w(z, t) = -(z + H)\,
+What would get piped to the column model: $\mathbf{u}_h(t)$ at each
+of the three mooring locations, from which $w(z, t) = -(z + H)\,
 \nabla_h\!\cdot\!\mathbf{u}_h(t)$ (incompressibility + linear-in-$z$
 ansatz from [Unit 9 §9.2](../unit_09/unit_09.qmd)) gives the
-column's vertical advection. This replaces the prescribed Gaussian
-$w_0(t)$ of toy scenario 4 with a physically self-consistent
-$w(t)$ that includes the Coriolis turning of the wind-driven
-current, the propagation delay from gust centre to each mooring,
-and the geometric spreading that makes Site C see a smaller
-$w_{\max}$ than Site A despite being further from coast.
-
-The driver is in
-[`scripts/swe_driver.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/swe_driver.jl){target="_blank"};
-its output `data/w_drivers.csv` has columns `t, w_A, w_B, w_C` at
-hourly cadence.
+column's vertical advection. This is what replaces the prescribed
+Gaussian $w_0(t)$ of toy scenario 4 with a physically
+self-consistent $w(t)$ that carries the Coriolis turning of the
+wind-driven current, the propagation delay from gust centre to each
+mooring, and the geometric spreading that makes Site C see a smaller
+$w_{\max}$ than Site A despite being further from coast — exactly the
+inter-site contrast the joint inverse (§10.3) leans on. The same
+linearised shallow-water machinery is already worked end-to-end in
+[Unit 1](../unit_01/unit_01.qmd), which is the cleanest starting
+point if you build it.
 
 ::: {#ex-10-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — predict scenario 1's steady state exactly
@@ -390,7 +396,7 @@ failure modes, in the same order: Fourier features (1), adaptive
 loss weighting (2), causal training (1 again, time direction),
 and GPU vectorisation (3).
 
-### Step 1 — Forward PINN with the full modern toolkit
+### Step 1 — The field network and the modern-PINN toolkit
 
 - **Network:** 6-layer MLP, 128 neurons / layer, $\tanh$.
 - **Fourier feature embedding** at the input:
@@ -413,6 +419,17 @@ and GPU vectorisation (3).
   so a $t_i$ collocation only contributes after the
   $t_{<i}$ residual has converged.
 
+This is the *menu* the literature offers for the deep multi-scale
+column. The shipped solution is deliberately more conservative: both
+the sub-scale prototype and the GPU full-scale inverse below use hard
+IC/deep BC + the proven static-weight recipe (Step 2), which is what
+converges cleanly at this scale. Fourier features earn their keep once
+the column is deep enough to carry genuinely separated time-scales;
+adaptive weighting and causal training are the next layer the inverse
+can lean on — Step 6's open questions flag where causal still needs
+care. We flag the menu so you know what to reach for, not because all
+four are needed to clear the §9.10 bar.
+
 ### Step 2 — Joint three-site inverse
 
 Three column networks $T^{(i)}_\theta(z, t)$, $i \in \{A, B, C\}$,
@@ -432,103 +449,135 @@ $$
 \;+\; \lambda_{\text{reg}}\,\int |\tau_\phi'(t)|^2\, dt.
 $$
 
-The site-specific weights $\lambda^{(i)}_{r,d,b}$ are
-**all learnt** by gradient-balancing — the three regimes (Pe $\ll$
-1, Pe $\sim$ 1, Pe $\gg$ 1) produce residual / data scales that
-differ by ~$10^2$ across sites, so a static $\lambda^{(i)} = 1$
-collapses to "fit Site C only".
+The site-specific weights $\lambda^{(i)}_{r,d,b}$ matter because the
+three regimes (Péclet $\ll 1$, $\sim 1$, $\gg 1$) produce residual /
+data scales that differ across sites. The literature *learns* them by
+gradient-balancing; in practice, at the scale we run, the **proven
+static recipe from Task A** — a large data weight $\lambda_d = 6000$,
+a tiny $H^1$ smoothing $\lambda_\text{reg} = 10^{-5}$, and hard IC +
+deep BC — is what converges cleanly, and is what
+[`task_b_joint_inverse.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_joint_inverse.jl){target="_blank"}
+ships. (A naively-tuned adaptive scheme can *run away* on this
+deconvolution — over-weighting the noisy data until the recovered
+$\tau$ blows up; gradient-balancing is the right next step only once
+the static baseline is trustworthy.)
 
 Why the shared $\tau_\phi$ matters: each site contributes a
 *different observable consequence* of the same physical stress.
-Site A (diffusion-dominated) sees the stress via $\kappa$
-modulation — its data constrains the *amplitude*. Site B
-(intermediate) sees the timing of the upwelling pulse. Site C
-(advection-dominated) sees the *shape* of the deep cooling.
-Combining all three is what cuts the recovery error from ~12% A
-or ~15% B alone down to ~3–5% jointly.
+Diffusion-only Site A constrains the storm *amplitude* through the
+mixing response; advection-dominated Site C sees the *shape* of the
+deep upwelling pulse; Site B sits between. The single shared
+$\tau_\phi$ must satisfy all three at once — and that joint constraint
+is what cuts the recovered-peak error from **~20% (Site A alone)** or
+**~12% (Site C alone)** down to **~7% jointly**, measured on the GPU
+full-scale run (Step 6).
 
-### Step 3 — CPU sub-scale prototypes (what we actually run here)
+### Step 3 — CPU sub-scale prototype (what we actually run here)
 
 The full 3-site $H = 100$ m / $N_r = 50\,000$ launch is GPU-class.
-Without one, the unit walks the first three of the four
-sub-scale prototype steps from
-[§9.10.2](../unit_09/unit_09.qmd#sec-task-b):
+Without one,
+[`task_b_subscale_prototype.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_subscale_prototype.jl){target="_blank"}
+runs the **two-site joint inverse** at CPU sub-scale: Site A
+(15 m, diffusion-only) and Site B (60 m, advection + diffusion)
+sharing **one** storm envelope $\tau(t)$. It deliberately uses the
+*same proven static-weight recipe as Task A* — large data weight
+$\lambda_d = 6000$, tiny $H^1$ smoothing $\lambda_\text{reg} = 10^{-5}$,
+hard IC + hard deep BC baked into $\theta = \zeta\,\tau\,N$, and the
+FD-in-input derivative stencil — extended minimally to two sites
+with a single shared $\tau$-network. (The GPU full-scale run in
+Step 6 uses the *same* static recipe at three sites and a wider
+network — the Fourier / adaptive / causal machinery of Step 1 is the
+menu you reach for when the deep $H=100$ m column forces genuinely
+separated time-scales, not something this problem needs to clear the
+bar.) It performs three inversions — each ~4–7 min on a laptop CPU at
+12 000 Adam steps, $N_r = 4\,000$ per site:
 
-1. **Sub-scale prototype on Task A's column.** Run the full
-   modern-toolkit architecture (Fourier + hard BC + adaptive +
-   causal) on Task A's 15 m / single-site domain with
-   $N_r = 5\,000$. **~30 min on M2 MacBook.** Recovers $\tau(t)$
-   at **~12% peak error** — exactly Task A's accuracy at ~1.5×
-   the training cost. The point is to confirm the modern toolkit
-   *doesn't hurt* on the easy problem (which would suggest the
-   adaptive weights or Fourier features are mis-tuned).
+1. **Site A alone** — peak-amplitude error **~16%**.
+2. **Site B alone** — **~11%**. Site B's deeper, advection-sharpened
+   thermocline carries more storm information than Cleveland Bay's
+   shallow diffusion-only column, so it recovers the envelope better
+   on its own.
+3. **Joint A + B** — **~7%**, with the storm day recovered exactly.
+   The shared $\tau(t)$ must satisfy *both* columns at once, so the
+   cross-site constraint cuts the peak error below either single
+   site. **This is the headline finding** — and it is a real,
+   reproducible measurement, not an extrapolation.
 
-2. **Two-site joint inverse, Sites A + B, $H = 60$ m.** Medium
-   architecture (4 × 64 neurons + Fourier + hard BC + adaptive
-   weights, *no* causal training yet), $N_r = 10\,000$ per site.
-   **~2 h on CPU.** Recovered $\hat\tau(t)$ tracks truth to **~7%
-   peak-amplitude error** — meaningfully better than either
-   site's decoupled inverse (Site A alone ~12%, Site B alone
-   ~15%). **The cross-site constraint is doing real work** — this
-   is the headline finding of the CPU prototype.
-
-3. **GPU-launch checklist.** A one-page document of the changes
-   needed for the full run; see *Files* below.
+A one-page GPU-launch checklist (the deltas for the full 3-site run)
+is in *Files* below.
 
 ### Step 4 — Recovered $\tau(t)$ from the two-site CPU prototype
 
-The two-site joint inversion produces a $\hat\tau(t)$ noticeably
-sharper than Task A's single-site recovery:
+The two-site joint inversion produces a $\hat\tau(t)$ measurably
+sharper than either single-site recovery:
 
-| Feature | Task A (1 site, $H{=}15$m) | Step 3.2 (2 sites, $H{=}60$m) |
-|---|---|---|
-| Peak amplitude error | ~12% | ~7% |
-| Storm timing error | ~2 h | ~45 min |
-| Trailing tail relaxation | over-relaxed 5% | matches truth |
-| Rising-edge smoothing | visible | barely visible |
+![Recovered storm envelope $\hat\tau(t)$ from `task_b_subscale_prototype.jl`. Either mooring alone under- or over-shoots the peak (Site A ~16%, Site B ~11%); the joint inversion with one shared $\tau(t)$ tracks the truth to ~7% and locks the storm day exactly.](output/task_b_subscale_recovery.png)
+
+| Feature | Site A alone ($H{=}15$m) | Site B alone ($H{=}60$m) | Joint A+B |
+|---|---|---|---|
+| Peak-amplitude error | ~16% | ~11% | **~7%** |
+| Storm-day timing | exact | exact | **exact** |
+| Whole-envelope rel. $L^2$ | ~0.14 | ~0.10 | **~0.07** |
 
 Site B's stronger thermocline signature dominates the storm-day
-amplitude constraint; Site A's noise floor sets the lower bound
-on the recovered envelope. Removing either site sends the error
-back up.
+amplitude constraint; Site A pins the quieter shoulders of the
+envelope. Removing either site sends the joint error back up — the
+two moorings genuinely constrain different parts of the same signal.
 
 ### Step 5 — Mechanism partition across the three sites
 
-The §9.1 multi-site story made quantitative. Run the forward
-solver at each site with the recovered $\hat\tau(t)$ from the
-two-site sub-scale prototype (Sites A + B) and project the
-unknown Site C contribution forward; partition the
-storm-window cooling at each site's diagnostic depth:
+The §9.1 multi-site story made quantitative. For the *toy* nondim
+column the three right-hand-side terms — vertical advection
+$-W_\text{adv}\,w(\zeta)\,\partial_\zeta\theta$, vertical mixing
+$\mathrm{Pe}\,\partial_{\zeta\zeta}\theta$, and the storm source
+$S(\zeta)\,\tau(t)$ — *are* the mechanisms. Integrating each term's
+magnitude over the storm window at each site's diagnostic depth (from
+the FD reference, computed in `task_b_joint_inverse.jl`) gives a real
+partition:
 
-| Site | Depth | Pe regime | Adv (upwelling) | Mix | Surface flux |
+| Site | Depth | Péclet $W_\text{adv}/\mathrm{Pe}$ | Advection | Mixing | Storm source |
 |---|---|---|---|---|---|
-| A — Cleveland Bay | $z = -10\,\text{m}$ | $\ll 1$ | ~15% | ~70% | ~15% |
-| B — Davies Reef | $z = -30\,\text{m}$ | $\sim 1$ | ~45% | ~40% | ~15% |
-| C — Myrmidon Reef | $z = -50\,\text{m}$ | $\gg 1$ | ~75% | ~15% | ~10% |
+| A — Cleveland Bay | $z = -10\,\text{m}$ | $0$ | 0% | 39% | 61% |
+| B — Davies Reef | $z = -30\,\text{m}$ | $\sim 1.2$ | 15% | 20% | 65% |
+| C — Myrmidon Reef | $z = -50\,\text{m}$ | $\sim 4$ | 27% | 20% | 53% |
 
-The qualitative shift across sites is the headline finding: at
-Cleveland Bay the storm cooling is *mixing-driven*; at Myrmidon
-it's *upwelling-driven*; Davies Reef sits in the transition.
-Three moorings → three distinct storm-response fingerprints
-from a single shared wind-stress event. **That's what the joint
-inversion delivers that no single-site analysis can.**
+The headline is the **trend**, and it is real: the advection share
+climbs from $0\%$ at diffusion-only Cleveland Bay to $\sim\!27\%$ at
+advection-dominated Myrmidon, while the directly-forced storm source
+stays the largest single term (this is, after all, a *source*-recovery
+problem). Cleveland Bay's storm response is mixing-and-forcing only;
+Myrmidon's carries a substantial upwelling signature; Davies Reef sits
+in between. Three moorings → three distinct storm-response fingerprints
+from one shared wind-stress event. **That contrast is what the joint
+inversion exploits and no single-site analysis can see.**
 
-### Step 6 — Predicted GPU performance at full 3-site scale
+### Step 6 — GPU full-scale run (measured)
 
-Based on the sub-scale prototype scaling and reported PINN GPU
-benchmarks:
+Running [`task_b_joint_inverse.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_joint_inverse.jl){target="_blank"}
+on the course GPU hub (**NVIDIA A10G**) takes the recipe to all three
+sites at the wider $128$-input / $64\times5$ network. These are
+*measured*, not extrapolated:
 
-| Metric | CPU sub-scale (2-site, $H = 60$m) | GPU full-scale (3-site, $H = 100$m) |
-|---|---|---|
-| Forward PINN  | ~2 h    | ~8 min   |
-| Inverse PINN  | ~12 h   | ~25 min  |
-| $\hat\tau$ peak error | ~7% | ~3–5% (extrapolated) |
-| Residual variance | 1.4× target | 1.0× target (with causal) |
+| Run | Config | Wall-clock | $\hat\tau$ peak error |
+|---|---|---|---|
+| CPU 2-site prototype (laptop) | 2 sites, $32\times4$, 12k steps | ~7 min (joint) | 6.8% |
+| **GPU 3-site full-scale (A10G)** | 3 sites, $64\times5$, 3k steps | **~5 min (joint), ~10 min (all four inversions)** | **6.7%** |
 
-The CPU runs prove the recipe works at reduced scale; the GPU
-run is what makes it operationally usable for production mooring
-networks (a research group with three real moorings can re-run
-this monthly on overnight GPU time).
+The per-site GPU breakdown tells the joint-inversion story directly:
+Site A alone recovers the peak to ~20%, Site B to ~15%, Site C to
+~12% — and the **shared-$\tau$ joint of all three lands at 6.7%**,
+better than any single column. The advection-dominated Site C does
+best alone (it carries the most storm information) yet still loses to
+the joint.
+
+The headline is that the GPU does the *harder* three-site /
+wider-network / deeper-column problem in **less** wall-clock than the
+laptop spent on the two-site prototype — that is what "GPU buys you
+full scale" means here. (The raw training-step throughput behind that
+is benchmarked in [Unit 7 §7.6 ▸ *Why a GPU changes which PINNs you
+can afford*](../unit_07/unit_07.qmd#sec-gpu): on the A10G the batched
+collocation pass runs tens of times faster than the CPU.) A research
+group with three real moorings can re-run this on overnight GPU time.
 
 ### Open questions for the full run
 
@@ -547,9 +596,8 @@ this monthly on overnight GPU time).
 
 ### Files
 
-- [`scripts/task_b_forward_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_forward_pinn.jl){target="_blank"} — Fourier + hard BC + adaptive
-- [`scripts/task_b_joint_inverse.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_joint_inverse.jl){target="_blank"} — three-site joint trainer
-- [`scripts/task_b_subscale_prototype.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_subscale_prototype.jl){target="_blank"} — two-site CPU sub-scale
+- [`scripts/task_b_subscale_prototype.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_subscale_prototype.jl){target="_blank"} — two-site CPU sub-scale joint inverse (the headline prototype)
+- [`scripts/task_b_joint_inverse.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_joint_inverse.jl){target="_blank"} — three-site GPU full-scale joint trainer + mechanism partition
 - [`scripts/task_b_gpu_launch.md`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_gpu_launch.md){target="_blank"} — GPU-launch checklist
 
 ```{=html}
@@ -682,10 +730,16 @@ Two rules keep you out of the traps: every op inside DeepXDE's `pde()` must be a
 :::
 :::
 
-## 10.5 Where to go from here
+## 10.5 Where to go from here {#sec-where-to-go}
 
 Beyond the workshop:
 
+- **Scenario 5 — couple in the shallow-water driver.** Replace the
+  prescribed scenario-4 envelopes with a physically self-consistent
+  $w(t)$ from the SWE solve sketched in §10.1, feeding each mooring's
+  horizontal divergence into its column. The linearised shallow-water
+  machinery in [Unit 1](../unit_01/unit_01.qmd) is the cleanest
+  starting point.
 - **Real mooring data** — replace the synthetic observations with
   AIMS records.
 - **Coupling with operational ocean models** — ROMS, MOM6 — for

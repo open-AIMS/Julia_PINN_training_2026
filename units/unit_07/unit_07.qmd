@@ -934,21 +934,21 @@ $5\times10^5$ on the CPU and the GPU:
 {{< include scripts/pinn_throughput_gpu.jl >}}
 ```
 
-Captured on the workshop GPU hub (NVIDIA L4):
+Captured on the workshop GPU hub (NVIDIA A10G):
 
 {{< include output/pinn_throughput_gpu.md >}}
 
-At a thousand points the GPU is barely ahead — the batch is too small to hide
+At a thousand points the GPU is only ~5× ahead — the batch is too small to hide
 kernel-launch latency. But the CPU's throughput is roughly **flat** (it is
 already saturated at $N=1000$), while the GPU keeps filling: by $N=10^4$ it is
-~60× faster per step, and across the useful range it sustains **1–2 million
-collocation points per second** against the CPU's ~50 000. That is the
+~60× faster per step, and across the useful range it sustains **1.4–3.5 million
+collocation points per second** against the CPU's ~25–50 000. That is the
 difference between a PINN you resample aggressively every few hundred iterations
 and one you cannot afford to. It is the same lever Unit 6's heat solver pulled
 ([§6.4](../unit_06/unit_06.qmd#sec-heat2d-gpu)) — a perfectly parallel,
 matmul-bound workload — applied to the residual loss instead of a stencil step.
 
-![PINN collocation throughput, CPU vs GPU (log–log). The CPU plateaus near $5\times10^4$ points/s; the GPU climbs to ~$2.4\times10^6$ — roughly a step that costs **2.3 s on the CPU runs in 42 ms on the GPU** at $N=10^5$.](figures/pinn_throughput_gpu.png)
+![PINN collocation throughput, CPU vs GPU (log–log). The CPU plateaus near $5\times10^4$ points/s; the GPU climbs to ~$3.5\times10^6$ — roughly a step that costs **2.6 s on the CPU runs in 30 ms on the GPU** (~86×) at $N=10^5$.](figures/pinn_throughput_gpu.png)
 
 ## 7.7 Where PINNs have shown success — a survey of the literature
 

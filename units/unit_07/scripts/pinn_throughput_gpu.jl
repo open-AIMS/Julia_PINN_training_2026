@@ -80,8 +80,8 @@ for N in Ns
 end
 
 if have_gpu
-    @printf("\nAt N=%d the GPU evaluates %.1fx more collocation points per second.\n",
-            Ns[end], (Ns[end]/step_time(Ns[end], gpu_device())) / (Ns[end]/step_time(Ns[end], identity)))
+    @printf("\nAt N=%d the GPU evaluates %.1fx more collocation points per second;\n", Ns[end], gpu_tp[end] / cpu_tp[end])
+    @printf("the GPU throughput peaks at N=%d (%.1fx the CPU there).\n", Ns[argmax(gpu_tp)], maximum(gpu_tp) / cpu_tp[argmax(gpu_tp)])
     try
         using CairoMakie
         f = Figure(size = (560, 400))

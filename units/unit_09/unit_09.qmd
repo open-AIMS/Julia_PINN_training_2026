@@ -28,9 +28,9 @@ almost untouched at the surface.
 
 | Site | Name | Lat, Lon | Depth | Sensor depths (m) | Dominant regime |
 |---|---|---|---|---|---|
-| **A** | Cleveland Bay | $-19.20°S$, $146.81°E$ | 15 m | 1, 4, 8, 12, 14 | tidal mixing, $\mathrm{Pe}\ll 1$ |
-| **B** | Davies Reef | $-18.83°S$, $147.647°E$ | 60 m | 2, 10, 25, 45, 58 | classical thermocline, $\mathrm{Pe}\sim 1$ |
-| **C** | Myrmidon Reef | $-18.27°S$, $147.39°E$ | 100 m | 2, 15, 40, 70, 95 | advection-dominated, $\mathrm{Pe}\gg 1$ |
+| **A** | Cleveland Bay | $19.20°S$, $146.81°E$ | 15 m | 1, 4, 8, 12, 14 | tidal mixing, $\mathrm{Pe}\ll 1$ |
+| **B** | Davies Reef | $18.83°S$, $147.647°E$ | 60 m | 2, 10, 25, 45, 58 | classical thermocline, $\mathrm{Pe}\sim 1$ |
+| **C** | Myrmidon Reef | $18.27°S$, $147.39°E$ | 100 m | 2, 15, 40, 70, 95 | advection-dominated, $\mathrm{Pe}\gg 1$ |
 
 All three sites are AIMS-monitored locations on the central GBR;
 the coordinates are sensible (Davies Reef's real AIMS tower sits at
@@ -694,21 +694,24 @@ single coherent storm signal explains all three.
 
 ### 9.10.3 Success criteria
 
-| Metric | Sub-scale on CPU | Full scale on GPU (predicted) |
+| Metric | Sub-scale on CPU | Full scale on GPU |
 |---|---|---|
 | Sub-scale prototype matches Task A | yes, < 1.2× error | — |
-| Two-site joint $\hat\tau$ peak error | < 7% | — |
-| Full 3-site joint $\hat\tau$ peak error | — | 3–5% |
+| Two-site joint $\hat\tau$ peak error | ~7% | — |
+| Full 3-site joint $\hat\tau$ peak error | — | ~5–7% |
 | Residual histogram monotone in $t$, all three sites | — | yes |
 
 ### 9.10.4 Expected runtime
 
-| Stage | CPU (M2 MacBook) | GPU (A100 / H100) |
+The course GPU hub is an **NVIDIA A10G** (g5.2xlarge); the worked
+solution's measured times are in [Unit 10 §10.3](../unit_10/unit_10.qmd).
+
+| Stage | CPU (M-series laptop) | GPU (A10G) |
 |---|---|---|
 | Sub-scale prototype (Task A column, Task B architecture) | ~30 min | ~2 min |
-| Two-site joint inverse (A + B, $H = 60$ m) | ~2 h | ~5 min |
-| Forward PINN, joint 3-site, full scale | ~6 h | ~8 min |
-| Inverse PINN, joint 3-site, full scale | ~24 h | ~25 min |
+| Two-site joint inverse (A + B) | ~7 min | ~2 min |
+| Forward PINN, joint 3-site, full scale | ~2 h | ~3 min |
+| Inverse PINN, joint 3-site, full scale | hours | ~10 min |
 
 The CPU full-scale column is not a typo: technically possible but
 the iteration loop kills the development cycle. **Prototype on

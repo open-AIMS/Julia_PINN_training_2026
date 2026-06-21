@@ -1,6 +1,6 @@
 # Generate three-site synthetic mooring CSV data for the capstone inverse
 # problem.  All three sites see a common Gaussian storm event (scenario_4)
-# starting ~day 10 of a 20-day window; each responds differently because of
+# starting ~day 10 of a 30-day window; each responds differently because of
 # local depth, mixing closure, and upwelling magnitude.
 #
 # Sites along the central GBR cross-shelf transect off Townsville:

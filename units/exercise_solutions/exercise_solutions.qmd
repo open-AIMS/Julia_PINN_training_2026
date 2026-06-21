@@ -2092,9 +2092,12 @@ multiphysics column.)
    flux into the volumetric heating rate K/s. Watts in, kelvin per
    second out, with $\rho c_p \approx 4.09 \times 10^6\,
    \text{J m}^{-3}\text{K}^{-1}$ as the exchange rate.
-3. Left side: $(\text{m}^2/\text{s})(\text{K/m}) = \text{K·m/s}$;
-   right side: $(\text{W/m}^2)/(\text{J m}^{-3}\text{K}^{-1}) =
-   \text{K·m/s}$ ✓. Equilibrium gradient:
+3. As written in @eq-column-bcs the BC is $\rho c_p \kappa\,\partial_z T = Q_{\text{np}}$:
+   left side $(\text{J m}^{-3}\text{K}^{-1})(\text{m}^2/\text{s})(\text{K/m})
+   = \text{W/m}^2$, right side $\text{W/m}^2$ ✓ — both a *heat flux*.
+   Dividing through by $\rho c_p$ turns it into the temperature-flux
+   form $\kappa\,\partial_z T = Q_{\text{np}}/(\rho c_p)$, both sides
+   $\text{K·m/s}$. Equilibrium gradient:
    $$\partial_z T = \frac{Q_{\text{np}}}{\rho c_p \kappa}
      = \frac{-200}{1025 \times 3990 \times 10^{-3}}
      \approx -0.049\ \text{K/m}.$$

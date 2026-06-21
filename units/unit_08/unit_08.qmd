@@ -152,7 +152,7 @@ relation**: with $z$ measured upward, $\kappa\,\partial_z T$ is the
 non-penetrating heat input $Q_{\text{np}}$ (positive = heat into the
 ocean; longwave + sensible + latent combined). The Dirichlet
 condition at $z = -H$ pins the bottom to a much-slower-varying deep
-reservoir. $\rho_0 \approx 1025\,\mathrm{kg/m^3}$ and
+reservoir. $\rho \approx 1025\,\mathrm{kg/m^3}$ and
 $c_p \approx 3990\,\mathrm{J\,kg^{-1}\,K^{-1}}$ are the seawater
 density and heat capacity — they're the only "where do these
 numbers come from" constants in @eq-column-bcs.
@@ -187,7 +187,8 @@ the fastest way to internalise what each symbol is:
 2. What must the units of $\mathcal{S}(z, t)$ be, and how does
    dividing $Q_{\text{SW}}$ (W/m²) by $\rho c_p$ deliver them?
    (Track the watts: $\text{W} = \text{J/s}$.)
-3. In the surface BC, show both sides have units K·m/s, and compute
+3. In the surface BC, show both sides have units W/m² (heat flux),
+   then divide through by $\rho c_p$ and compute
    the *equilibrium surface gradient* $\partial_z T$ implied by a
    net cooling $Q_{\text{np}} = -200\,\text{W/m}^2$ through a
    mixed-layer $\kappa = 10^{-3}\,\text{m}^2/\text{s}$. Is the
