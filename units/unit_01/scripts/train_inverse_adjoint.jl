@@ -60,7 +60,7 @@ H = copy(H_raw); H[isnan.(H)] .= 5.0
 # Same numerics as generate_surge_data.jl so the inversion is "consistent"
 const G_GRAV = 9.81
 const B_DRAG = 5.0e-5
-const T_END  = 6 * 3600.0
+const T_END  = 10 * 3600.0
 const DT     = 12.0
 const NT     = Int(floor(T_END / DT))
 const N_REC  = NT + 1                              # records every step

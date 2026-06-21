@@ -399,7 +399,7 @@ forward on a **staggered Arakawa-C grid** — a layout where $\eta$
 lives at cell centres and the velocity components $u, v$ live at
 the corresponding cell *faces*, which avoids the spurious
 checkerboard modes a co-located grid would suffer from — with
-explicit time stepping at $\Delta t = 12\,\text{s}$ for 6 hours.
+explicit time stepping at $\Delta t = 12\,\text{s}$ for 10 hours.
 The full driver is
 [`scripts/generate_surge_data.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/scripts/generate_surge_data.jl){target="_blank"};
 Unit 6 covers staggered-grid FD schemes properly.
@@ -461,13 +461,13 @@ for step in 1:NT
 end
 ```
 
-The full forward solve takes $\sim 12\,\text{s}$ on a laptop at
+The full forward solve takes $\sim 20\,\text{s}$ on a laptop at
 $500\,\text{m}$ resolution.
 
 ### Watching the surge cross the bay
 
-The movie below plays through the FD solution: 73 snapshots, 5 minutes of real
-time per step, total 6 hours. It loops automatically (click the image to pause or
+The movie below plays through the FD solution: 121 snapshots, 5 minutes of real
+time per step, total 10 hours. It loops automatically (click the image to pause or
 resume); watch the surge rise from rest, through the two peaks, and then the
 slow drain-out as the piled-up water leaks back to the ocean through the bay's
 open rims. The red triangle is the Brisbane River source, the gold discs are the
@@ -828,7 +828,7 @@ pedagogically:
 2. **They disagree wildly on what produced those gauges.** The
    adjoint inverse recovers both surge peaks with the right timing
    and two-pulse shape, but overshoots their amplitude
-   ($\sim 0.60\,\text{m}$ and $\sim 0.25\,\text{m}$, vs truth
+   ($\sim 0.53\,\text{m}$ and $\sim 0.22\,\text{m}$, vs truth
    $0.45 / 0.18$). The naive PINN gets the *timing* of the main
    pulse but flattens its amplitude to $\sim 0.05\,\text{m}$ —
    almost an order of magnitude under.

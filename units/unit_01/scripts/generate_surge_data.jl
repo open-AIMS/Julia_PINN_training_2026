@@ -45,7 +45,7 @@ H[isnan.(H)] .= 5.0
 
 const G_GRAV = 9.81           # gravitational acceleration (m/s²)
 const B_DRAG = 5.0e-5         # linear drag coefficient (1/s)  — small
-const T_END  = 6 * 3600.0     # 6 h simulation
+const T_END  = 10 * 3600.0    # 10 h simulation (long enough for the bay to settle)
 const DT     = 12.0           # time step (s) — CFL safe for H_max ≈ 45 m
 const NT     = Int(floor(T_END / DT))
 const FRAME_STRIDE = 25       # snapshot every 25·DT = 300 s = 5 min
