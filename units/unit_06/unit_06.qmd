@@ -1141,7 +1141,7 @@ timeseries, recover the unknown river source ψ(t). The reason this
 has a clean, almost closed-form solution is that the linearised
 shallow-water system is **linear** in ψ and **time-invariant** —
 its coefficients (depth, drag, geometry) don't change over the
-6-hour window. A system with both properties is **LTI** (linear
+10-hour window. A system with both properties is **LTI** (linear
 time-invariant), and LTI systems are among the most completely
 understood objects in applied mathematics.
 

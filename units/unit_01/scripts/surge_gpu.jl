@@ -271,17 +271,20 @@ try
     dxkm      = 0.5 / rfac                       # 500 m base grid, refined ×rfac
 
     run  = swe_solve(Hc, Mc, src0, rfac, HAVE_GPU ? CuArray : identity;
-                     t_end = 5*3600.0f0, capture = 48)   # movie runs to t = 5 h
+                     t_end = 10*3600.0f0, capture = 60)  # movie runs to t = 10 h (matches the CPU walkthrough)
     NYf, NXf = size(run.field)
     vlim = max(0.05f0, 0.6f0 * maximum(maximum(abs, F) for F in run.frames))
 
     figdir = get(ENV, "GPU_FIG_DIR", joinpath(@__DIR__, "..", "figures"))
     isdir(figdir) || mkpath(figdir)
 
-    # static field (final state)
-    p = bay_map(run.field, fine_mask, dxkm;
+    # static field: the peak-surge frame — the final 10 h state has drained back
+    # to rest, so the last frame would be a near-empty bay.
+    pk = argmax([maximum(abs, F) for F in run.frames])
+    p = bay_map(run.frames[pk], fine_mask, dxkm;
         clims = (-vlim, vlim), cmap = :balance, clabel = "η  (m)",
-        title = "Surge η at t = 5 h — refined $(NYf)×$(NXf) Moreton Bay grid")
+        title = @sprintf("Surge η near peak (t = %.1f h) — refined %d×%d grid",
+                         run.ftimes[pk] / 3600, NYf, NXf))
     savefig(p, joinpath(figdir, "surge_gpu_field.png"))
     println("wrote figures/surge_gpu_field.png")
 

@@ -470,7 +470,7 @@ The movie below plays through the FD solution: 121 snapshots, 5 minutes of real
 time per step, total 10 hours. It loops automatically (click the image to pause or
 resume); watch the surge rise from rest, through the two peaks, and then the
 slow drain-out as the piled-up water leaks back to the ocean through the bay's
-open rims. The red triangle is the Brisbane River source, the gold discs are the
+open rims, until by the 10-hour mark the bay has nearly returned to rest. The red triangle is the Brisbane River source, the gold discs are the
 four tide gauges, and grey is land.
 
 ```{julia}
@@ -915,11 +915,11 @@ Captured on the workshop GPU hub (NVIDIA A10G):
 
 At the bay's native grid the GPU barely helps — the problem is too small to fill
 the card. But each refinement multiplies the work, and by a $760\times400$ grid
-the GPU is **~20× faster** while the CPU solve has crossed $50\,\text{s}$. The
+the GPU is **more than 20× faster** while the CPU solve has passed a minute. The
 two never disagree by more than a centimetre: it is genuinely the same physics,
 just spread across thousands of cores. The surge at the finest resolution:
 
-![Surface elevation $\eta$ five hours into the synthetic surge, on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (← N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
+![Surface elevation $\eta$ near the peak of the synthetic surge (~2 h), on the refined $760\times400$ Moreton Bay grid, computed on the GPU. Same landscape view as the other bay maps — **north to the left** (← N), east up — with land (islands, mainland coast) in grey; the surge has spread from the river mouth across the western bay.](figures/surge_gpu_field.png){width=92%}
 
 And because it is the *same* solver stepping through time, we can watch it run.
 Here is the refined-grid surge as a movie — the same Moreton Bay as the CPU
