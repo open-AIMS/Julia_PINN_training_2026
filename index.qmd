@@ -229,14 +229,18 @@ gate**, so reading the shared infrastructure (or one task) needn't
 spoil the other.
 
 - Shared infrastructure (open): the `MethodOfLines` reference solver,
-  the four toy scenarios, the SWE driver.
-- Task A walk-through: the forward sanity check, the joint inverse
-  loss with an ablation table on the regularisation weights, the
-  recovered $\hat\tau(t)$, and three diagnostic plots.
+  the four toy scenarios, and the SWE-driver design (the scenario-5
+  forcing bridge).
+- Task A walk-through: the source-recovery framing, the inverse loss
+  with an ablation table on the data / regularisation weights, the
+  ≈15% recovery, and a closed-form-validated forward sanity check.
 - Task B walk-through: maps each modern-toolkit ingredient (Fourier
-  features, hard BC, adaptive weights, causal training) to the failure it addresses, then writes out the joint loss with shared
-  $\tau_\phi$ across sites, the CPU sub-scale prototype ladder, and a
-  predicted-full-scale-GPU performance table.
+  features, hard BC, adaptive weights, causal training) to the failure
+  it addresses, then writes out the joint loss with a shared
+  $\tau_\phi$ across sites, the two-site CPU sub-scale prototype (where
+  the shared-$\tau$ joint measurably beats either single site), the
+  mechanism partition, and a **measured** A10G full-scale performance
+  table.
 - Sketches the `DeepXDE` Python parallel for the cross-ecosystem
   story.
 
@@ -292,57 +296,70 @@ maintainer for a tarball — the file list below is the manifest.)
 
 ### Unit 1 — Brisbane River surge
 
+- Notebook: [`unit_01.ipynb`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_01/unit_01.ipynb){target="_blank"}
+  — the runnable Jupyter version of the unit
 - Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/scripts){target="_blank"}
-  — `build_bay.jl`, `generate_site_map.py`, `generate_surge_data.jl`,
-  `generate_surge_frames.jl`, `generate_surge_animation.jl`,
-  `train_inverse_pinn.jl`, `train_inverse_adjoint.jl`,
-  `render_recovery_plot.jl`
+  — `build_bay.jl`, `build_mask_from_tiles.py`, `generate_site_map.py`,
+  `generate_surge_data.jl`, `generate_surge_frames.jl`,
+  `generate_surge_animation.jl`, `surge_gpu.jl`, `replot_bathymetry.jl`,
+  `render_recovery_plot.jl`, `train_inverse_pinn.jl`,
+  `train_inverse_adjoint.jl`
 - Data: [`data/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_01/data){target="_blank"}
   — `bay_bathymetry.csv`, `bay_gauges.csv`, `bay_mask.csv`,
-  `river_source.csv`, `bay_meta.json`, `gauges_observed.csv`,
-  `gauges_adjoint_pred.csv`, `gauges_pinn_pred.csv`,
-  `psi_recovered.csv`, `psi_recovered_adjoint.csv`, `snapshots.bin`
+  `bay_meta.json`, `river_source.csv`, `gauges_clean.csv`,
+  `gauges_observed.csv`, `gauges_adjoint_pred.csv`,
+  `gauges_pinn_pred.csv`, `psi_truth.csv`, `psi_recovered.csv`,
+  `psi_recovered_adjoint.csv`, `snapshots.bin`, `snapshots_meta.json`
 
 ### Unit 2 — ML foundations
 
 - Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_02/scripts){target="_blank"}
-  — `iris_lux.jl`, `mnist_rf_julia.jl`, `mnist_rf_sklearn.py`,
+  — `mnist_rf_julia.jl`, `mnist_rf_sklearn.py`, `mnist_display.jl`,
   `mnist_linear_lux.jl`, `mnist_linear_sklearn.py`,
-  `mnist_mlp_sklearn.py`, `mnist_mlp_pytorch.py`,
-  `kan_julia.jl`, `kan_pykan.py`
+  `mnist_mlp_sklearn.py`, `mnist_mlp_pytorch.py`, `mnist_gpu_lux.jl`,
+  `conv_mnist_lux.jl`, `activations.jl`, `kan_julia.jl`,
+  `kan_splines.jl`, `kan_pykan.py`
 
 ### Unit 3 — Sci-ML and PIML
 
 - Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_03/scripts){target="_blank"}
-  — `decay_python.py`, `damped_python.py`, `sindy_lorenz.jl`,
-  `sindy_lorenz_python.py`, `pod_chain.jl`, `pod_chain_python.py`
+  — `decay_python.py`, `damped_python.py`, `hnn_pendulum.jl`,
+  `sindy_lorenz.jl`, `sindy_lorenz_python.py`, `pod_chain.jl`,
+  `pod_chain_python.py`
 
 ### Unit 4 — Neural differential equations
 
 - Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_04/scripts){target="_blank"}
-  — `lotka_volterra_python.py`
+  — `resnet_block.jl`, `neural_ode_train.jl`, `lotka_volterra_python.py`
 
 ### Unit 5 — First PINN
 
 - Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_05/scripts){target="_blank"}
   — `pinn_neuralpde_ode.jl`, `pinn_neuralpde_heat.jl`,
-  `pinn_poisson_disk.jl`
+  `pinn_poisson_disk.jl`, `pinn_2d_diffusion_gpu.jl`
+
+### Unit 6 — PDE bootcamp
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_06/scripts){target="_blank"}
+  — `heat2d_gpu.jl`
+
+### Unit 7 — When PINNs meet PDEs
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_07/scripts){target="_blank"}
+  — `generate_laplace_disk_figure.py`, `pinn_throughput_gpu.jl`
+
+### Unit 9 — Project specification
+
+- Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_09/scripts){target="_blank"}
+  — `generate_site_map.jl`, `generate_site_map.py`
 
 ### Unit 10 — Capstone solution
 
 - Scripts: [`scripts/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_10/scripts){target="_blank"}
-  — `column_fd.jl`, `generate_mooring_csvs.jl`,
-  `task_a_forward_pinn.jl`, `task_a_inverse_pinn.jl`,
-  `task_a_diagnostics.jl`, `task_b_forward_pinn.jl`,
-  `task_b_joint_inverse.jl`, `task_b_subscale_prototype.jl`,
+  — `column_fd.jl`, `column_pinn_gpu.jl`, `generate_mooring_csvs.jl`,
+  `task_a_inverse_pinn.jl`, `task_a_forward_deepxde.py`,
+  `task_b_subscale_prototype.jl`, `task_b_joint_inverse.jl`,
   `task_b_gpu_launch.md`
 - Data: [`data/`](https://github.com/open-AIMS/Julia_PINN_training_2026/tree/main/units/unit_10/data){target="_blank"}
   — `mooring_A.csv`, `mooring_B.csv`, `mooring_C.csv`,
   `sites_metadata.csv`
-
-::: {.callout-note appearance="simple"}
-A handful of the script files in Unit 10's list above are **part
-of the Task B answer key** and only exist if you've checked out
-the full repo — they're listed here as placeholders so the
-manifest is complete.
-:::
