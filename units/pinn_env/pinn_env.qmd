@@ -24,9 +24,9 @@ the slow ones), and describes how Julia's **depot** works — including why addi
 your own packages can occasionally set off a long recompilation.
 
 - **Julia version:** 1.12.6
-- **Direct dependencies:** 28 on the cloud GPU hub (listed below); the take-home
+- **Direct dependencies:** 29 on the cloud GPU hub (listed below); the take-home
   Docker image is **CPU-only** and ships the same set **minus the three GPU
-  packages** (`CUDA`, `LuxCUDA`, `cuDNN`), so 25.
+  packages** (`CUDA`, `LuxCUDA`, `cuDNN`), so 26.
 - **Total packages with transitive dependencies:** ~552
 
 ::: {.callout-note}
@@ -92,7 +92,7 @@ version is suddenly stale.
 
 `Pkg` commands act on the **active project** only — your personal `@v1.12`
 environment, which starts empty. `@pinn` is stacked *below* it on the load path,
-so its 28 packages **don't appear in `Pkg.status`**. But `using` searches the
+so its 29 packages **don't appear in `Pkg.status`**. But `using` searches the
 **whole stack**, so it finds `NeuralPDE` in `@pinn` and loads it fine. Hence the
 apparent paradox: `using NeuralPDE` succeeds while `Pkg.status` shows nothing. The
 mental model in one line: **`using` searches the whole stack; `Pkg.status` reports
@@ -122,7 +122,7 @@ that second one is where `@pinn` and its precompiled images actually live. (On t
 cloud hub that path is `/home/efs/_shared/julia-depot`; in the Docker image it's
 `/opt/julia-depot`.)
 
-**3. List the 28 packages in `@pinn`** — activate it read-only, look, switch back:
+**3. List the 29 packages in `@pinn`** — activate it read-only, look, switch back:
 
 ```julia
 import Pkg
@@ -141,7 +141,7 @@ pkgdir(NeuralPDE)      # its path is under the shared depot, not your home
 
 ## The packages
 
-These are the 28 packages named directly in `@pinn`'s `Project.toml` on the cloud
+These are the 29 packages named directly in `@pinn`'s `Project.toml` on the cloud
 GPU hub. Everything else (the ~552 total) is pulled in automatically as a
 dependency of one of these. The take-home Docker image has the same list **minus
 the three GPU packages** in the "GPU" group below.
@@ -172,6 +172,9 @@ the three GPU packages** in the "GPU" group below.
   PDE residual).
 - **`ComponentArrays`** — structured, named parameter vectors that keep network
   weights tidy while staying a flat array the optimiser can use.
+- **`KolmogorovArnold`** — Kolmogorov–Arnold network layers (`KDense`), a
+  spline/RBF-based alternative to `Dense` MLP layers (Unit 2 §2.8). Pinned to
+  `0.0.1` so it can't perturb the rest of the stack.
 
 ### GPU — *cloud GPU hub only*
 

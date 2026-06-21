@@ -1182,8 +1182,8 @@ A 2-layer KAN approximating $f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$
 [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}:
 
 ```{.julia filename="units/unit_02/scripts/kan_julia.jl"}
-# KolmogorovArnold.jl is not in the course @pinn environment — add it once with
-# Pkg.add("KolmogorovArnold") (it persists in your personal env).
+# Uses KolmogorovArnold.jl (pinned to 0.0.1), which ships in the course @pinn
+# environment — no install needed.
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
 
 rng = Random.MersenneTwister(0)
@@ -1211,10 +1211,9 @@ end
 @info "test MSE = $(loss(ps, st))"
 ```
 
-*Setup note.* `KolmogorovArnold.jl` is **not** in the course `@pinn`
-environment — add it once with `Pkg.add("KolmogorovArnold")` from the repo
-root before running this cell (it lands in your personal environment and
-persists). The package uses **radial basis functions** as the
+*Setup note.* `KolmogorovArnold.jl` ships in the course `@pinn`
+environment (pinned to 0.0.1), so `using KolmogorovArnold` just works —
+no `Pkg.add` needed. The package uses **radial basis functions** as the
 per-edge basis instead of B-splines — a near-equivalent
 parameterisation with better Julia ergonomics. See [The `@pinn` Julia
 environment](../pinn_env/pinn_env.qmd#adding-packages).
@@ -1310,7 +1309,7 @@ what happens to the MLP if you give it 10× the training iterations?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Setup first: `KolmogorovArnold.jl` is not in @pinn — run `Pkg.add("KolmogorovArnold")` once (it persists in your personal env). Target: `y = abs.(x) .+ 0.2f0 .* sin.(5f0 .* x)`. KAN: stack two `KDense(in, out, 6; basis_func = rbf, normalizer = softsign)` layers (e.g. `1=>6` then `6=>1`). Parameter-match the MLP with a quick `Lux.parameterlength` check — `Lux.Chain(Lux.Dense(1=>14,tanh), Lux.Dense(14=>14,tanh), Lux.Dense(14=>1))` is close — an unmatched comparison is meaningless. Train both with the same `Adam` loop and iteration count, then zoom the plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the kink lives. Then give the MLP 10× the iterations and watch it slowly close the gap (an efficiency edge, not an expressiveness one).
+`KolmogorovArnold.jl` is already in `@pinn`, so `using KolmogorovArnold` just works. Target: `y = abs.(x) .+ 0.2f0 .* sin.(5f0 .* x)`. KAN: stack two `KDense(in, out, 6; basis_func = rbf, normalizer = softsign)` layers (e.g. `1=>6` then `6=>1`). Parameter-match the MLP with a quick `Lux.parameterlength` check — `Lux.Chain(Lux.Dense(1=>14,tanh), Lux.Dense(14=>14,tanh), Lux.Dense(14=>1))` is close — an unmatched comparison is meaningless. Train both with the same `Adam` loop and iteration count, then zoom the plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the kink lives. Then give the MLP 10× the iterations and watch it slowly close the gap (an efficiency edge, not an expressiveness one).
 :::
 :::
 

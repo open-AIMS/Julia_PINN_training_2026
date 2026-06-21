@@ -3,8 +3,8 @@
 #
 # Fit f(x1, x2) = exp(sin(pi x1) + x2^2) with a small 2-layer KAN.
 #
-# Uses KolmogorovArnold.jl (pinned to 0.0.1). It is NOT in the course @pinn
-# environment — add it once with Pkg.add("KolmogorovArnold").
+# Uses KolmogorovArnold.jl (pinned to 0.0.1), which ships in the course @pinn
+# environment — no install needed.
 
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
 
@@ -27,6 +27,7 @@ ps, st = Lux.setup(rng, model)
 loss(ps, st) = mean(abs2, first(model(X, ps, st)) .- y)
 opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)
 for k in 1:2000
+    global ps, opt_state            # reassign the script-level vars (soft scope in a notebook)
     gs = first(Zygote.gradient(p -> loss(p, st), ps))
     opt_state, ps = Optimisers.update(opt_state, ps, gs)
 end
