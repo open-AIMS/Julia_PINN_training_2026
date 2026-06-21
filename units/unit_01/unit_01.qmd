@@ -769,13 +769,13 @@ an integer factor and races the two:
 {{< include scripts/surge_gpu.jl >}}
 ```
 
-Captured on the workshop GPU hub (NVIDIA L4):
+Captured on the workshop GPU hub (NVIDIA A10G):
 
 {{< include output/surge_gpu.md >}}
 
 At the bay's native grid the GPU barely helps — the problem is too small to fill
 the card. But each refinement multiplies the work, and by a $760\times400$ grid
-the GPU is **>20× faster** while the CPU solve has crossed $30\,\text{s}$. The
+the GPU is **~20× faster** while the CPU solve has crossed $50\,\text{s}$. The
 two never disagree by more than a centimetre: it is genuinely the same physics,
 just spread across thousands of cores. The surge at the finest resolution:
 
