@@ -21,20 +21,20 @@
 
   <!-- Q_SW (downward, penetrating) -->
   <g stroke="#c0392b" stroke-width="2" fill="#c0392b">
-    <text x="100" y="62" text-anchor="middle" fill="#c0392b" font-size="11" font-weight="bold">Q_SW</text>
-    <text x="100" y="76" text-anchor="middle" fill="#c0392b" font-size="10" font-weight="normal">shortwave ↓</text>
+    <text x="100" y="62" text-anchor="middle" fill="#c0392b" stroke="none" font-size="11" font-weight="bold">Q_SW</text>
+    <text x="100" y="76" text-anchor="middle" fill="#c0392b" stroke="none" font-size="10" font-weight="normal">shortwave ↓</text>
     <line x1="100" y1="84" x2="100" y2="118" marker-end="url(#redarrow)"/>
   </g>
   <!-- Q_LW (net upward typically) -->
   <g stroke="#c0392b" stroke-width="2" fill="#c0392b">
-    <text x="200" y="62" text-anchor="middle" fill="#c0392b" font-size="11" font-weight="bold">Q_LW</text>
-    <text x="200" y="76" text-anchor="middle" fill="#c0392b" font-size="10" font-weight="normal">longwave ↑</text>
+    <text x="200" y="62" text-anchor="middle" fill="#c0392b" stroke="none" font-size="11" font-weight="bold">Q_LW</text>
+    <text x="200" y="76" text-anchor="middle" fill="#c0392b" stroke="none" font-size="10" font-weight="normal">longwave ↑</text>
     <line x1="200" y1="118" x2="200" y2="84" marker-end="url(#redarrow)"/>
   </g>
   <!-- Q_lat + Q_sens (upward, latent+sensible) -->
   <g stroke="#c0392b" stroke-width="2" fill="#c0392b">
-    <text x="300" y="62" text-anchor="middle" fill="#c0392b" font-size="11" font-weight="bold">Q_lat, Q_sens</text>
-    <text x="300" y="76" text-anchor="middle" fill="#c0392b" font-size="10" font-weight="normal">evap. + sensible ↑</text>
+    <text x="300" y="62" text-anchor="middle" fill="#c0392b" stroke="none" font-size="11" font-weight="bold">Q_lat, Q_sens</text>
+    <text x="300" y="76" text-anchor="middle" fill="#c0392b" stroke="none" font-size="10" font-weight="normal">evap. + sensible ↑</text>
     <line x1="300" y1="118" x2="300" y2="84" marker-end="url(#redarrow)"/>
   </g>
 
@@ -107,8 +107,8 @@
   <!-- Depth axis (left of the column, with z = 0 and z = -H labels) -->
   <g stroke="#222" stroke-width="1.4" fill="#222">
     <line x1="40" y1="120" x2="40" y2="500"/>
-    <text x="28" y="124" text-anchor="end" font-size="11" font-weight="bold">z = 0</text>
-    <text x="28" y="504" text-anchor="end" font-size="11" font-weight="bold">z = −H</text>
+    <text x="28" y="124" text-anchor="end" stroke="none" font-size="11" font-weight="bold">z = 0</text>
+    <text x="28" y="504" text-anchor="end" stroke="none" font-size="11" font-weight="bold">z = −H</text>
   </g>
 
   <!-- Right-hand annotated panels -->
