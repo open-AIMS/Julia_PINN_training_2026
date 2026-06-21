@@ -1717,11 +1717,12 @@ $1.0 \pm 0.248$.
 ```julia
 # residual-vs-time histogram for the trained two-network system
 phi = discretization.phi          # vector of two networks (η, u)
-p_η, p_u = res.u.depvar.η, res.u.depvar.u_vel   # per-network params
 
-using ForwardDiff, Statistics
-ηf(x, t) = first(phi[1]([x, t], p_η))
-uf(x, t) = first(phi[2]([x, t], p_u))
+using ForwardDiff, Statistics, Plots
+# Evaluate each network with the FULL solution vector res.u — the
+# discretization holds the per-network parameter slices internally.
+ηf(x, t) = first(phi[1]([x, t], res.u))
+uf(x, t) = first(phi[2]([x, t], res.u))
 r1(x, t) = ForwardDiff.derivative(τ -> ηf(x, τ), t) +
            10.0 * ForwardDiff.derivative(ξ -> uf(ξ, t), x)
 r2(x, t) = ForwardDiff.derivative(τ -> uf(x, τ), t) +
@@ -1732,7 +1733,8 @@ tbins = range(0, 0.05; length = 11)
 means = [mean(abs2(r1(x, t)) + abs2(r2(x, t))
               for x in xs, t in range(tbins[i], tbins[i+1]; length = 20))
          for i in 1:10]
-bar(midpoints(collect(tbins)), means, xlabel = "t bin",
+tc = (tbins[1:end-1] .+ tbins[2:end]) ./ 2     # bin centres
+bar(tc, means, xlabel = "t bin",
     ylabel = "mean residual", legend = false)
 ```
 

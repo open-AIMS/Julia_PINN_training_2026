@@ -93,7 +93,7 @@ A clean elliptic example. The PINN handles the circular geometry
 mesh-free — a classical advantage over finite differences. Closed-form
 solution: $u(r, \theta) = r^3 \sin(3\theta)$.
 
-![Left: the closed-form three-lobed harmonic $u(r, \theta) = r^3 \sin(3\theta)$ on the unit disk, with Dirichlet boundary $u(R, \theta) = \sin(3\theta)$ and a small inner cutoff $r_{\min}$. Right: a typical PINN collocation cloud — ~400 random interior residual points (green) and ~36 uniform boundary points (orange). The mesh-free advantage: random sampling on a disk needs no quadrature scheme or curvilinear mesh.](figures/laplace_disk.svg){#fig-laplace-disk width=92%}
+![Left: the closed-form three-lobed harmonic $u(r, \theta) = r^3 \sin(3\theta)$ on the unit disk, with Dirichlet boundary $u(R, \theta) = \sin(3\theta)$ and a small inner cutoff $r_{\min}$. Right: a schematic PINN collocation cloud — the actual solve samples ~400 random interior residual points (green) and ~36 uniform boundary points (orange); the diagram draws fewer for clarity. The mesh-free advantage: random sampling on a disk needs no quadrature scheme or curvilinear mesh.](figures/laplace_disk.svg){#fig-laplace-disk width=92%}
 
 ```{julia}
 #| eval: false
@@ -795,7 +795,7 @@ automatically. The vocabulary you need is small:
 | `GridTraining(dx)` | NeuralPDE | A **training strategy** — *where* the residual is sampled. `GridTraining` lays a fixed lattice with spacing `dx`; the alternatives (below) resample instead. |
 | `PhysicsInformedNN(chain, strategy)` | NeuralPDE | Bundles network + sampling strategy and is the object that *builds the physics-informed loss by autodiff* when discretized. |
 | `discretize(pdesys, disc)` | NeuralPDE | Compiles the symbolic `PDESystem` + the `PhysicsInformedNN` into a concrete `OptimizationProblem` — a plain loss-minimisation problem with no PDE symbols left in it. |
-| `Optimization.solve(prob, opt; maxiters)` | Optimization | Minimises that loss. Idiom: a few hundred steps of `Adam()` to get into the basin, then `LBFGS()` to polish — exactly what §7.1 does. |
+| `Optimization.solve(prob, opt; maxiters)` | Optimization | Minimises that loss. The usual idiom is a few hundred steps of `Adam()` to get into the basin, then `LBFGS()` to polish. (The short §7.1/§7.2 demos call `LBFGS()` directly, for brevity.) |
 | `disc.phi`, `res.u` | NeuralPDE | After solving, `res.u` is the optimal parameter vector and `disc.phi([x,t], res.u)` evaluates the trained solution at any coordinate. For a system, `phi` is a vector — `phi[1]`, `phi[2]`, …. |
 
 Read against the heat-equation block of [§7.1](#sec-heat), the six
