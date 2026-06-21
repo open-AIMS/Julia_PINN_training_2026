@@ -619,6 +619,22 @@ cell, $\psi_\theta(t) = \eta_\theta(x_r, y_r, t)$. Units 5 and 7 build this
 properly; for now it is enough to picture *a neural network that is forced to
 respect the physics.*
 
+::: {.callout-note}
+## What's a collocation point?
+Those "random check-points" have a name: **collocation points**. A
+collocation point is just a location in space and time $(x, y, t)$ where we
+ask the network to *obey the equation* — nothing more. Unlike a gauge
+reading, there is **no measured value** there: we evaluate the wave-equation
+residual on the network's *own* output and push it toward zero. Unit 1's PINN
+scatters a few hundred of them at random through the **water** part of the bay
+(land excluded, and a small circle around the river mouth left out, since the
+source lives there), drawing a fresh batch every training step. They are
+essentially **free** — you can place as many as you like, anywhere — because
+checking the physics needs only the equation we already know, never data and
+never the true source. That is the mesh-free heart of a PINN: *sample the
+physics wherever you want.*
+:::
+
 **Method A — Naive PINN.** Train a smooth **MLP** (multi-layer
 perceptron, the basic feed-forward neural network — covered in
 [Unit 2](../unit_02/unit_02.qmd)) $\eta_\theta(x, y, t)$ on inputs
@@ -826,6 +842,19 @@ smoothness; the naive PINN implicitly priors-in the smooth-MLP
 ansatz, which turns out to bias the answer in the wrong direction
 here.
 
+**A fair question: if the naive PINN does *worse*, why is this a PINN
+course?** Because this problem is the *classical* method's home turf. The bay
+here is **linear**, and for a linear inverse the Green's-function + Tikhonov
+solve is essentially optimal — and almost free. Note that both methods saw the
+*same* four noisy gauges and the *same* physics; the adjoint wins not by seeing
+more, but because linearity lets it solve the problem **exactly, in one shot**,
+while the naive PINN takes on the much harder job of learning the entire field
+$\eta(x,y,t)$ by gradient descent — with *none* of the tricks the rest of the
+course adds. We show that honestly, rather than rigging an easy PINN victory,
+so you can trust the comparison: on a problem this simple, reach for the
+classical tool. The interesting question is what happens when the problem
+*stops* being this simple.
+
 [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"}
 documented exactly this failure mode on the same linearised SWE
 problem.
@@ -834,6 +863,31 @@ Fourier feature embeddings, causal training, hard boundary-condition
 enforcement, adaptive loss weighting — that close the gap, so that
 by Unit 9 the PINN can do what the adjoint does here without the
 luxury of precomputing $G$.
+
+::: {.callout-tip}
+## So why PINNs at all? Where the classical method can't follow
+We made this bay **linear** on purpose, so you could watch both methods on a
+level field. That linearity is exactly what hands the win to the
+Green's-function solve — and exactly what real problems rarely give you. A PINN
+keeps working in the places the classical recipe breaks down:
+
+- **Nonlinear surges.** Once the water runs shallow (wetting/drying, currents
+  that advect the wave), superposition fails — there is *no* impulse response to
+  build $G$ from. The PINN just changes the residual it minimises.
+- **Unknown physics.** Don't know the bathymetry, or a friction coefficient?
+  Make it a trainable parameter and recover it *alongside* the source from the
+  same gauges — something the Green's-function solve, which *assumes* the whole
+  model, simply can't do. (Unit 7 does exactly this.)
+- **No simulator required.** The PINN learns the field straight from data + the
+  equation; it never needs a working forward solver in order to invert. The
+  adjoint method is *built from* one.
+- **Anywhere, any resolution.** Being mesh-free, it returns $\eta(x,y,t)$ at any
+  continuous point, and copes with irregular or moving sensors.
+
+Unit 1's bay sits in the one corner where you *don't* need any of that — which
+is precisely why it's the honest place to start. The rest of the course lives
+in the corners where only the PINN can go.
+:::
 
 ### The same solve, on a GPU {#sec-swe-gpu}
 
