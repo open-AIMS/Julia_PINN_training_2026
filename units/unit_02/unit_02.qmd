@@ -1182,7 +1182,7 @@ A 2-layer KAN approximating $f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$
 [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}:
 
 ```{.julia filename="units/unit_02/scripts/kan_julia.jl"}
-# On the cloud hub only: Pkg.add("KolmogorovArnold")  (already in the take-home image)
+# KolmogorovArnold ships in the course @pinn environment — no install needed.
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
 
 rng = Random.MersenneTwister(0)
@@ -1210,13 +1210,9 @@ end
 @info "test MSE = $(loss(ps, st))"
 ```
 
-*Setup note.* On the **take-home Docker image** `KolmogorovArnold.jl`
-is already installed — `using KolmogorovArnold` just works. On the
-**cloud JupyterHub** it is not yet in the shared `@pinn` environment,
-so add it once with `Pkg.add("KolmogorovArnold")`; as with `MLDatasets`
-above, that re-resolves your personal environment, so your **next
-`using NeuralPDE` may recompile once** (a few minutes — one-off); do
-it at a break. The package uses **radial basis functions** as the
+*Setup note.* `KolmogorovArnold.jl` ships in the course `@pinn`
+environment, so `using KolmogorovArnold` just works — no `Pkg.add`
+needed. The package uses **radial basis functions** as the
 per-edge basis instead of B-splines — a near-equivalent
 parameterisation with better Julia ergonomics. See [The `@pinn` Julia
 environment](../pinn_env/pinn_env.qmd#adding-packages).

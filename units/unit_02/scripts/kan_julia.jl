@@ -3,8 +3,8 @@
 #
 # Fit f(x1, x2) = exp(sin(pi x1) + x2^2) with a small 2-layer KAN.
 #
-# Requires KolmogorovArnold.jl (not in workshop Project.toml):
-#   julia> using Pkg; Pkg.add("KolmogorovArnold")
+# Uses KolmogorovArnold.jl, which ships in the course @pinn environment
+# (pinned to 0.0.1) — no install needed.
 
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
 
