@@ -721,8 +721,8 @@ pedagogically:
 
 1. **Both methods fit the gauge observations.** Look at any of the
    four gauge panels: the adjoint prediction (blue) and the
-   naive-PINN prediction (dashed orange) both lie inside the noisy
-   cloud of observations at G1–G4. By the metric the algorithms are
+   naive-PINN prediction (dashed orange) both lie near or inside the
+   noisy cloud of observations at G1–G4. By the metric the algorithms are
    optimising, both succeed.
 2. **They disagree wildly on what produced those gauges.** The
    adjoint inverse recovers both surge peaks at roughly correct
