@@ -90,7 +90,7 @@ minimum of the CV curve, and what happens to the two curves past it?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Build the polynomial design matrix with `hcat((x .^ p for p in 0:d)...)` and fit with `\`. For the folds, interleaved index sets `[i:5:N for i in 1:5]` are the least code; train on `.!mask`, score on `mask`. Expect numerical warnings at high degree — that's part of the story.
+Design matrix: `vander(x, d) = hcat((x .^ p for p in 0:d)...)`; fit each degree with `c = vander(x, d) \ y` and score with `rmse(a, b) = sqrt(mean(abs2, a .- b))`. For the 5 interleaved folds use `folds = [i:5:N for i in 1:5]`; per fold build a boolean `test`, refit on `vander(x[.!test], d) \ y[.!test]`, and score on `x[test]`. Loop `for d in 1:15`, plot both RMSE curves (try `yscale = :log10`), and expect numerical warnings past degree ~12 — that ill-conditioning is part of the story.
 :::
 :::
 
@@ -274,7 +274,7 @@ ensemble even though each individual tree gets stronger?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Reuse the `build_forest` call from the section verbatim — the third positional argument is `n_subfeatures` and the fourth is `n_trees`. Subset with `X[1:10_000, :]` to keep each fit fast; the *shape* of the curves is robust to the subset. For the conceptual part, think about what averaging does to correlated vs uncorrelated errors.
+Reuse the section's `build_forest` call — argument 3 is `n_subfeatures`, argument 4 is `n_trees`; vary just those in a loop. MLDatasets already returns pixels in [0,1], so you can drop the `/255` and flatten with `reshape(Float32.(x), 784, :)'`. Subset `X[1:10_000, :]` (and matching labels) to keep each fit fast; the *shape* of the curves is robust to the subset. Score with `mean(apply_forest(forest, Xt) .== yt)`. For the 784 case: when every split sees every feature, all trees pick the same dominant splits and their errors stop being decorrelated — and averaging correlated errors removes less noise.
 :::
 :::
 
@@ -439,7 +439,7 @@ a *linear* decision boundary?
 💡 Hint
 
 ::: {.exercise-hint-text}
-No autodiff needed: for sigmoid + binary cross-entropy the gradient collapses to `X * (p̂ .- y) ./ N` — derive it by chaining $\partial L/\partial \hat p$ and $\partial \hat p/\partial z$ and watch the $\sigma'$ cancel. Select the two digits with a boolean mask like `(y .== 0) .| (y .== 1)`. Twenty lines total.
+No autodiff needed: for sigmoid + binary cross-entropy the per-example gradient collapses to `p̂ .- y` (the $\sigma'$ cancels against the log), so with `X` kept as 784×N (columns are images) the update is `w -= η .* (X * δ) ./ N` and `b -= η .* mean(δ)`, where `δ = σ(X'w .+ b) .- y`. Select the pair with a mask `(y .== 0) .| (y .== 1)` and set the label `Float32.(y .== 1)`. Use `η = 0.5`, 500 steps — about twenty lines. Then swap in 4-vs-9: the discriminator (does the upper loop close?) is a conjunction of pixels no single linear threshold can express.
 :::
 :::
 
@@ -520,7 +520,7 @@ that disqualify it from any diffusion-type PDE residual?
 💡 Hint
 
 ::: {.exercise-hint-text}
-`Lux.Chain(Lux.Dense(1 => w, act), Lux.Dense(w => 1))` with `act = tanh` or `relu`, trained with the standard `Zygote.gradient` + `Optimisers.Adam` loop from the section. For the second derivative, wrap the network in a scalar closure `u(x) = first(model([x], ps, st))[1]` and nest `ForwardDiff.derivative` twice — exactly the §5.2 pattern, used here a unit early.
+Build each net as `Lux.Chain(Lux.Dense(1 => w, act), Lux.Dense(w => 1))` with `act = tanh` or `relu`, and train it with the same `Zygote.gradient` + `Optimisers.Adam(1f-2)` loop used in §2.3. For the second derivative, reuse the nested-`ForwardDiff.derivative` pattern from §2.6: wrap the trained net in a scalar closure `u(x) = first(model([x], ps, st))[1]`, then `f2(x) = ForwardDiff.derivative(ξ -> ForwardDiff.derivative(u, ξ), x)`. The tanh `f2` is smooth; the ReLU one is identically zero (a piecewise-linear net), so a `u_xx` residual built on ReLU silently solves the wrong equation.
 :::
 :::
 
@@ -728,7 +728,7 @@ where does Adam's per-parameter scaling visibly help?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Each optimiser is under ten lines if you mutate the iterate in place and keep state in a NamedTuple. The hard part is fair tuning: push each learning rate up until the method just diverges, then back off (GD lands near `1e-3`, Adam near `1e-2`). Plot `log10 ∘ f` for the contours or the colour scale saturates.
+Rosenbrock gradient (the part that's easy to get wrong): `∇f(x, y) = [-2(1 - x) - 400x*(y - x^2), 200*(y - x^2)]`. Keep each optimiser under ten lines by mutating the iterate in place with state in a NamedTuple — GD is `x .-= η .* g`; momentum is `v .= μ .* v .+ g; x .-= η .* v`; Adam is the bias-corrected `m`/`v` pair from §2.5 as `x .-= η .* m̂ ./ (sqrt.(v̂) .+ 1e-8)`. The real work is fair tuning: push each `η` up until it just diverges, then back off (GD lands near `1e-3`, Adam near `2e-2`, `μ = 0.9`). Plot `log10 ∘ f` for the contours or the colour scale saturates, then map what you see onto the three §2.5 failure modes.
 :::
 :::
 
@@ -1134,7 +1134,7 @@ the LeNet CNN above (~98.8%). Two questions about that ladder:
 💡 Hint
 
 ::: {.exercise-hint-text}
-`Lux.parameterlength(make_cnn())` counts a model with no hand-arithmetic — build the softmax and MLP models the same way to compare. For the finetune, keep the trained `ps` and only rebuild the optimiser state, `opt = Optimisers.setup(Adam(1f-4), ps)`, before the extra 5 epochs.
+`Lux.parameterlength(model)` counts any model with no hand-arithmetic — build all three the same way: softmax `Lux.Chain(Lux.Dense(784 => 10))`, MLP `Lux.Chain(Lux.Dense(784=>256,relu), Lux.Dense(256=>128,relu), Lux.Dense(128=>10))`, and the CNN via the script's `make_cnn()`. You should get 7,850 / 235,146 / 61,706 — the CNN is most accurate yet under a third of the MLP's weights, because a convolution reuses one small filter at every image position. For the finetune, keep the trained `ps`, rebuild only the optimiser state `opt = Optimisers.setup(Adam(1f-4), ps)`, then run 5 more epochs with the same per-epoch training call the script already defines.
 :::
 :::
 
@@ -1182,7 +1182,8 @@ A 2-layer KAN approximating $f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$
 [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}:
 
 ```{.julia filename="units/unit_02/scripts/kan_julia.jl"}
-# KolmogorovArnold ships in the course @pinn environment — no install needed.
+# KolmogorovArnold.jl is not in the course @pinn environment — add it once with
+# Pkg.add("KolmogorovArnold") (it persists in your personal env).
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
 
 rng = Random.MersenneTwister(0)
@@ -1210,9 +1211,10 @@ end
 @info "test MSE = $(loss(ps, st))"
 ```
 
-*Setup note.* `KolmogorovArnold.jl` ships in the course `@pinn`
-environment, so `using KolmogorovArnold` just works — no `Pkg.add`
-needed. The package uses **radial basis functions** as the
+*Setup note.* `KolmogorovArnold.jl` is **not** in the course `@pinn`
+environment — add it once with `Pkg.add("KolmogorovArnold")` from the repo
+root before running this cell (it lands in your personal environment and
+persists). The package uses **radial basis functions** as the
 per-edge basis instead of B-splines — a near-equivalent
 parameterisation with better Julia ergonomics. See [The `@pinn` Julia
 environment](../pinn_env/pinn_env.qmd#adding-packages).
@@ -1308,7 +1310,7 @@ what happens to the MLP if you give it 10× the training iterations?
 💡 Hint
 
 ::: {.exercise-hint-text}
-`KolmogorovArnold.jl` needs a one-off `Pkg.add`; `KDense(1, 6, 6; basis_func = rbf, normalizer = softsign)` (in, out, grid_len) mirrors the section's script. Match parameter counts with `Lux.parameterlength` before comparing — an unmatched comparison is meaningless. Zoom the comparison plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the action is.
+Setup first: `KolmogorovArnold.jl` is not in @pinn — run `Pkg.add("KolmogorovArnold")` once (it persists in your personal env). Target: `y = abs.(x) .+ 0.2f0 .* sin.(5f0 .* x)`. KAN: stack two `KDense(in, out, 6; basis_func = rbf, normalizer = softsign)` layers (e.g. `1=>6` then `6=>1`). Parameter-match the MLP with a quick `Lux.parameterlength` check — `Lux.Chain(Lux.Dense(1=>14,tanh), Lux.Dense(14=>14,tanh), Lux.Dense(14=>1))` is close — an unmatched comparison is meaningless. Train both with the same `Adam` loop and iteration count, then zoom the plot into `x ∈ [-0.1, 0.1]`; the global MSE hides where the kink lives. Then give the MLP 10× the iterations and watch it slowly close the gap (an efficiency edge, not an expressiveness one).
 :::
 :::
 

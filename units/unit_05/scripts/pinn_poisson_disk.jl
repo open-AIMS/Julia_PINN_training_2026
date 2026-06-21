@@ -7,7 +7,7 @@
 # The same network (2 → 32 → 32 → 1, tanh) and the same RNG seed are
 # used for all three runs, so the difference is the loss, not the
 # architecture or initialisation. Hand-rolled in Lux + Zygote +
-# ForwardDiff (same style as the §5.2 ODE PINN).
+# ForwardDiff (same style as the §5.3 ODE PINN).
 #
 #   1. Forward PINN  — equation + BC, no data.
 #   2. Inverse PINN  — equation + BC + sparse data; the source

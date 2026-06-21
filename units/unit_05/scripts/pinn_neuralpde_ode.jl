@@ -1,6 +1,6 @@
 # A PINN for ẋ = -x, x(0) = 1 using NeuralPDE.jl.
 #
-# Same problem as the hand-rolled version in unit_05.qmd §5.2, but
+# Same problem as the hand-rolled version in unit_05.qmd §5.3, but
 # written declaratively against a ModelingToolkit PDESystem.
 #
 # Run via ./build.sh execute 5 (writes output to ../output/pinn_neuralpde_ode.md).

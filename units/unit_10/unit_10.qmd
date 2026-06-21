@@ -213,7 +213,7 @@ $T(-H) = T_{\text{deep}}$):
 💡 Hint
 
 ::: {.exercise-hint-text}
-Steady + no advection + no source + constant κ means $\partial_z(\kappa\,\partial_z T) = 0$ — a straight line. The Neumann BC hands you the slope directly; the Dirichlet BC pins the intercept at $z=-H$. If your surface comes out *warmer* than the deep, check the sign of $Q_{np}$.
+Part 1: steady + no advection + no source + constant κ means $\partial_z(\kappa\,\partial_z T) = 0$, so $T(z)$ is a straight line. The surface Neumann BC hands you the slope ($\partial_z T = Q_{np}/(\rho_0 c_p \kappa)$); the deep Dirichlet BC $T(-H)=T_{deep}$ pins the intercept. Plug in $Q_{np} = -200$, $\rho_0=1025$, $c_p=3990$, $\kappa=10^{-3}$: slope ≈ $-0.049$ K/m, so $T(0) \approx 13$ °C — *colder* than the 18 °C deep (a cooling surface pulls heat up from the fixed bottom; if yours comes out warmer, recheck the sign of $Q_{np}$). Part 2: $T_\kappa = H^2/\kappa = 10^4/10^{-3}$ s ≈ 116 days, so "~365 days" is ~3 time constants. Part 3: `r = run_scenario(scenario_1())` in `scripts/column_fd.jl` should match your line to ≈ $4\times10^{-3}$ °C (the §10.1 caption); a kink at the bottom means your Neumann ghost cell is at the wrong end.
 :::
 :::
 
@@ -733,7 +733,7 @@ framework made the edit easier and why.
 💡 Hint
 
 ::: {.exercise-hint-text}
-Two rules keep you out of the traps: every op inside DeepXDE's `pde()` must be a backend tensor op (`torch.clamp`/`cos`/`exp` via `dde.backend`, never `np.maximum`), and a 30-oscillation forcing on a smooth MLP is a spectral-bias problem — check the surface trace's FFT at 1 cpd before trusting the fit. In `NeuralPDE.jl` the same change is a symbolic one-liner in `eq`.
+Start from the §10.4 sketch and change one thing: replace the constant $Q_{np}(t)$ with a $t$-dependent body source — a ~3-line diff adding a $Q_{SW}(t)$ half-cosine and an $S = Q_{SW}(t)/(\rho_0 c_p\,\zeta)\,e^{z/\zeta}$ term inside `pde()`, keeping the steady $-200$ W/m² as the surface $Q_{np}$. Trap (a): once the source depends on $t$, every op inside `pde()` must be a backend tensor op — write the half-cosine as `bkd.clamp(bkd.cos(2π*t/τ_d), min=0.0)` via `deepxde.backend.torch`, never `np.maximum`/`np.exp`, or autograd detaches and you train against a frozen source. Trap (b): the domain is $2.6\times10^6$ s and the forcing period is $8.6\times10^4$ s — ~30 oscillations, which a plain 4×32 tanh MLP flattens (spectral bias); diagnose by FFT-ing the surface trace at 1 cpd, fix with the Task B Fourier bank via `net.apply_feature_transform` (rescaling $t$ helps optimisation but not the frequency content). In `NeuralPDE.jl` the same edit is a one-line symbolic change in `eq` (no backend boundary, so trap (a) vanishes; trap (b) is language-independent).
 :::
 :::
 

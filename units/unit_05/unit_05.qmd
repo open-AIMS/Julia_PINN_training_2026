@@ -88,7 +88,7 @@ Two short pencil-and-paper checks of the §5.1 picture:
 💡 Hint
 
 ::: {.exercise-hint-text}
-For part 1, the zero-residual set is exactly the ODE's solution family — write its general solution and you're done. For part 2, bound the single term: $\lambda_{IC}\,|x_\theta(0)-1|^2 \le \mathcal{L}_{total}$, then solve for $|x_\theta(0)-1|$. No code required for either part.
+Part 1 — the zero-residual set is *exactly* the ODE's solution family. Solve $\dot x = -x$ by hand: the general solution is $x(t) = Ce^{-t}$, so any $C$ (try $0, 1, 5$) gives zero residual; note $C=0$ (the flat $x\equiv0$) is a valid zero-residual function and a favourite of lazy optimisers. Adding the IC term forces $C=1$. Part 2 — only the IC term can be nonzero, so $\lambda_{IC}\,|x_\theta(0)-1|^2 \le \mathcal{L}_{total}$; plug in $10^{-6}$, $10^{-8}$ and solve $|x_\theta(0)-1| \le \sqrt{10^{-8}/10^{-6}}$. The number is the moral: a tiny total loss can hide a wrong solution. No code for either part.
 :::
 :::
 
@@ -313,7 +313,7 @@ numbers come out.
 💡 Hint
 
 ::: {.exercise-hint-text}
-Define `u(x, t) = sin(3x) * exp(-2t)` as an ordinary function — the point is to validate the derivative *pipeline* before any network is involved. Nest `ForwardDiff.derivative` for $\partial_{xx}$, and find α from the eigenmode decay rate $\alpha k^2$ with $k = 3$. In JAX, `jax.jacfwd` composes the same way.
+Validate the derivative *pipeline* before any network is involved — `u(x, t) = sin(3x) * exp(-2t)` is just an ordinary function. Use the §5.2 nesting: `∂x = ForwardDiff.derivative(ξ -> u(ξ, 0.4), 0.7)`, and wrap that in a second `ForwardDiff.derivative` for $\partial_{xx}$. Compare each against the closed forms $3\cos(3x)e^{-2t}$, $-9\sin(3x)e^{-2t}$, $-2\sin(3x)e^{-2t}$. For α: this is one separated heat mode with decay rate $\alpha k^2$, $k=3$, and the mode decays as $e^{-2t}$, so $9\alpha = 2 \Rightarrow \alpha = 2/9$. In JAX, `jax.jacfwd` nests identically.
 :::
 :::
 
@@ -433,7 +433,7 @@ encounter with the failure mode that §5.6 names.
 💡 Hint
 
 ::: {.exercise-hint-text}
-Three local changes to the §5.3 script: a second derivative via the central second difference `d2(t) = (x_θ(t+h) - 2x_θ(t) + x_θ(t-h)) / h^2` (same trick as §5.3's `dxdt`, one order up), an extra IC penalty on `dxdt(0)`, and a 1 → 32 → 32 → 1 network. Why two ICs? Count the parameters of the general solution $A\cos\omega t + B\sin\omega t$. Expect to need ~4 000 Adam iterations.
+Graft three local changes onto the §5.3 script. (1) A second derivative by the central *second* difference — same trick as §5.3's `dxdt`, one order up: `d2(t) = (x_θ(t+h) - 2x_θ(t) + x_θ(t-h)) / h^2`. Keep using central differences, not AD-inside-AD (see the §5.3 listing comment for why); Zygote still differentiates the loss exactly through these. (2) The residual is `(d2(t) + ω^2*x_θ(t))^2`, plus a *second* IC penalty `(dxdt(0))^2` for $\dot x(0)=0$ alongside `(x_θ(0) - 1)^2`. (3) Widen to 1 → 32 → 32 → 1 and run ~4 000 Adam iterations. Why two ICs? The general solution $A\cos\omega t + B\sin\omega t$ has two free constants (same counting as Solution 5.1). On $[0,12]$ watch the late-time amplitude decay — that's the §5.6 failure mode.
 :::
 :::
 
@@ -482,7 +482,7 @@ well at the plateau?).
 💡 Hint
 
 ::: {.exercise-hint-text}
-Only three lines of the sidecar script change: `eq`, `bcs`, and `domains` — the symbolic layer regenerates everything downstream. The exact solution for grading is the logistic curve $1/(1+9e^{-t})$. For the 'reconsider' question, think about where on $[0, 8]$ the solution actually *does* anything.
+Only three lines of the sidecar change — the symbolic layer regenerates the residual, loss, and gradient downstream: `eq = Dₜ(x(t)) ~ x(t)*(1 - x(t))`, `bcs = [x(0.0) ~ 0.1]`, and `domains = [t ∈ ClosedInterval(0.0, 8.0)]`. Grade against the logistic curve $1/(1+9e^{-t})$. For the 'reconsider' question: the sigmoid does all its work near the transition $t=\ln 9 \approx 2.2$ and is glued to the plateau for $t \gtrsim 5$, so a uniform `GridTraining` spends half its points where nothing happens — the principle §5.1's adaptive sampling addresses.
 :::
 :::
 
@@ -530,7 +530,7 @@ and [Unit 7](../unit_07/unit_07.qmd) sells the cure.
 💡 Hint
 
 ::: {.exercise-hint-text}
-The sharpness is the `200` inside the IC line of the `bcs` vector — sweep it, record `res.objective` (or the final printed loss), and compare the $t=0$ slice against `exp.(-S .* (x .- 0.5).^2)`. For the collocation test, shrink the `GridTraining` spacings by 2× in each dimension (4× the points).
+The sharpness is the `200` inside the IC line of the `bcs` vector: `u(x, 0) ~ exp(-S*(x - 0.5)^2)`. Sweep `S ∈ (200, 800, 3200)` (bump width roughly halves each step), record `res.objective` for each, and plot the $t=0$ slice against `exp.(-S .* (x .- 0.5).^2)`. Expect the peak to start clipping around $S=800$ and smear at $S=3200$, with the loss climbing ~10× per step. For the collocation test, halve the `GridTraining` spacings in each dimension (4× the points) at $S=3200$ — and notice it barely helps. That "more points didn't fix it" is the whole point; §5.6 names why.
 :::
 :::
 

@@ -41,9 +41,11 @@ admit qualitative behaviours linear systems can't:
 - **Equilibria** — fixed points $\mathbf{x}^*$ where $f(\mathbf{x}^*) = 0$.
   Stability is read off from the eigenvalues of the Jacobian
   $J = \partial f / \partial \mathbf{x}$ at $\mathbf{x}^*$.
-- **Limit cycles** — closed orbits that attract nearby trajectories.
-  Linear systems can't have these; the simplest example is
-  Lotka–Volterra.
+- **Limit cycles** — *isolated* closed orbits that attract nearby
+  trajectories. Linear systems can't have these; the classic example is
+  the Van der Pol oscillator. (Lotka–Volterra below also has closed
+  orbits, but they are *neutral centres* — a continuous family, none
+  attracting — not limit cycles.)
 - **Chaos** — bounded, aperiodic, sensitive dependence on initial
   conditions. The Lorenz system we revisit in
   [Unit 3 §3.4](../unit_03/unit_03.qmd) (SINDy) lives here.
@@ -60,8 +62,9 @@ $$\dot{x} = \alpha x - \beta x y, \qquad \dot{y} = \delta x y - \gamma y.$$
 
 For positive $(\alpha, \beta, \gamma, \delta)$ the system has a
 non-trivial fixed point $(\gamma/\delta,\, \alpha/\beta)$ surrounded
-by closed orbits — a structurally robust limit cycle that's a
-favourite testbed for SciML methods (we'll meet it again in §4.3).
+by a family of closed orbits — *neutrally stable centres*, not an
+attracting limit cycle — and it's a favourite testbed for SciML methods
+(we'll meet it again in §4.3).
 
 ```{julia}
 using OrdinaryDiffEq, Plots
@@ -138,7 +141,7 @@ what would you expect $V$ to do, and why is that the motivation for
 💡 Hint
 
 ::: {.exercise-hint-text}
-Solve the *same* `ODEProblem` twice, changing only `reltol`/`abstol`, and plot `V.(sol.u) .- V(u0...)` for both. The logic: structural non-conservation wouldn't care about solver tolerance. For part (b), recall what Solution 3.3's perturbed field did to the energy — same mechanism, different invariant.
+Define `V(x, y) = δ*x - γ*log(x) + β*y - α*log(y)`, set `V0 = V(u0...)`, and solve the *same* `ODEProblem` over `(0.0, 50.0)` twice, changing only `reltol`/`abstol` (try `1e-3` then `1e-10`); plot `[V(u...) - V0 for u in sol.u]` for both. The logic: if the drift were *physics* it wouldn't shrink when you tighten the solver — the two-tolerance overlay is the whole proof that it's numerics. For part (b), a NN-fitted field has no reason to keep $\nabla V\cdot f_\theta = 0$, so like Solution 3.3's perturbed field it drifts $V$ secularly over 500 t.u. and the orbit spirals — the motivation for §3.3's structure-preserving architectures.
 :::
 :::
 
@@ -307,7 +310,7 @@ Not a sketch — the whole thing end to end: make data from a known system,
 let a small MLP *be* the vector field, train **through** the ODE solver with
 adjoint sensitivities, and check the fit. This is the full
 [`scripts/neural_ode_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/neural_ode_train.jl){target="_blank"}
-(needs `SciMLSensitivity` + `ComponentArrays` added to the environment):
+(needs `SciMLSensitivity` added to the environment; `ComponentArrays` is already in `@pinn`):
 
 ```{.julia filename="units/unit_04/scripts/neural_ode_train.jl"}
 using Lux, OrdinaryDiffEq, SciMLSensitivity, Zygote, Optimisers,
@@ -374,7 +377,7 @@ data-efficiency argument for UDEs in one picture.
 💡 Hint
 
 ::: {.exercise-hint-text}
-You'll need two packages not in the workshop `Project.toml`: `SciMLSensitivity` (adjoints) and `ComponentArrays` (flat parameter vector Zygote can differentiate). Pass `sensealg = InterpolatingAdjoint()` to `solve` and train on `sum(abs2, pred .- data)`. For extrapolation, re-solve with the trained `ps` over the longer `tspan` — don't retrain.
+You'll need two packages not in the workshop `Project.toml`: `SciMLSensitivity` (adjoints) and `ComponentArrays` (flat parameter vector Zygote can differentiate) — wrap the Lux params with `ps = ComponentArray(ps)`. Write a `predict(p, tspan, saveat)` that solves the Neural ODE with `sensealg = InterpolatingAdjoint()`, so you can reuse it at two horizons; train on `loss(p) = sum(abs2, predict(p, (0f0,6f0), ts) .- data)` with `Adam(1f-2)` for ~1000 iters. To **extrapolate**, just call `predict(ps, (0f0,12f0), t_ext)` with the *trained* `ps` — don't retrain — and plot against the true spiral re-solved over the same span. It stays faithful while the orbit revisits states it saw in training, then drifts where it didn't.
 :::
 :::
 
@@ -607,7 +610,7 @@ of every UDE result you'll ever publish.
 💡 Hint
 
 ::: {.exercise-hint-text}
-Write the UDE rhs with the known LV terms inline and `first(nn([x, y], p, st))[1]` in place of the dropped term. Training is identical to ex-4-2's loop. For the comparison, evaluate `N_θ` and `δ·x·y` on a grid with two comprehensions and `heatmap` both — then overlay the training orbit with `plot!` to see exactly where the agreement ends.
+Generate data with `truth = solve(...)` then `data = truth .* (1 .+ 0.02f0 .* randn(...))`. The UDE rhs keeps the known terms inline and swaps the predator-growth term for the net: `du[1] = α*u[1] - β*u[1]*u[2]; du[2] = first(nn(u, p, st))[1] - γ*u[2]` — i.e. $+\delta xy$ becomes $N_\theta(x,y)$. Training is identical to ex-4-2's loop (`ComponentArray` params, `InterpolatingAdjoint`, Adam a few hundred iters). For the comparison, evaluate `N_θ` and `δ·x·y` on a grid with two comprehensions and `heatmap` both — then overlay the training orbit with `plot!` to see exactly where the agreement ends.
 :::
 :::
 

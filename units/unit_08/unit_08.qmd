@@ -140,7 +140,7 @@ $$ {#eq-column}
 closed by the two boundary conditions
 
 $$
-\rho\, c_p\, \kappa(0, t)\,\frac{\partial T}{\partial z}\bigg|_{z = 0}
+\rho_0\, c_p\, \kappa(0, t)\,\frac{\partial T}{\partial z}\bigg|_{z = 0}
 \;=\; Q_{\text{np}}(t),
 \qquad
 T(-H, t) \;=\; T_{\text{deep}}.
@@ -152,7 +152,7 @@ relation**: with $z$ measured upward, $\kappa\,\partial_z T$ is the
 non-penetrating heat input $Q_{\text{np}}$ (positive = heat into the
 ocean; longwave + sensible + latent combined). The Dirichlet
 condition at $z = -H$ pins the bottom to a much-slower-varying deep
-reservoir. $\rho \approx 1025\,\mathrm{kg/m^3}$ and
+reservoir. $\rho_0 \approx 1025\,\mathrm{kg/m^3}$ and
 $c_p \approx 3990\,\mathrm{J\,kg^{-1}\,K^{-1}}$ are the seawater
 density and heat capacity — they're the only "where do these
 numbers come from" constants in @eq-column-bcs.
@@ -185,10 +185,10 @@ the fastest way to internalise what each symbol is:
 1. Confirm all four terms of @eq-column have units of K/s, given
    $[w] = \text{m/s}$, $[\kappa] = \text{m}^2/\text{s}$.
 2. What must the units of $\mathcal{S}(z, t)$ be, and how does
-   dividing $Q_{\text{SW}}$ (W/m²) by $\rho c_p$ deliver them?
+   dividing $Q_{\text{SW}}$ (W/m²) by $\rho_0 c_p$ deliver them?
    (Track the watts: $\text{W} = \text{J/s}$.)
 3. In the surface BC, show both sides have units W/m² (heat flux),
-   then divide through by $\rho c_p$ and compute
+   then divide through by $\rho_0 c_p$ and compute
    the *equilibrium surface gradient* $\partial_z T$ implied by a
    net cooling $Q_{\text{np}} = -200\,\text{W/m}^2$ through a
    mixed-layer $\kappa = 10^{-3}\,\text{m}^2/\text{s}$. Is the
@@ -199,7 +199,7 @@ the fastest way to internalise what each symbol is:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Track the watt: $\text{W} = \text{J/s}$, and $\rho c_p \approx 4.09\times10^6$ J m⁻³ K⁻¹ is the conversion factor between heat flux and 'temperature flux'. Part 3 is one division: $\partial_z T = Q/(\rho c_p \kappa)$ — then compare the number against 0.3 K/m.
+Two facts do the whole exercise: (i) W = J/s, so a flux in W/m² is J s⁻¹ m⁻²; (ii) $\rho_0 c_p \approx 1025\times3990 \approx 4.09\times10^6$ J m⁻³ K⁻¹ is the single conversion factor between a heat flux and a "temperature flux" (K·m/s). Part 1: substitute $[w]=$ m/s, $[\kappa]=$ m²/s, $[\partial_z T]=$ K/m into each term of @eq-column and watch the units collapse to K/s. Part 2: divide $Q_{SW}$ by $\rho_0 c_p$, then the Beer–Lambert factor $k\,e^{kz}$ (units m⁻¹) finishes it. Part 3 is one division: from @eq-column-bcs, $\partial_z T = Q_{np}/(\rho_0 c_p \kappa) = -200/(1025\cdot3990\cdot10^{-3})$ — compute it and compare the magnitude against 0.3 K/m.
 :::
 :::
 
@@ -361,7 +361,7 @@ boundary flux. The Beer–Lambert decay model splits insolation into
 two bands (one absorbed near the surface, one penetrating deeper):
 
 $$
-\mathcal{S}(z, t) \;=\; \frac{Q_{\text{SW}}(t)}{\rho\,c_p}\,
+\mathcal{S}(z, t) \;=\; \frac{Q_{\text{SW}}(t)}{\rho_0\,c_p}\,
 \Bigl[\, R\, k_1\, e^{k_1 z} \;+\; (1 - R)\, k_2\, e^{k_2 z}\, \Bigr],
 \qquad z \leq 0,
 $$
@@ -370,7 +370,10 @@ with $R \approx 0.58$ the red-band fraction, $k_1 \approx 0.5\,\text{m}^{-1}$
 (red, decays fast), $k_2 \approx 1/14\,\text{m}^{-1}$ (blue-green,
 reaches the thermocline). The two-band model is the classical
 [Paulson & Simpson (1977)](https://journals.ametsoc.org/view/journals/phoc/7/6/1520-0485_1977_007_0952_imitur_2_0_co_2.xml){target="_blank"}
-parameterisation used by essentially every coastal column model.
+parameterisation used by essentially every coastal column model. (The
+$k_1, k_2$ here are rounded illustrative values tuned to the capstone's
+single-band depth scale; the canonical Jerlov Type-I constants are
+$1/k_1 \approx 0.35$ m and $1/k_2 \approx 23$ m — the values Unit 9 §9.5 uses.)
 
 **Non-penetrating fluxes $Q_{\text{np}}$.** Three contributions
 that all act *at* the surface and add up to a single boundary flux:
@@ -420,7 +423,7 @@ $\sqrt{\kappa\, \tau}$.
 Plot the Paulson–Simpson body source. With
 $Q_{\text{SW}} = 800\,\text{W/m}^2$ (noon sun), $R = 0.58$,
 $k_1 = 0.5\,\text{m}^{-1}$, $k_2 = 1/14\,\text{m}^{-1}$, plot
-$\rho c_p\,\mathcal{S}(z)$ over $z \in [-50, 0]$ m on a log
+$\rho_0 c_p\,\mathcal{S}(z)$ over $z \in [-50, 0]$ m on a log
 $x$-axis. Then integrate (analytically — the integrals are
 elementary exponentials) to answer:
 
@@ -494,7 +497,7 @@ $N^2 = \alpha g\,\partial_z T$ with $\alpha = 2\times10^{-4}$/K:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Differentiate the tanh profile: $\partial_z \tanh((z-z_t)/\delta) = \mathrm{sech}^2(\cdot)/\delta$. The Ri > 1/4 boundary solves $\mathrm{sech}^2(x) = $ threshold, i.e. $x = \operatorname{acosh}(1/\sqrt{\text{thr}})$. For the consequence, compare crossing times $L^2/\kappa$ through the suppressed band vs the mixed layer.
+Differentiate the tanh: $\partial_z \tanh((z-z_t)/\delta_t) = \mathrm{sech}^2((z-z_t)/\delta_t)/\delta_t$, so $\partial_z T_0$ peaks where the argument is 0, i.e. at $z = z_t = -30$ m ($\mathrm{sech}^2(0)=1$) — that's where $N^2 = \alpha g\,\partial_z T$ is largest. For the $\mathrm{Ri} > 1/4$ band, set $\mathrm{Ri}(z) = N^2/(\partial_z U)^2 > 1/4$ and solve the sech² threshold: $|z-z_t| = \delta_t\,\operatorname{acosh}(1/\sqrt{\text{thr}})$. For the consequence, compare diffusive crossing times $L^2/\kappa$ through the suppressed band ($\kappa \approx \kappa_b$) against the mixed layer ($\kappa \approx \kappa_0$) — the ratio is the punchline.
 :::
 :::
 
@@ -516,7 +519,7 @@ A few dimensionless groups carry most of the physics. They tell you
 | Diurnal-to-diffusive | $\tau_d / T_\kappa$ | how localised the daily cycle stays in depth |
 | Storm-to-diffusive | $\tau_{\text{storm}} / T_\kappa$ | how deep a storm signal penetrates |
 
-For the canonical mid-shelf column (Davies Reef in §9.1) with $H = 100$ m, $\kappa_m = 10^{-3}$ m²/s,
+For a representative GBR shelf column with $H = 100$ m, $\kappa_m = 10^{-3}$ m²/s,
 $w_0 = 10^{-5}$ m/s:
 
 - $\mathrm{Pe} \approx 1$ — balanced regime; both transport

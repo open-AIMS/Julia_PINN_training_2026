@@ -12,7 +12,7 @@
 # the card.
 #
 # We keep the §5.3 spirit — no NeuralPDE, a residual built by hand — and use the
-# finite-difference-in-input trick from §5.2/§5.3 for the derivatives, so the
+# finite-difference-in-input trick from §5.3 for the derivatives, so the
 # parameter gradient is a single reverse-mode pass that runs cleanly on the GPU.
 # The IC and all four boundaries are enforced *exactly* by construction:
 #   u_θ(x,y,t) = sin(πx) sin(πy) · (1 + t · N_θ(x,y,t)),
@@ -24,7 +24,7 @@
 #
 # Run on the GPU hub (the @pinn env has Lux + LuxCUDA + CUDA):
 #   julia --project=@pinn units/unit_05/scripts/pinn_2d_diffusion_gpu.jl
-# Nothing here runs during `quarto render` — the .qmd shows it `eval: false`.
+# Nothing here runs during `quarto render` — the .qmd embeds it as a listing only.
 # ===========================================================================
 
 using Lux, LuxCUDA, CUDA, Optimisers, Zygote, Random, Printf, Statistics

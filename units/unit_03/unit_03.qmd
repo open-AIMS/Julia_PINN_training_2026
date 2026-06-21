@@ -343,7 +343,7 @@ tolerance; find out whether they're right.)
 💡 Hint
 
 ::: {.exercise-hint-text}
-Solve once per ζ with a fine `saveat` (0.001 is plenty), then the settling time is `sol.t[findall(abs.(x) .> tol)[end]]` — the time of the *last* excursion outside the band. A comprehension over `ζs = 0.1:0.05:2.0` gives the whole curve in seconds. Watch the minimum move when you change `tol`.
+Reuse the §3.1 `damped` function unchanged. For one ζ: solve on `(0.0, 10.0)` with a fine `saveat` (0.001 is plenty), pull `x = [u[1] for u in sol.u]`, then with `tol = 0.02` the settling time is the time of the *last* excursion outside the band: `sol.t[findall(abs.(x) .> tol)[end]]`. Wrap that in a `settling_time(ζ)` function, broadcast over `ζs = 0.1:0.05:2.0`, and read the minimum with `ζs[argmin(ts)]` before plotting. Expect it near ζ ≈ 0.7–0.8, not 1.0 — then shrink `tol` and watch the minimum migrate toward 1.
 :::
 :::
 
@@ -543,7 +543,7 @@ the *exact* Hamiltonian field does the perturbed field lose?
 💡 Hint
 
 ::: {.exercise-hint-text}
-`ForwardDiff.gradient(H, u)` returns $(\partial_q H, \partial_p H)$ in one call — build the field by swapping and negating, never differentiating by hand. Run the solver at `reltol = 1e-9` so the drift you plot is the field's property, not the integrator's. The 2%-wrong field needs only one extra factor in `du[2]`.
+Write `H(u) = 0.5*u[2]^2 + (1 - cos(u[1]))`. `ForwardDiff.gradient(H, u)` returns `[∂H/∂q, ∂H/∂p] = (g[1], g[2])` in one call — never differentiate by hand. Hamilton's equations map directly: in `ham!(du,u,p,t)` set `du[1] = g[2]` and `du[2] = -g[1]`. The 2%-wrong field is the same with one extra factor: `du[2] = -1.02*g[1]`. Integrate both from `u0 = [2.0, 0.0]` over `(0.0, 100.0)` at `reltol = abstol = 1e-9` so the drift is the field's property, not the integrator's, then plot `[H(u) - H(u0) for u in sol.u]`. The property the perturbed field loses is orthogonality to ∇H (i.e. Ḣ ≡ 0).
 :::
 :::
 
@@ -708,7 +708,7 @@ pipeline failed?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Differentiate with central differences `(X[3:end,:] .- X[1:end-2,:]) ./ (t[3:end] .- t[1:end-2])` and drop the endpoints. The library is one `hcat`; STLSQ is literally: fit with `\`, zero the small coefficients, refit the survivors, repeat five times. For the noise experiment, perturb `X` *before* differencing — that ordering is the whole point.
+Estimate Ẋ by central differences `(X[3:end,:] .- X[1:end-2,:]) ./ (t[3:end] .- t[1:end-2])`, dropping the endpoints, and pair it with the interior states `X[2:end-1,:]`. The degree-2 library is one `hcat`: `Θ = hcat(ones(n), x, v, x.^2, x.*v, v.^2)`. STLSQ on a target column `dx`: start `ξ = Θ \ dx`; then five times over, mask `small = abs.(ξ) .< 0.5`, set `ξ[small] .= 0`, and refit the survivors `ξ[.!small] = Θ[:, .!small] \ dx`. You should recover `-ω² ≈ -39.5` and `-2ζω ≈ -1.26`. For the noise experiment, perturb `X` *before* differencing — that ordering is the whole point, and it's the differentiation step that breaks.
 :::
 :::
 
@@ -911,7 +911,7 @@ ahead if curious)?
 💡 Hint
 
 ::: {.exercise-hint-text}
-The §6.4 FTCS code is your simulator — just change the IC and push a `copy(u)` into a snapshot vector every ~40 steps. Then `svd` from `LinearAlgebra` on `reduce(hcat, snapshots)`, and the variance captured is `cumsum(Σ.^2) ./ sum(Σ.^2)`. Plot `U[:, 1:3]` against `x` for the modes.
+The FTCS update is one line (the §6.4 simulator): on `x = range(0,1; length=101)` with `dt = 0.4*dx^2/α`, step the interior `u_new[i] = u[i] + α*dt/dx^2*(u[i+1] - 2u[i] + u[i-1])` and force `u[1] = u[end] = 0` each step. Start from `u = exp.(-200 .* (x .- 0.3).^2)` (then zero the ends), and `push!(snapshots, copy(u))` every ~40 steps for ~200 columns. Then `U, Σ, V = svd(reduce(hcat, snapshots))` from `LinearAlgebra`; cumulative variance is `cumsum(Σ.^2) ./ sum(Σ.^2)`, so the 99% mode count is `findfirst(energy .≥ 0.99)` — expect 2–4, far fewer than the chain. Plot `U[:, 1:3]` vs `x`: they look like sin(nπx), the heat equation's separation-of-variables eigenbasis (Unit 6).
 :::
 :::
 
@@ -987,7 +987,7 @@ residual largest?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Each candidate is a plain Julia function of `t` — no network anywhere. Get $\ddot u$ by nesting `ForwardDiff.derivative` twice on the function, then `mean` the squared residual over the grid. For the 'where is it largest' question, plot the residual of candidate (c) against `t` rather than reasoning it out.
+Each candidate is a plain Julia function of `t` — no network anywhere, e.g. `a = t -> cos(ω*t)`. Nest `ForwardDiff.derivative` twice for ü: `d2(f, t) = ForwardDiff.derivative(τ -> ForwardDiff.derivative(f, τ), t)`. The per-point residual is `d2(f,t) + ω^2*f(t)`; the loss is its `mean` of squares over `ts = range(0, 2; length = 100)`. Rank the three losses by printing each. For "where is (c) largest", don't reason it out — just `plot` candidate (c)'s residual against `ts` and read off the peak (it sits early, near t ≈ 0.12).
 :::
 :::
 

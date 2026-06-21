@@ -147,7 +147,7 @@ error — a first taste of the frequency story §7.2 tells.
 💡 Hint
 
 ::: {.exercise-hint-text}
-After `Optimization.solve`, the trained network is callable via `discretization.phi([r, θ], res.u)`. Build the polar grid with two `range`s and a comprehension; relative $L^2$ is `sqrt(sum(abs2, err) / sum(abs2, exact))` and `findmax(abs.(err))` locates the worst point. For (b), only the `bcs` lines change.
+`phi = discretization.phi` returns a 1-element vector, so wrap each eval in `first`: `u_pinn = [first(phi([r,θ], res.u)) for r in rs, θ in θs]` over `rs = range(r_min, R; length=50)`, `θs = range(0, 2π; length=100)`. The exact field is `[r^3*sin(3θ) for r in rs, θ in θs]`. Relative $L^2$ is `sqrt(sum(abs2, u_pinn .- u_exact)/sum(abs2, u_exact))`; `findmax(abs.(u_pinn .- u_exact))` returns (value, index) — map it back through `rs`/`θs` to see it land near the rim (recall the §7.1 figure: ~400 interior points but only ~36 soft boundary points, and the field's amplitude all lives near $r=R$). For (b), change only the two `bcs` lines to `sin(6θ)` and `r_min^6*sin(6θ)`.
 :::
 :::
 
@@ -326,7 +326,7 @@ doesn't — evidence that the three failure modes really are
 💡 Hint
 
 ::: {.exercise-hint-text}
-The cheapest reference isn't FD at all — d'Alembert says the IC splits into two half-height bumps moving at $\pm\sqrt{gH}$, which you can evaluate in closed form at the snapshot time. For the histogram, evaluate the residual with nested `ForwardDiff` on `discretization.phi`, bin by $t$ with a comprehension, and plot the per-bin mean.
+The cheapest reference isn't FD at all — d'Alembert gives $\eta(x,t) = \tfrac12\eta_0(x-ct) + \tfrac12\eta_0(x+ct)$ with $c=\sqrt{gH} \approx 9.9$ m/s, so at the half-time snapshot the initial bump has split into two half-height copies. This is a two-network system, so `phi = discretization.phi` is a *vector* — use `ηf(x,t) = first(phi[1]([x,t], res.u))` and `uf(x,t) = first(phi[2]([x,t], res.u))`. The residual is first-order, so each term is a *single* `ForwardDiff.derivative` (not nested): `ForwardDiff.derivative(τ->ηf(x,τ), t) + 10*ForwardDiff.derivative(ξ->uf(ξ,t), x)`. Bin $t$ into ~10 ranges and plot the per-bin mean. The snapshot exposes spectral bias (one lump not two) + loss imbalance; the non-decreasing histogram exposes causal violation.
 :::
 :::
 
@@ -411,7 +411,7 @@ ansatz that enforces $u(x, 0) = g(x)$.
 💡 Hint
 
 ::: {.exercise-hint-text}
-The embedding is a fixed (untrained) layer: `Lux.WrappedFunction(x -> vcat(sin.(B * x), cos.(B * x)))` with `B` drawn once — remember the next `Dense` layer's input width doubles to 2×16. Keep the Adam budget identical across runs or the comparison proves nothing. For the hard-IC ansatz, ask what function of $t$ vanishes at $t=0$ regardless of the network.
+The embedding is a fixed (untrained) layer: `Lux.WrappedFunction(x -> vcat(sin.(B*x), cos.(B*x)))` with `B = σ .* randn(rng, Float32, 16, 1)` drawn ONCE — the next `Dense` then has input width $2\times16 = 32$. Keep the Adam budget identical across all runs or the comparison proves nothing. The σ story: σ=1 keeps all frequencies far below 25 (bias unbroken, looks like the plain MLP); σ=100 scatters them far above (over-oscillates between samples) — so σ must bracket the target's own frequency (~25). Hard-IC ansatz: `u_θ(x,t) = g(x) + t·N_θ(x,t)` gives $u(x,0)=g(x)$ for any network, because the $t$ factor vanishes at $t=0$ (the same trick Unit 10 §10.3 uses).
 :::
 :::
 
@@ -722,7 +722,7 @@ Report the recovered $\alpha$, then re-run with 5% noise and with
 💡 Hint
 
 ::: {.exercise-hint-text}
-Make α trainable by log-parameterising it (`logα`) and appending it to a `ComponentArray` alongside the network parameters — Zygote then differentiates through both. Kill the BC/IC terms with the hard ansatz `sin(πx)·(1 + t·N_θ(x,t))` so the loss has only residual + data. Follow the §7.5 recipe order: forward sanity-check *before* adding the data term.
+Make α trainable by log-parameterising it (`logα`, init deliberately wrong, e.g. `log(0.02)`) and packing it into a `ComponentArray` alongside the net params — Zygote differentiates through both. Kill BC+IC with the hard ansatz `u_θ(x,t) = sin(πx)·(1 + t·N_θ(x,t))`, so the loss is just residual + data (weight data ~100×). Important: take the residual's input derivatives by CENTRAL DIFFERENCES, not `ForwardDiff` — Zygote can't track a parameter gradient through `ForwardDiff.derivative` of a parameter-closure and silently drops it (the §5.3 trap), so `uxx = (u_θ(x+h,t) - 2u_θ(x,t) + u_θ(x-h,t))/h^2`. Follow the §7.5 recipe: forward sanity-check *before* adding the data term. The truth `u(x,t) = exp(-α*π²t)sin(πx)` gives you data directly.
 :::
 :::
 

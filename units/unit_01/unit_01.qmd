@@ -165,7 +165,7 @@ $\sigma = 1.5\,\text{cm}$ Gaussian noise. Then:
 💡 Hint
 
 ::: {.exercise-hint-text}
-With the constituent frequencies known, the fit is *linear* least squares: build a design matrix with columns `[1, sin.(ω₁t), cos.(ω₁t), sin.(ω₂t), cos.(ω₂t)]` via `hcat` and solve with Julia's backslash (`A \ y`). For step 1, select the calibration rows with a boolean mask like `t .< 36`; the amplitude/phase form $A\sin(\omega t + \phi)$ is equivalent to the sin+cos form, which is what keeps the problem linear.
+With the constituent frequencies known, the fit is *linear* least squares. Build the design matrix `design(t) = hcat(ones(length(t)), sin.(ω[1].*t), cos.(ω[1].*t), sin.(ω[2].*t), cos.(ω[2].*t))` with `ω = 2π ./ [12.42, 12.0]`, and solve with Julia's backslash (`A \ y`). **Step 1:** select the calm window with a boolean mask `calm = t .< 36.0`, fit the coefficients on `t[calm]`, then reconstruct the tide over the *whole* record from those coefficients and subtract it. **Step 3:** refit on the entire record and overlay both residuals on the true surge — watch the full-record fit pull surge energy near the tidal band into its constituents. The amplitude/phase form $A\sin(\omega t + \phi)$ is equivalent to the sin+cos form, which is what keeps the problem linear.
 :::
 :::
 
@@ -1020,7 +1020,7 @@ responds. Two follow-ups:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Everything follows from $c = \sqrt{gH}$ — pick a depth per path from the bathymetry figure (inner-bay flat ≈ 6 m, NE channel ≈ 25 m), convert to m/s, and divide distance by speed. For the G3 path, try the calculation twice (all-shallow vs all-channel) and quote the bracket rather than a single number.
+Everything follows from $c = \sqrt{gH}$ with $g = 9.81$: a 6 m inner-bay flat gives $c ≈ 7.7$ m/s, the ~25 m NE channel gives $c ≈ 15$ m/s. Arrival = distance / $c$ (e.g. G1: 18 km / 7.7 ≈ 39 min), then **add the $t = 2$ h source peak** to get each gauge's peak time. For the G3 path, run it twice — all-shallow vs all-channel — and quote the *bracket* rather than a single number (that spread is why G3 is the most depth-sensitive). For G4, ask what a straight-line constant-depth path leaves out: the detour around the constriction and the shallow southern flats both *delay* the real arrival, so the naive estimate lands early.
 :::
 :::
 
@@ -1076,7 +1076,7 @@ plots.
 💡 Hint
 
 ::: {.exercise-hint-text}
-Ask, for each mechanism, which *term* of the column equation it perturbs: $w\,\partial_z T$ (upwelling), $\partial_z(\kappa\,\partial_z T)$ (mixing), or the surface flux/source (heating). Then ask where in the column that term is largest. One mechanism only *redistributes* heat within the column — that's the discriminating signature to look for.
+For each mechanism, ask which *term* of the column equation it perturbs: $w\,\partial_z T$ (upwelling), $\partial_z(\kappa\,\partial_z T)$ (mixing), or the surface flux/source (heating) — then where in the column that term bites hardest. The key discriminator: **mixing only redistributes** heat (it cools above the thermocline but *warms* below it, with column heat roughly conserved), while upwelling and reduced heating both *remove* heat, so no sensor warms. A warming deep sensor is the giveaway for mixing. For the other two, the tell is which end of the chain responds *first* in time.
 :::
 :::
 

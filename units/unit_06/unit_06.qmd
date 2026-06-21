@@ -186,7 +186,7 @@ data?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Careful with the cross-term convention: the general form has $2b\,u_{xy}$, so equation 4's coefficient 2 means $b = 1$. For Tricomi, the discriminant inherits the sign of $-y$. The two traps both reduce to Hadamard's third criterion — perturb the data at spatial frequency $k$ and watch what the solution does.
+For each equation read off $(a, 2b, c)$ from the general form $a\,u_{xx} + 2b\,u_{xy} + c\,u_{yy}$, compute $\Delta = b^2 - ac$, and use the §6.1 table: $\Delta<0$ elliptic, $\Delta=0$ parabolic, $\Delta>0$ hyperbolic. Watch the factor of 2 — equation 4's "$2u_{xy}$" means $2b=2$, so $b=1$. For Tricomi the discriminant inherits the sign of $-y$, so its type flips across $y=0$. "Needs": elliptic → BCs only; parabolic → one IC + BCs; hyperbolic → ICs + BCs. The two traps are both Hadamard criterion 3: perturb the boundary data at frequency $k$ and Laplace's interior response grows like $\varepsilon e^{kd}$; run heat *backwards* and each mode's $e^{-\alpha k^2 t}$ becomes $e^{+\alpha k^2 t}$, so high-$k$ noise explodes.
 :::
 :::
 
@@ -401,7 +401,7 @@ $u(x, 0) = \sin(\pi x) + 0.5\,\sin(3\pi x)$.
 💡 Hint
 
 ::: {.exercise-hint-text}
-The IC is already a two-term sine series, so $b_1$ and $b_3$ can be read off without integrating — orthogonality does the work. The 1% times come from solving $e^{-\alpha(n\pi)^2 t} = 0.01$ for $t$. For step 3, only the IC line and the BC values change in the FTCS script.
+Plug into the boxed §6.2 solution $u(x,t) = \sum_n b_n e^{-\alpha(n\pi/L)^2 t}\sin(n\pi x/L)$ with $L=1$. The IC is already a sine series, so by orthogonality $b_1 = 1$, $b_3 = 0.5$, all other $b_n = 0$ — no integral. The 1% times come from $e^{-\alpha(n\pi)^2 t} = 0.01$, i.e. $t = \ln(100)/(\alpha n^2\pi^2)$: with $\alpha=0.01$ that's $t_3 \approx 5.2$, $t_1 \approx 46.7$ (ratio $n^2 = 9$). For step 3, take the §6.4 FTCS script and change only the IC line to `u = sin.(π.*x) .+ 0.5.*sin.(3π.*x)` and pin `u_new[1] = u_new[nx] = 0.0`.
 :::
 :::
 
@@ -645,7 +645,7 @@ satisfies $u_t = \alpha u_{xx}$ (a five-line computation — or let
 💡 Hint
 
 ::: {.exercise-hint-text}
-Each movie is one mechanism: ask whether the feature *moves*, *splits*, *spreads*, or *steepens*. For the erfc check, substitute $\eta = x/(2\sqrt{\alpha t})$ and use $\operatorname{erfc}''(\eta) = -2\eta\,\operatorname{erfc}'(\eta)$ — three lines of chain rule. Or cheat honestly: `SpecialFunctions.erfc` plus nested `ForwardDiff` at a few points.
+Match by the one verb each movie shows: moves rigidly → advection; splits into two half-copies → wave (d'Alembert $\tfrac12 u_0(x-ct) + \tfrac12 u_0(x+ct)$); spreads with centre fixed → heat; steepens into a front → Burgers. For the erfc check, substitute $\eta = x/(2\sqrt{\alpha t})$ so $u = u_0\,\operatorname{erfc}(\eta)$, then chain-rule $u_t$ and $u_{xx}$; the one identity you need, $\operatorname{erfc}''(\eta) = -2\eta\,\operatorname{erfc}'(\eta)$, collapses $\alpha u_{xx}$ into $u_t$ in three lines. Or skip the algebra: `SpecialFunctions.erfc` with nested `ForwardDiff.derivative`, and check the residual is ~1e-16 at a few $(x,t)$.
 :::
 :::
 
@@ -763,7 +763,7 @@ Confirm your observation matches.
 💡 Hint
 
 ::: {.exercise-hint-text}
-Only the `dt` line changes between runs; log `maximum(abs.(u))` every 100 steps. Von Neumann gives the per-step growth factor at the grid-scale mode as $|1 - 4r|$ — from it you can *predict* the steps-to-blow-up before running anything. To see the sawtooth, plot the profile a few hundred steps into the $r=0.51$ run.
+Between runs change only the `dt = r*dx^2/α` line (r = 0.49, 0.50, 0.51, 0.60); inside the loop log `maximum(abs.(u))` every 100 steps. Von Neumann: substitute $u_i^n = G^n e^{ikx_i}$ into FTCS to get $G(k) = 1 - 4r\sin^2(k\Delta x/2)$; the worst mode is the grid-scale sawtooth $k\Delta x = \pi$ where $G = 1 - 4r$. So $r=0.51$ gives $|G|=1.04$, and the steps to grow from ~1e-2 to 1e6 is $\ln(10^8)/\ln(1.04) \approx 470$ — predictable before running. To confirm the wavelength, plot the $r=0.51$ profile a few hundred steps in: the garbage has spatial period exactly $2\Delta x$.
 :::
 :::
 
@@ -876,7 +876,7 @@ by exactly one cell per step — zero error.)
 💡 Hint
 
 ::: {.exercise-hint-text}
-Periodic upwind is one line: `u .-= cfl .* (u .- circshift(u, 1))`. For the paradox, Taylor-expand the scheme (or trust the modified equation) to find the artificial viscosity $\nu_{num} = c\Delta x(1-\mathrm{CFL})/2$ — then ask what happens to it as CFL → 1, and what the scheme does at CFL = 1 exactly.
+The whole update is one line: `u .-= cfl .* (u .- circshift(u, 1))` (periodic, so `circshift` wraps). Advect a step IC to $t=1$ at CFL = 0.3, 0.8, 0.99 and overlay against the exact (unmoved) step. For the paradox, the modified equation (Taylor-expand the scheme) shows upwind actually solves $u_t + c\,u_x = \nu_{num}\,u_{xx}$ with artificial viscosity $\nu_{num} = c\Delta x(1-\mathrm{CFL})/2$ — that viscosity $\to 0$ as CFL → 1, so larger CFL means *less* smearing; at CFL = 1 exactly the scheme shifts the solution one whole cell per step and is exact.
 :::
 :::
 
@@ -975,7 +975,7 @@ equal elements:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Hat-function slopes are constant $\pm 1/\Delta x$ on each element, so every stiffness integral is a product of constants times element length — no quadrature. Assemble with `SymTridiagonal` from `LinearAlgebra` and solve with `\`. The exact solution to grade against is $x(1-x)/2$.
+Hat-function slopes are constant $\pm 1/\Delta x$ on each supporting element, so no quadrature: $K_{ii} = 2/\Delta x$, $K_{i,i\pm1} = -1/\Delta x$, non-neighbours 0 — i.e. $K = (1/\Delta x)\,\mathrm{tridiag}(-1, 2, -1)$. The load is $b_i = \Delta x$ (area of a unit-height triangle of base $2\Delta x$). With $N=4$ the interior system is $3\times3$; build $K$ via `SymTridiagonal` from `LinearAlgebra` and solve with `\`. Grade the nodes against the exact $x(1-x)/2$ — they match exactly (a 1-D-only property).
 :::
 :::
 
@@ -1288,7 +1288,7 @@ numbers already given in Unit 1 and here:
 💡 Hint
 
 ::: {.exercise-hint-text}
-All three parts are arithmetic on $\Delta t \le \Delta x / \sqrt{gH}$ — no simulation. For part 2, convert the pulse to metres (duration × wave speed) and divide by $\Delta x$. Part 3: recompute the bound with $H = 200$ m and compare to the production 12 s.
+All three parts are arithmetic on the CFL bound $\Delta t \le \Delta x / \sqrt{gH}$ — no simulation; use $g = 9.81$. Part 1: $c_{\max} = \sqrt{9.81\times50} \approx 22.1$ m/s, so $\Delta t \le 500/22.1 \approx 22.6$ s, and the production Courant number $c\Delta t/\Delta x \approx 0.53$ (safety factor ~1.9). Part 2: pulse length = duration × wave speed $\approx 0.55\,\text{h}\times3600\times15 \approx 30$ km, $\div\,500$ m → ~60 cells (plenty, so dispersion is negligible). Part 3: redo with $H = 200$ m → $c_{\max} \approx 44.3$ m/s, $\Delta t \le 11.3$ s, so the 12 s step now violates CFL — quote a fix (e.g. drop to 10 s).
 :::
 :::
 

@@ -135,7 +135,7 @@ look-before-you-leap pass every inverse problem deserves:
 💡 Hint
 
 ::: {.exercise-hint-text}
-`CSV.read(path, DataFrame)` — the columns are `time_hours` plus one per sensor depth. For the noise floor, `diff(df.T_col)` in a calm window and `std`; the factor between increment-SD and σ comes from $\mathrm{Var}(X_{t+1}-X_t) = 2\sigma^2$ for white noise. Think about which sensor's calm window is least calm.
+Load with `df = CSV.read("../unit_10/data/mooring_A.csv", DataFrame)`; column 1 is `time_hours`, the rest are the five sensor depths (`names(df)[2:end]`). Convert to days with `df.time_hours ./ 24` and `vline!([10])` to mark the storm. Read the regimes against the §9.1 table: Site A moves together (well-mixed), Site B shows thermocline separation with a deep-sensor lag, Site C has an untouched surface and deep-first cooling. For the noise floor, pick a calm window (days 1–5: `mask = df.time_hours .< 120`) and take `std(diff(df[mask, col]))`. For white noise $\mathrm{Var}(X_{t+1}-X_t) = 2\sigma^2$, so divide by $\sqrt2$ to recover σ ≈ 0.05 °C — it over-estimates on the top sensor (its diurnal cycle moves within the hour), so trust the deep sensors.
 :::
 :::
 
@@ -201,7 +201,7 @@ shape assume physically about the horizontal flow?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Implement $w(z,t) = -(z+H)\,\nabla_h\!\cdot\mathbf{u}_h(t)$ directly and evaluate at three depths. For the sign, integrate continuity $\partial_z w = -\nabla_h\!\cdot\mathbf{u}_h$ upward from $w(-H)=0$ rather than guessing. Convert to m/day (×86 400) before comparing with $w_0$.
+Code it directly: `div_h(t) = -2e-7*exp(-((t-10)/1)^2)` and `w(z,t) = -(z+H)*div_h(t)` with $H=100$; evaluate at $z = -10, -50, -90$ over a day-grid and plot `w.*86400` (m/day). For the sign, don't eyeball it — integrate continuity $\partial_z w = -\nabla_h\!\cdot\mathbf{u}_h$ upward from $w(-H)=0$: the trace is *negative* (convergence), so $\partial_z w > 0$ and $w > 0$ everywhere above the floor (converging water has nowhere to go but up ⇒ upwelling). Peak near the surface is $|z+H|\times|\nabla\!\cdot\!u| = 90\times2\times10^{-7} \approx 1.6$ m/day — compare with the §9.6 $w_0 \sim 1$ m/day. The linear-in-$z$ shape assumes a depth-uniform (barotropic) horizontal flow — exactly what a shallow-water solver gives.
 :::
 :::
 
@@ -262,7 +262,7 @@ a five-minute check:
 💡 Hint
 
 ::: {.exercise-hint-text}
-For the numerical check, first-order upwind with the stencil direction set by the flow: $w > 0$ carries information from *below*, so the difference is `(T[i] - T[i-1])/dz`. Keep $\Delta t \le \Delta z/|w|$. If your thermocline moves the wrong way, you've either flipped the stencil or the sign in the update — which is exactly the bug the exercise inoculates against.
+Part 1 (argument): with advection on the RHS, $\partial_t T = -w\,\partial_z T$. In a stable column $\partial_z T > 0$ and upwelling $w > 0$, so the product is positive and $\partial_t T < 0$ — every fixed depth cools, because the water now there rose from colder depths below. Part 2 (check): start from the §9.4 tanh profile, e.g. `T = 23 .+ 5 .* tanh.((z.+30)./5)`. First-order upwind with the stencil set by the flow: for $w > 0$ information comes from *below*, so the update is `T[i] - dt*w0*(T[i]-T[i-1])/dz`; use an advective CFL `dt = 0.4*dz/abs(w0)` and step for 2 days. Confirm the thermocline rises and sensors cool, then flip `w0` AND the stencil to `(T[i+1]-T[i])` — downwelling warms the interior. Wrong-way motion ⇒ you flipped either the stencil or the update sign, the exact bug this inoculates against.
 :::
 :::
 
@@ -346,7 +346,7 @@ out how much it matters:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Part 1: integrate the steady PDE over the column and ask where the surface heat extraction is resupplied from under each BC — one of the two has no supply. Part 2 is one square root with the *background* $\kappa_b$ (that's what governs near the floor). Part 3 follows from comparing part 2's reach against the sensor depths.
+Part 1: with no advection/source, steady means $\partial_z(\kappa\,\partial_z T)=0$ ⇒ $T(z)$ linear. Integrate the PDE over the column: $\frac{d}{dt}\int T\,dz = \text{(top flux)} + \text{(bottom flux)}$. Under Dirichlet the fixed-temperature floor supplies the heat the surface extracts (a steady tilt exists); under zero-flux the bottom supplies nothing, so $\frac{d}{dt}\int T\,dz = -Q_{cool}/(\rho_0 c_p) < 0$ — the column cools forever, no steady state. Part 2: one square root, $\sqrt{\kappa_b T_f}$ with the *background* $\kappa_b = 10^{-5}$ and $T_f = 2.59\times10^6$ s ⇒ ≈ 5 m of reach up from the floor. Part 3: Site B's sensors sit 58, 50, 35, 15, **2** m above the bottom — only the deepest (2 m off the floor) lies inside that 5 m zone, so the verdict is low risk: $\hat\tau$ leans on mid-column sensors where the two BCs are indistinguishable over 30 days.
 :::
 :::
 
@@ -433,7 +433,7 @@ versus what you assumed while reading?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Four small `plot` panels assembled with `plot(p1, p2, p3, p4, layout = (2,2))`. Two traps built in: the sine profile's argument uses the *site's* $H$, and closure 3 needs the Ri formula from the §9.4 initial profile (Solution 8.5 has the sech² derivative). Log-x for the κ panel or you'll see nothing.
+Assemble with `plot(p1, p2, p3, p4, layout = (2,2))`, pulling every number from the §9.6 table. (a) `Qsw(t) = 800*max(0, cos(2π*t/86400))` over 3 days; (b) the Beer–Lambert source `S(z) = (800/(ρ₀cp))*(1/10)*exp(z/10)` (with ρ₀cp = 1025·3990) vs $z$; (c) `w(z) = 1e-5*sin(π*(z+H)/H)` — **trap: use the site's own $H$** (60 for Site B), in m/day; (d) all three κ closures, with `xscale = :log10` or the curves collapse. Closure 3 needs the Ri formula from the §9.4 profile (Solution 8.5 has the sech² derivative). Read-offs: 10% source depth is $-\zeta\ln10 \approx -23$ m; at Site B's thermocline $z=-30$ is exact mid-column so the sine *peaks* — $w = w_0$ (the surprise); closure-2's surface-to-($-60$ m) ratio comes out ~17, not 100, because the exponential never reaches its floor in 60 m.
 :::
 :::
 
@@ -447,7 +447,7 @@ Four small `plot` panels assembled with `plot(p1, p2, p3, p4, layout = (2,2))`. 
 | Symbol | Value | Units | Meaning |
 |---|---|---|---|
 | $H$ | 100 | m | column depth |
-| $T_f$ | 30 days | s | simulation horizon |
+| $T_f$ | $2.592\times10^{6}$ ($=30$ d) | s | simulation horizon |
 | $\rho_0$ | 1025 | kg/m³ | seawater density |
 | $c_p$ | 3990 | J/(kg·K) | specific heat |
 | $\alpha$ | $2\!\times\!10^{-4}$ | 1/K | thermal expansion |
@@ -493,7 +493,7 @@ scenario) before the daily budget goes negative?
 💡 Hint
 
 ::: {.exercise-hint-text}
-The positive half of a cosine integrates to amplitude × period/π — no numerics. Then it's bookkeeping: net J/m² per day, divided by $\rho_0 c_p h_m$ for K/day. The threshold question inverts the same formula: set net = 0 and solve for $Q_{SW}^{max}$.
+No numerics for the integral: the positive half of a cosine over a day integrates to amplitude × period/π $= Q_{SW}^{\max}\tau_d/\pi = 800\times86400/\pi \approx 2.2\times10^7$ J/m². Cooling out is $Q_{cool}\tau_d = 200\times86400 \approx 1.73\times10^7$ J/m². Net ≈ $+4.7\times10^6$ J/m²/day (positive ⇒ warming). K/day: divide net by $\rho_0 c_p h_m = 1025\times3990\times20$ ⇒ ≈ 0.058 K/day, ~1.7 K over 30 days. Cross-check vs toy-task 2: 1.7 K is real against the 10 K gap, but "barely changes" survives because penetration and upwelling export most of it out of the mixed layer. Threshold: set net = 0 ⇒ $Q_{SW}^{\max} = \pi Q_{cool} \approx 628$ W/m², a ~21% drop — so the storm's cloud factor flips the column into net cooling.
 :::
 :::
 

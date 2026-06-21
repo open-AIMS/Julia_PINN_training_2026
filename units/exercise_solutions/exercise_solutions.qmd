@@ -84,7 +84,7 @@ harmonic constants.
 [← Back to Unit 1 §1.1](../unit_01/unit_01.qmd#ex-1-1)
 :::
 
-### Solution 1.2 — travel-time forensics on the slider {#sol-1-2}
+### Solution 1.2 — travel-time forensics on the movie {#sol-1-2}
 
 With $c = \sqrt{gH}$:
 
@@ -97,7 +97,7 @@ With $c = \sqrt{gH}$:
 
 Add these delays to the $t = 2$ h source peak to predict each
 gauge's peak time (e.g. G4 peak ≈ 3.8 h), then check against the
-slider — agreement to within ~10 minutes for G1/G2 is typical.
+movie — agreement to within ~10 minutes for G1/G2 is typical.
 
 - **Most depth-sensitive: G3.** Its propagation path crosses the
   deep NE channel, where $c$ nearly doubles. The fraction of the
@@ -2084,21 +2084,21 @@ multiphysics column.)
    (\text{m}^2/\text{s})(\text{K/m}) = \text{K/s}$ ✓. So
    $[\mathcal{S}]$ must also be K/s ✓.
 2. $Q_{\text{SW}}$ is W/m² $= \text{J s}^{-1}\text{m}^{-2}$.
-   Dividing by $\rho c_p$
+   Dividing by $\rho_0 c_p$
    ($\text{kg m}^{-3} \cdot \text{J kg}^{-1}\text{K}^{-1}
    = \text{J m}^{-3}\text{K}^{-1}$) gives
    $\text{K·m/s}$ — a *flux* of temperature. The Beer–Lambert
    factor $k\,e^{kz}$ carries units $\text{m}^{-1}$, turning the
    flux into the volumetric heating rate K/s. Watts in, kelvin per
-   second out, with $\rho c_p \approx 4.09 \times 10^6\,
+   second out, with $\rho_0 c_p \approx 4.09 \times 10^6\,
    \text{J m}^{-3}\text{K}^{-1}$ as the exchange rate.
-3. As written in @eq-column-bcs the BC is $\rho c_p \kappa\,\partial_z T = Q_{\text{np}}$:
+3. As written in @eq-column-bcs the BC is $\rho_0 c_p \kappa\,\partial_z T = Q_{\text{np}}$:
    left side $(\text{J m}^{-3}\text{K}^{-1})(\text{m}^2/\text{s})(\text{K/m})
    = \text{W/m}^2$, right side $\text{W/m}^2$ ✓ — both a *heat flux*.
-   Dividing through by $\rho c_p$ turns it into the temperature-flux
-   form $\kappa\,\partial_z T = Q_{\text{np}}/(\rho c_p)$, both sides
+   Dividing through by $\rho_0 c_p$ turns it into the temperature-flux
+   form $\kappa\,\partial_z T = Q_{\text{np}}/(\rho_0 c_p)$, both sides
    $\text{K·m/s}$. Equilibrium gradient:
-   $$\partial_z T = \frac{Q_{\text{np}}}{\rho c_p \kappa}
+   $$\partial_z T = \frac{Q_{\text{np}}}{\rho_0 c_p \kappa}
      = \frac{-200}{1025 \times 3990 \times 10^{-3}}
      \approx -0.049\ \text{K/m}.$$
    **Small** — about a sixth of a typical thermocline gradient.
