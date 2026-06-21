@@ -483,7 +483,7 @@ no source forces in the interior.
   the real parts of holomorphic functions).
 - Steady-state diffusion of any chemical species.
 
-### The Poisson equation — Laplace with a source
+### The Poisson equation — Laplace with a source {#sec-greens-function}
 
 $$
 \nabla^2 u \;=\; -f(\mathbf{x}).
@@ -505,6 +505,17 @@ correction proportional to the source intensity*.
 
 The Laplace / Poisson pair is the workhorse of "what's the
 steady-state response to this source distribution?"
+
+The clean way to answer it is the **Green's function**
+$G(\mathbf{x}, \mathbf{x}')$ — the response at $\mathbf{x}$ to a
+single *point* source (a $\delta$-spike) at $\mathbf{x}'$. Because
+$\nabla^2$ is linear, the response to a general source is the
+**superposition** $u(\mathbf{x}) = \int G(\mathbf{x},
+\mathbf{x}')\,f(\mathbf{x}')\,d\mathbf{x}'$ — the point-source
+response convolved against the source. That "impulse response +
+superposition" idea is exactly what makes the Unit 1 *inverse*
+problem solvable; we develop it as a **time-dependent** response in
+[§6.8](#sec-linear-inverse).
 
 ### The Wave equation — propagation
 
@@ -1082,15 +1093,20 @@ the oldest fixes in geophysical fluid dynamics
 and it's why every operational ocean / atmosphere model uses some
 flavour of staggered grid.
 
-### The eastern sponge layer
+### The sponge layer
 
 A finite computational domain has hard boundaries the real ocean
-doesn't. Without intervention, a surge wave reaching the eastern
-edge would **reflect** back into the bay, contaminating the
-gauge signal. Unit 1 fixes this with a **Rayleigh-damped sponge**:
-a strip of cells where an extra term $-\sigma(x)\,\eta$ is added
-to the continuity equation, with $\sigma$ ramping smoothly from
-$0$ inside the domain to a large value at the edge.
+doesn't. Without intervention, a surge wave reaching an open edge
+would **reflect** back into the bay, contaminating the gauge
+signal. The bay is open to the sea on three sides — the wide
+**northern** entrance (the Northwest Channel), the **eastern**
+strip outside Moreton Island, and the **southern** Broadwater
+outlet — so Unit 1 lines each of those rims with a
+**Rayleigh-damped sponge**: a strip of cells where an extra term
+$-\sigma(x)\,\eta$ is added to the continuity equation, with
+$\sigma$ ramping smoothly from $0$ inside the domain to a large
+value at the edge. (The western edge is solid mainland, so it
+stays a genuine reflecting coast.)
 
 In PDE terms the sponge approximates a **radiation (open)
 boundary condition** — outgoing energy leaves, incoming energy is
@@ -1117,6 +1133,110 @@ FD solver has a few characteristic failure modes worth flagging:
   a small impedance mismatch with the inner domain; ~1% of the
   incoming wave reflects. Long-time simulations or noise-sensitive
   inverse problems will see it. PMLs help but cost more.
+
+### The linear inverse: impulse response and Green's functions {#sec-linear-inverse}
+
+Unit 1's second act was the *inverse* problem: given the gauge
+timeseries, recover the unknown river source ψ(t). The reason this
+has a clean, almost closed-form solution is that the linearised
+shallow-water system is **linear** in ψ and **time-invariant** —
+its coefficients (depth, drag, geometry) don't change over the
+6-hour window. A system with both properties is **LTI** (linear
+time-invariant), and LTI systems are among the most completely
+understood objects in applied mathematics.
+
+The defining fact about an LTI system: it is *entirely*
+characterised by its **impulse response** — feed in one sharp
+spike (an idealised $\delta$-pulse) and record the output. For the
+bay, "feed in a spike" means inject a narrow, **known** Gaussian
+blip at the source cell; "record the output" means save what each
+of the four gauges does over the following hours. That recorded
+response is the **Green's function** of the problem — the same
+"point-source response" idea introduced for the Poisson equation in
+[§6.3](#sec-greens-function), now promoted to a *time-dependent*,
+source-to-sensor response.
+
+Two properties turn that single experiment into the whole forward
+map:
+
+- **Linearity (superposition).** Any source ψ(t) is a sum of
+  scaled spikes — one per time step. The response to the sum is the
+  sum of the responses, so knowing the response to *one* spike
+  gives the response to *every* ψ.
+- **Time-invariance.** The response to a spike at time $t_0$ is
+  just the response to a spike at $t = 0$, shifted by $t_0$. One
+  run therefore supplies the response at *all* injection times.
+
+Putting these together, the gauge prediction for an arbitrary
+source is a **convolution** of ψ with the impulse response $h$:
+
+$$
+g(t) \;=\; \int_0^t h(t - \tau)\,\psi(\tau)\,d\tau
+\;\;\xrightarrow{\;\text{discretise}\;}\;\;
+\mathbf{g} = G\,\boldsymbol{\psi}.
+$$
+
+Discretised in time, that convolution is a matrix–vector product
+with a very special matrix. Because entry $(i,j)$ depends only on
+the time *lag* $i-j$ (time-invariance), and the bay cannot respond
+before it is poked (causality), $G$ is **lower-triangular
+Toeplitz** — constant along each diagonal, zero above it. So
+building the entire operator costs **one** forward simulation, not
+one per column. This is the matrix Unit 1 inverts — and, crucially,
+**none of its construction used the true ψ**: the probe spike is a
+source *we* chose, so the whole forward operator is available even
+though the real source is unknown.
+
+### Regularisation: the $L^2$ smoothness cost and choosing λ {#sec-regularisation}
+
+With $\mathbf{g} = G\boldsymbol{\psi}$ in hand, recovering the
+source is "just" solving a linear system. The catch: it is
+**ill-posed**. The bay is a low-pass filter — propagation, drag and
+the sponge smear out fast wiggles — so $G$ has tiny singular
+values, and a naive solve $\boldsymbol{\psi} = G^{-1}\mathbf{g}$
+*amplifies* the $1.5$ cm of gauge noise into wild oscillations.
+Many completely different sources fit the noisy gauges about
+equally well.
+
+The standard cure is **Tikhonov regularisation**: don't fit the
+data exactly — fit it *and* prefer a smooth source. Concretely,
+minimise a sum of two **$L^2$ (sum-of-squares) costs**,
+
+$$
+\hat{\boldsymbol{\psi}}
+= \arg\min_{\boldsymbol{\psi}}\;
+\underbrace{\lVert G\boldsymbol{\psi} - \mathbf{g}\rVert_2^2}_{\text{data misfit}}
+\;+\;
+\lambda^2\,\underbrace{\lVert L_2\,\boldsymbol{\psi}\rVert_2^2}_{\text{roughness penalty}},
+$$
+
+where $L_2$ is the discrete **second-difference operator** — it
+returns the curvature of ψ, so penalising $\lVert L_2\psi\rVert_2^2$
+punishes wiggliness. This is a linear least-squares problem with a
+closed form,
+
+$$
+\hat{\boldsymbol{\psi}} = \big(G^\top G + \lambda^2 L_2^\top L_2\big)^{-1} G^\top \mathbf{g}.
+$$
+
+Note its shape: a **data term plus a weighted penalty term** — the
+direct ancestor of the soft-constraint loss a PINN minimises (data
+mismatch + a physics/smoothness residual, traded off by a weight).
+Units 7–9 replace the explicit $G$ and $L_2$ with a neural network
+and autodiff, but the *objective* is the same animal.
+
+That leaves one knob: the weight $\lambda$. Too small and
+$\hat\psi$ chases the noise; too large and it is smoothed into a
+featureless blur. We cannot tune it by comparing to the true ψ — we
+don't have it. Instead Unit 1 uses the **discrepancy principle**: a
+good fit should reproduce the gauges *to within the known
+measurement noise* — no better (overfitting), no worse
+(oversmoothing). With $N$ observations of noise standard deviation
+$\sigma$, the expected residual is $\lVert G\hat\psi -
+\mathbf{g}\rVert_2 \approx \sqrt{N}\,\sigma$, so we sweep $\lambda$
+and keep the value whose residual lands on that noise floor. The
+only quantity this needs is $\sigma$ — a property of the
+*instruments*, not of the answer.
 
 ### Why a PINN at all?
 

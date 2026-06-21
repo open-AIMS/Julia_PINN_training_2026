@@ -656,11 +656,30 @@ pulse). That ping-response is the bay's **Green's function**. Once you
 have it, the gauge reading for *any* source is just that ping-response
 slid along in time and added up — one copy for each moment of the
 source. So "predict the gauges" becomes a matrix multiply, and "find
-the source" becomes solving a linear system. The only snag is that
+the source" becomes solving a linear system.
+
+::: {.callout-note}
+## The trick: none of this used the unknown source
+Notice what building $G$ did **not** need: the true $\psi$. We poked the
+bay with a **probe pulse we chose** — a short, *known* blip — and recorded
+how the physics responded. That single experiment converts *"I don't know
+the source"* into *"I've measured how **any** source maps to the gauges."*
+The bay's response to the real, unknown $\psi$ is then simply $G\psi$ —
+which is exactly the thing we now invert.
+:::
+
+The only snag is that
 solving it *exactly* is unstable, and the cure — regularisation — is
 the idea worth dwelling on. The precise version:
 
 **Adjoint inverse, precisely.**
+(The background machinery here — *impulse response*, *Green's
+function*, *convolution* and the *Toeplitz* matrix that follow from
+the bay being a *linear time-invariant* system — is built up from
+scratch in
+[Unit 6 §6.8](../unit_06/unit_06.qmd#sec-linear-inverse); the
+$L^{(2)}$ *Tikhonov* cost and how $\lambda$ is chosen live in
+[the regularisation subsection](../unit_06/unit_06.qmd#sec-regularisation).)
 Because the linearised SWE is *linear* in $\psi$, the forward map
 $G: \psi(\cdot) \mapsto \eta_g(\cdot)$ is a linear operator. Its
 columns are the **Green's function** of the bay — the response at
@@ -689,7 +708,22 @@ $\lambda^2 \|\mathrm{L}^{(2)}\psi\|^2$ on the **curvature** of $\psi$ (the opera
 $\mathrm{L}^{(2)}$ is just the discrete second derivative), which says: *of all
 the sources that fit the gauges, prefer the smoothest one.* The knob $\lambda$
 sets how hard we lean on that preference — too small and the wiggles return, too
-large and we flatten the real peaks. This idea — **fit the data, but prefer a
+large and we flatten the real peaks.
+
+This raises the obvious question: how do we set $\lambda$ when we *can't*
+peek at the true $\psi$ to check which value works best? The trick is to
+lean on the one thing we *do* know — **how noisy the gauges are** (here
+about $1.5$ cm). The reasoning is just common sense: a good reconstruction
+should match the gauges *about as well as the noise allows* — no better, no
+worse. Fitting them *better* than the noise means we are bending $\psi$ to
+chase meaningless measurement jitter; fitting them *worse* means we have
+smoothed so hard that we have wiped out real signal. So the code tries a
+range of $\lambda$ values and keeps the one whose leftover mismatch sits
+right at the noise level. (This rule has a name — the **discrepancy
+principle** — but the idea is entirely that common-sense balance, and it
+never once looks at the true source.)
+
+This idea — **fit the data, but prefer a
 simple answer** — is exactly the "prior" the naive PINN instead supplies
 *implicitly*, through the smoothness of its network. No neural network here, but
 it leans on the same physics the PINN tries to learn. The full driver is
@@ -704,6 +738,27 @@ A   = vcat(G, λ_smooth * L2, λ_anchor * e1')       # stacked LHS
 b   = vcat(g_obs, zeros(size(L2, 1)), 0.0)
 ψ̂   = A \ b                                        # closed-form Tikhonov
 ```
+
+::: {.callout-tip}
+## Where — and only where — the true source is used
+It is easy to suspect we are quietly peeking at the answer somewhere. We
+are not. Here is what each step actually feeds on:
+
+| Step | What it uses | Uses the true $\psi$? |
+|---|---|---|
+| Build $G$ (the bay's response) | the simulator + a **probe pulse we chose** | **no** |
+| Solve for the source | $G$ and the **observed** gauges, plus "prefer a smooth answer" | **no** |
+| Choose $\lambda$ | the leftover mismatch vs **how noisy the gauges are** | **no** |
+| Score the result | the recovered $\hat\psi$ **and** the true $\psi$ | **yes — only here** |
+
+The true $\psi$ shows up in exactly one place: the final accuracy number we
+print to grade ourselves, *because this is a teaching example and we happen
+to have the ground truth to compare against*. Delete that one line and
+everything above still runs — unchanged — on real gauge data where the
+source is genuinely unknown. That is the whole point: we reconstruct a
+source nobody measured, from its ripples at four gauges, the physics, and
+an honest sense of how noisy the measurements are.
+:::
 
 ### What we recover
 
