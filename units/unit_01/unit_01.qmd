@@ -725,11 +725,12 @@ pedagogically:
    noisy cloud of observations at G1–G4. By the metric the algorithms are
    optimising, both succeed.
 2. **They disagree wildly on what produced those gauges.** The
-   adjoint inverse recovers both surge peaks at roughly correct
-   amplitude ($0.49\,\text{m}$ and $0.20\,\text{m}$, vs truth
+   adjoint inverse recovers both surge peaks with the right timing
+   and two-pulse shape, but overshoots their amplitude
+   ($\sim 0.60\,\text{m}$ and $\sim 0.25\,\text{m}$, vs truth
    $0.45 / 0.18$). The naive PINN gets the *timing* of the main
-   pulse but flattens its amplitude to $\sim 0.12\,\text{m}$ — a
-   factor of nearly four under.
+   pulse but flattens its amplitude to $\sim 0.05\,\text{m}$ —
+   almost an order of magnitude under.
 
 This is the classic signature of an **ill-posed inverse problem**:
 many qualitatively different sources can produce the same
