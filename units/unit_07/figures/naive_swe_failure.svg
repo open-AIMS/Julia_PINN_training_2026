@@ -94,7 +94,7 @@
     <text x="70" y="308" font-size="11" fill="#222">optimiser zeroes the easy term</text>
     <text x="70" y="322" font-size="11" fill="#222">first.</text>
     <text x="70" y="346" font-size="11" font-style="italic" fill="#666">fix: adaptive loss weighting</text>
-    <text x="70" y="360" font-size="11" font-style="italic" fill="#666">      (McClenny & Braga-Neto 2022)</text>
+    <text x="70" y="360" font-size="11" font-style="italic" fill="#666">      (McClenny &amp; Braga-Neto 2022)</text>
     <text x="70" y="378" font-size="11" font-style="italic" fill="#666">see §7.3</text>
 
     <rect x="295" y="240" width="230" height="160" fill="#fffaf0" stroke="#e67e22"/>

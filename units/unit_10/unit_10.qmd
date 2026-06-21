@@ -125,7 +125,7 @@ constant. After ~365 days the column reaches a near-steady state.
 Adds $Q_{\text{SW}}(t)$ (smooth half-cosine, mean 400 W/m²) and the
 Beer–Lambert body source $\mathcal{S}$.
 
-![Scenario 2 output — top-10 m heatmap with subtle diurnal bands superimposed on the slow relaxation toward the scenario-1 steady state.](output/scn2_diurnal.png)
+![Scenario 2 output — near-surface traces (top) make the daily warm/cool cycle plain: ten diurnal oscillations ride on the slow relaxation toward the scenario-1 steady state, with the amplitude largest at $z=-1$ m and damped by $z=-7$ m. The top-10 m $(z,t)$ heatmap (bottom) shows the same field.](output/scn2_diurnal.png)
 
 #### Scenario 3 — upwelling
 

@@ -205,16 +205,28 @@ function plot_scn1(r; outpath=joinpath(@__DIR__, "..", "output", "scn1_steady.pn
     fig
 end
 
-"Near-surface (z, t) heatmap for scenario 2."
+"Scenario 2: near-surface traces (showing the diurnal cycle) over the (z, t) heatmap."
 function plot_scn2(r; zmax=10.0,
                    outpath=joinpath(@__DIR__, "..", "output", "scn2_diurnal.png"))
     zg, tg, Tg = _grids(r)
+    days = tg ./ 86400.0
     keep = zg .>= -zmax
-    fig = Figure(size=(900, 450))
-    ax = Axis(fig[1,1], xlabel="t (days)", ylabel="z (m)",
-              title="Scenario 2: diurnal warm layer")
-    hm = heatmap!(ax, tg ./ 86400.0, zg[keep], Tg[keep, :]')
-    Colorbar(fig[1,2], hm, label="T (°C)")
+    fig = Figure(size=(900, 640))
+
+    # Top: a few near-surface traces — the daily warm/cool cycle is obvious here
+    # even though it is washed out by the slow relaxation in the heatmap below.
+    ax1 = Axis(fig[1,1], xlabel="t (days)", ylabel="T (°C)",
+               title="Scenario 2: diurnal warm layer — near-surface traces")
+    for (d, col) in ((1.0, :firebrick), (3.0, :darkorange), (7.0, :seagreen))
+        zi = argmin(abs.(zg .+ d))
+        lines!(ax1, days, Tg[zi, :]; color=col, linewidth=1.6, label="z = −$(Int(d)) m")
+    end
+    axislegend(ax1, position=:rt, framevisible=true)
+
+    ax2 = Axis(fig[2,1], xlabel="t (days)", ylabel="z (m)", title="T(z, t) — top $(Int(zmax)) m")
+    hm = heatmap!(ax2, days, zg[keep], Tg[keep, :]')
+    Colorbar(fig[2,2], hm, label="T (°C)")
+    rowsize!(fig.layout, 1, Relative(0.42))
     save(outpath, fig)
     @info "saved $outpath"
     fig
