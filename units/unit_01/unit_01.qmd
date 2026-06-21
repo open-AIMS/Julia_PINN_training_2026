@@ -199,7 +199,7 @@ triangle near the western coast is the **Brisbane River mouth**,
 where the unknown surge ψ(t) is imposed. (b) Inset zoom on the river
 entrance / Pile Light area; the nearest informative gauge (G1, Mud
 Island) sits ~18 km north of the mouth in mid-bay, deliberately
-*not* on top of the source — see the warning callout in §1.2.5.](figures/site_map.png)
+*not* on top of the source — see the *Why not put G1 at Brisbane Bar?* discussion.](figures/site_map.png)
 
 We choose a domain that is small enough to evaluate in seconds on a
 laptop CPU but big enough to capture the geography that matters:

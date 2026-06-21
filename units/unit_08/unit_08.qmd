@@ -391,7 +391,7 @@ is the reference):
 
 - **Sensible:** $Q_{\text{sens}} = \rho_a\, c_{p,a}\, C_H\, U_{10}\,(T_a - T_s)$
 - **Latent:** $Q_{\text{lat}} = \rho_a\, L_v\, C_E\, U_{10}\,(q_a - q_s)$
-- **Longwave:** $Q_{\text{LW}} = \varepsilon\,\sigma_{\text{SB}}\,T_s^4 - Q_{\text{LW}}^{\downarrow}$
+- **Longwave:** $Q_{\text{LW}} = Q_{\text{LW}}^{\downarrow} - \varepsilon\,\sigma_{\text{SB}}\,T_s^4$
 
 with $U_{10}$ the 10-m wind, $T_a, q_a$ air temperature/humidity,
 $T_s, q_s$ skin-temperature/saturated humidity, $C_H, C_E$ exchange

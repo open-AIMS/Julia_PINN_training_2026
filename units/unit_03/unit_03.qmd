@@ -217,7 +217,7 @@ def damped(t, u, zeta):
 for zeta in (0.1, 1.0, 2.0):
     sol = solve_ivp(damped, (0.0, 3.0), [1.0, 0.0],
                     args=(zeta,), t_eval=np.linspace(0, 3, 301))
-    print(f"ζ={zeta}: x(3.0) = {sol.y[0, -1]:+.4f}")
+    print(f"zeta={zeta}: x(3.0) = {sol.y[0, -1]:+.4f}")
 ```
 
 Notice $\zeta = 1$ minimises the time to "land" near zero — a fact

@@ -104,3 +104,72 @@ Many prose edits + included scripts (`conv_mnist_lux.jl`, `mnist_gpu_lux.jl`,
 `column_fd.jl`, `column_pinn_gpu.jl`) changed → affected units need
 `quarto render` to refresh `_freeze` before deploy. Captured `output/*.md`
 numbers unaffected at displayed precision by the c_p change.
+
+---
+
+# Final (second) proofreading pass — 2026-06-22
+
+Lens: correctness (math/computing/content) + citations + consistency, plus a
+light tone-down of any over-"cool" phrasing. Minimal edits only; flag (don't
+guess-fix) anything needing an author call. Method: one read-only review agent
+per unit + appendix groups; lead editor vetted every finding before applying.
+
+## Fixes applied (13)
+1. **exercise_solutions.qmd:217,223** — `build_forest(... 1, 0.0, 0; rng=0)` →
+   `... 1, 2, 0.0; rng=0)`. The stale buggy arg order (`min_samples_split=0.0`
+   throws "must be ≥ 2") — the same bug fixed in unit_02 long ago but never
+   propagated to the solutions. Now matches unit_02's canonical call. **Won't-run code.**
+2. **unit_02 `/255` self-contradiction** — unit_02.qmd:152 + the §2.2 hint
+   (line 277) both say MLDatasets returns pixels already in [0,1] and tell
+   students to drop `/255`, yet the shown code kept `./ 255f0` (→ [0,1/255]).
+   Removed it in unit_02.qmd:191 (forest) and :340 (softmax) and the scripts
+   `mnist_rf_julia.jl`, `mnist_linear_lux.jl`; fixed the "normalise to [0,1]"
+   comment. (exercise_solutions already drops it.) Accuracy unaffected.
+3. **unit_01 train_inverse_pinn.jl:73,85 + output/train_inverse_pinn.md:15** —
+   "gauge samples every 6 min" → "every 3 min" (DATA_STRIDE=15 × 12 s = 180 s =
+   3 min; the inline comment and the §1.2.4 table already said 3 min).
+4. **unit_01.qmd:202** — "see the warning callout in §1.2.5" (dead — `###` are
+   unnumbered at number-depth:1; it's actually the `##` section) → "see the
+   *Why not put G1 at Brisbane Bar?* discussion".
+5. **unit_03.qmd:220** — displayed Python listing printed `ζ={zeta}` but the
+   tagged file prints `zeta={zeta}`; aligned the listing to the file.
+6. **unit_08.qmd:394** — longwave bulk formula sign. With $Q_{np}$ positive =
+   into ocean (and sensible/latent written into-ocean-positive), $Q_{LW} =
+   \varepsilon\sigma T_s^4 - Q_{LW}^\downarrow$ was net-*outgoing*-positive,
+   i.e. reversed. Fixed to $Q_{LW} = Q_{LW}^\downarrow - \varepsilon\sigma T_s^4$.
+   (Explanatory formula; no solver code depends on it.)
+7. **unit_10.qmd:576** — "the wider $128$-input / $64\times5$ network" → "the
+   wider $64\times5$ network" (shipped `task_b_joint_inverse.jl` is 2-input/64-
+   wide; no 128 anywhere; the table just below already says 64×5).
+
+## Flagged for your call (NOT edited — need author judgment / unverifiable here)
+- **unit_01 gauge distances/directions** (§1.2 prose + the §1.2 exercise): labels
+  G1≈18 / G2≈26 / G3≈35 / G4≈50 km vs straight-line grid distances ~18 / ~14 /
+  ~24 / ~34 km (G2 most off: it reads "~26 km ESE" but is the *nearest* gauge,
+  ~14 km SSE). These feed the exercise's arrival-time computation. Needs your
+  intended distance convention (straight-line vs along-bay path) before fixing.
+- **unit_01 forward-solve runtime** stated three ways: "~20 s" (l.464, 500 m),
+  "a second or two" (l.894, native), "12 s" (table l.976 + l.991). Possibly
+  different resolutions — reconcile if they mean the same solve.
+- **unit_07 de Wolff scope**: l.239–248 attributes a *three*-PDE study (variable-
+  depth wave; 2-D linearised SWE w/ Coriolis+viscosity; SWE advection–diffusion)
+  to de Wolff et al. 2021, but the bibliography annotates that paper as *1-D*
+  shallow-water / Saint-Venant. One description is off; couldn't verify the
+  paper here.
+- **Citation years (cosmetic, self-documented)**: in-text "Wang et al. 2021"
+  (NTK) vs the bib entry header (2022, the JCP volume year; anchor `wang2021ntk`);
+  same pattern for "McClenny … 2022" vs entry (2023). Entries note the preprint
+  years, so harmless — align in-text if you want strict consistency.
+- **unit_10 `task_b_gpu_launch.md` "What changes" table** describes a Fourier /
+  adaptive / causal / ~40k-step GPU run the shipped `task_b_joint_inverse.jl`
+  deliberately does NOT implement (it ships static weights, no Fourier/causal,
+  64×5, ~3k steps). Relabel that column as the aspirational menu, or align it.
+- **unit_06 Poisson sign**: table writes $\nabla^2u=f$, §6.3 writes $\nabla^2u=-f$
+  (both valid; §6.3 worked examples are self-consistent). Cosmetic.
+- Minor [QUESTION]s left as-is: unit_04 checkpointing log/log phrasing &
+  `g_over_L=9.81` (fine for L=1 m); unit_05 `jax.hessian` jacfwd∘jacrev wording
+  vs the jacfwd∘jacfwd code; math_review $T(z,t)$ attributed to Unit 9 (defined
+  in Unit 8); physical_review Tikhonov Unit 9-mention / Unit 7-link.
+
+Everything else (units 1–10 + all appendices + scripts) verified clean on
+correctness, citations, cross-references, and tone.

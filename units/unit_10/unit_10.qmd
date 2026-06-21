@@ -573,7 +573,7 @@ inversion exploits and no single-site analysis can see.**
 
 Running [`task_b_joint_inverse.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_joint_inverse.jl){target="_blank"}
 on the course GPU hub (**NVIDIA A10G**) takes the recipe to all three
-sites at the wider $128$-input / $64\times5$ network. These are
+sites at the wider $64\times5$ network. These are
 *measured*, not extrapolated:
 
 | Run | Config | Wall-clock | $\hat\tau$ peak error |

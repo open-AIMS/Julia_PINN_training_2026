@@ -70,7 +70,7 @@ const Y_R = yc(river.iy[1])
 
 const GAUGE_XY = [(xc(gauges.ix[k]), yc(gauges.iy[k])) for k in 1:nrow(gauges)]
 
-# --- Sub-sample gauge observations (every 6 min) --------------------------
+# --- Sub-sample gauge observations (every 3 min) --------------------------
 
 const DATA_STRIDE = 15                   # 15 × 12s = 180s = 3 min
 const T_DATA = obs.t[1:DATA_STRIDE:end]
@@ -82,7 +82,7 @@ const GAUGE_OBS = hcat(
     obs.G4[1:DATA_STRIDE:end],
 )   # N_DATA × 4
 
-println("N_DATA = ", N_DATA, " (gauge samples every 6 min × 4 gauges = ",
+println("N_DATA = ", N_DATA, " (gauge samples every 3 min × 4 gauges = ",
         N_DATA * 4, " data pts)")
 
 # --- Network --------------------------------------------------------------

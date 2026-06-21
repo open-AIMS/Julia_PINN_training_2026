@@ -10,8 +10,8 @@ using MLDatasets, DecisionTree, Statistics
 train_x, train_y = MLDatasets.MNIST(split = :train)[:]
 test_x,  test_y  = MLDatasets.MNIST(split = :test)[:]
 
-# (28, 28, N) → (N, 784), normalise to [0, 1]
-flatten(x) = reshape(Float32.(x), 28 * 28, size(x, 3))' ./ 255f0
+# (28, 28, N) → (N, 784); MLDatasets already returns pixels in [0, 1]
+flatten(x) = reshape(Float32.(x), 28 * 28, size(x, 3))'
 X_train, X_test = flatten(train_x), flatten(test_x)
 y_train, y_test = Int.(train_y), Int.(test_y)
 

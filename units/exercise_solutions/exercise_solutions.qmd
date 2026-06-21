@@ -214,13 +214,13 @@ X = flatten(train_x)[1:10_000, :];  yl = Int.(train_y)[1:10_000]
 Xt = flatten(test_x);               yt = Int.(test_y)
 
 for n_trees in (1, 5, 20, 50, 100, 200)
-    forest = build_forest(yl, X, 28, n_trees, 0.7, -1, 1, 0.0, 0; rng = 0)
+    forest = build_forest(yl, X, 28, n_trees, 0.7, -1, 1, 2, 0.0; rng = 0)
     acc = mean(apply_forest(forest, Xt) .== yt)
     println("trees = $n_trees:  acc = $(round(acc, digits = 4))")
 end
 
 for nsub in (5, 28, 100, 784)
-    forest = build_forest(yl, X, nsub, 100, 0.7, -1, 1, 0.0, 0; rng = 0)
+    forest = build_forest(yl, X, nsub, 100, 0.7, -1, 1, 2, 0.0; rng = 0)
     acc = mean(apply_forest(forest, Xt) .== yt)
     println("n_subfeatures = $nsub:  acc = $(round(acc, digits = 4))")
 end
