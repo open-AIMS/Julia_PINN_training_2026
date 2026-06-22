@@ -540,7 +540,9 @@ Every neural network in this workshop — and every PINN from
 sections already used it in passing; this section is a short, standalone
 tour of the handful of functions you actually need, with the
 [Lux documentation](https://lux.csail.mit.edu){target="_blank"} worth
-keeping open alongside.
+keeping open alongside. The snippets build on one another — pasted in
+order into a Julia session (the `@pinn` environment), they run as one
+self-contained example on a small synthetic batch.
 
 ### The core idea: parameters live outside the model
 
@@ -587,7 +589,7 @@ A `Lux` model is called as a **pure function** `model(x, ps, st)` and returns
 a tuple `(output, new_state)`:
 
 ```{.julia}
-x = randn(Float32, 784, 32)         # a batch of 32 inputs (columns)
+x = randn(rng, Float32, 784, 32)    # a batch of 32 (synthetic) inputs, columns
 ŷ, st = model(x, ps, st)            # ŷ is 10×32; st unchanged here (Dense is stateless)
 ```
 
@@ -617,10 +619,15 @@ Hand-rolling it is a one-liner (as in §2.3), but the ecosystem helper is
 [`OneHotArrays.jl`](https://github.com/FluxML/OneHotArrays.jl){target="_blank"}:
 
 ```{.julia}
-using OneHotArrays
-Y     = onehotbatch(y_train, 0:9)   # 10 × N one-hot matrix
-preds = onecold(ŷ, 0:9)             # argmax back to labels 0–9
+using OneHotArrays                  # not in @pinn by default — see the setup note below
+y_train = rand(rng, 0:9, 32)        # 32 synthetic integer labels (one per input column)
+Y       = onehotbatch(y_train, 0:9) # 10 × 32 one-hot matrix
+preds   = onecold(ŷ, 0:9)           # argmax of ŷ back to labels 0–9
 ```
+
+*Setup note.* `OneHotArrays.jl` is **not in the `@pinn` environment** — add it
+yourself once with `Pkg.add("OneHotArrays")` (it installs in a few seconds, pulls
+in `NNlib` which is already present, and doesn't disturb the shared PINN stack).
 
 ### Training: the standard loop
 
@@ -629,11 +636,11 @@ uses. Take gradients of a scalar loss with respect to `ps` (reverse-mode AD,
 §2.7), then step an optimiser:
 
 ```{.julia}
-using Zygote, Optimisers
+using Zygote, Optimisers, Statistics
 
 function loss_fn(ps)
-    ŷ, _ = model(X, ps, st)
-    mean(abs2, ŷ .- Y)              # any scalar loss
+    ŷ, _ = model(x, ps, st)
+    mean(abs2, ŷ .- Y)              # any scalar loss (here MSE on the one-hot targets)
 end
 
 opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)   # Adam: see §2.6
