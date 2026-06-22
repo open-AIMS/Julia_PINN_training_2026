@@ -103,7 +103,7 @@ same letters are reused: $i, j$ run over $(x, y)$ and $n$ over $t$
 | $\beta_1, \beta_2$ | exponential-decay rates in Adam |
 | $H_t$, $B_t$ | true Hessian / quasi-Newton approximation in L-BFGS |
 | $\mu$ | momentum coefficient |
-| Adam, L-BFGS, SGD | named optimisers ([Unit 2 §2.5](../unit_02/unit_02.qmd)) |
+| Adam, L-BFGS, SGD | named optimisers ([Unit 2 §2.6](../unit_02/unit_02.qmd)) |
 
 ::: {.callout-warning}
 ## Symbol re-use across units

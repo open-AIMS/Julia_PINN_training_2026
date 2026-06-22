@@ -484,7 +484,7 @@ the analogous trick with the Lagrangian $L_\theta(q, \dot q)$ and
 the Euler–Lagrange equations.
 
 **Autodiff recall.** This is the autodiff machinery from
-[§2.6](../unit_02/unit_02.qmd#sec-autodiff) in a new
+[§2.7](../unit_02/unit_02.qmd#sec-autodiff) in a new
 costume — worth pausing on, because it is *exactly* the pattern PINNs use.
 Reading the field off $H_\theta$ needs its gradient with respect to the
 **inputs** $(q, p)$ — only two of them — which is the cheap direction for
@@ -494,7 +494,7 @@ with respect to the **parameters** — many of them, one scalar loss — the
 cheap direction for **reverse mode**. And because a derivative of the
 network sits *inside* the loss, the two differentiations **nest**: a
 forward-mode input-gradient wrapped in a reverse-mode parameter-gradient,
-the **forward-over-reverse** composition of §2.6. (The tiny network in the
+the **forward-over-reverse** composition of §2.7. (The tiny network in the
 script below is small enough that we can use forward mode for the outer
 pass too — simpler to read — but the structure is the same.) Same engine
 as a PINN; here it conserves energy instead of enforcing a PDE residual.
@@ -507,7 +507,7 @@ HNN — a small MLP for $H_\theta(q, p)$ whose field is read off by
 `ForwardDiff` ($\dot q = \partial_p H_\theta$, $\dot p = -\partial_q
 H_\theta$) — and, for contrast, a vanilla MLP that predicts the field
 $(\dot q, \dot p)$ directly from the *same* 120 noisy points. This is the
-nested-autodiff pattern of [§2.6](../unit_02/unit_02.qmd#sec-autodiff)
+nested-autodiff pattern of [§2.7](../unit_02/unit_02.qmd#sec-autodiff)
 put to work: a derivative of the network *inside* the training loss.
 
 ```{.julia filename="units/unit_03/scripts/hnn_pendulum.jl" code-fold="true" code-summary="Show the HNN pendulum trainer"}
@@ -726,7 +726,7 @@ grid cells but the *coherent* motion (vortices, waves) is described
 by a handful of modes. **Proper Orthogonal Decomposition (POD)**
 — also called Principal Component Analysis when applied to
 snapshot matrices — extracts those modes systematically. It's the
-classical workhorse for **reduced-order modelling** (ROM) and the
+classical standard for **reduced-order modelling** (ROM) and the
 first thing to reach for when you suspect your system has hidden
 low-dimensional structure.
 

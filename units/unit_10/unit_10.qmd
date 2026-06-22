@@ -773,7 +773,7 @@ mapped in [the references](../references/references.qmd).
 ## 10.6 Reference solver source: `scripts/column_fd.jl`
 
 The MethodOfLines finite-difference reference for $T(z, t)$, kept
-as a sidecar script (see `SETUP.md`) so `quarto render` stays
+as a standalone script (see `SETUP.md`) so `quarto render` stays
 cheap. Run with `./build.sh execute 10`; outputs land in
 `output/`. Folded for brevity; expand to read.
 

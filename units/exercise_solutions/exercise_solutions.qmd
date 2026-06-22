@@ -276,7 +276,7 @@ acc = mean((σ(Xte' * w .+ b) .> 0.5) .== (yte .> 0.5))
 println("0-vs-1 test accuracy: ", round(acc, digits = 4))
 ```
 
-The gradient derivation is the small jewel here: for
+The gradient derivation is the key point here: for
 $\hat p = \sigma(w^\top x + b)$ and binary cross-entropy, the chain
 rule collapses to $\partial \mathcal{L}/\partial z = \hat p - y$ —
 the sigmoid's derivative cancels against the log's. That's why
@@ -369,7 +369,7 @@ PINNs.
 [← Back to Unit 2 §2.4](../unit_02/unit_02.qmd#ex-2-4)
 :::
 
-### Solution 2.5 — race the optimisers down a ravine {#sol-2-5}
+### Solution 2.6 — race the optimisers down a ravine {#sol-2-6}
 
 ```{julia}
 using Plots
@@ -421,7 +421,7 @@ scatter!(plt, [1.0], [1.0], label = "minimum", marker = :star, ms = 8)
 end
 ```
 
-What the three trajectories show, mapped to the §2.5 failure modes:
+What the three trajectories show, mapped to the §2.6 failure modes:
 
 - **GD zig-zags** across the parabolic valley
   ($y \approx x^2$): the gradient points mostly across the ravine,
@@ -440,10 +440,10 @@ What the three trajectories show, mapped to the §2.5 failure modes:
   hundred iterations.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.5](../unit_02/unit_02.qmd#ex-2-5)
+[← Back to Unit 2 §2.6](../unit_02/unit_02.qmd#ex-2-6)
 :::
 
-### Solution 2.6 — differentiate a network's output, then its loss {#sol-2-6}
+### Solution 2.7 — differentiate a network's output, then its loss {#sol-2-7}
 
 **(a) Second derivative two ways.** Nesting `ForwardDiff.derivative` matches the
 hand derivative exactly:
@@ -477,13 +477,13 @@ loss, reverse mode costs ≈ one extra backward pass *regardless* of the paramet
 count, while forward mode would cost one pass per parameter. So a real PINN keeps
 forward mode for the few-input spatial derivative (inner) and switches to reverse
 mode for the many-parameter gradient (outer) — the forward-over-reverse nesting of
-§2.6.
+§2.7.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.6](../unit_02/unit_02.qmd#ex-2-6)
+[← Back to Unit 2 §2.7](../unit_02/unit_02.qmd#ex-2-7)
 :::
 
-### Solution 2.7 — parameters, accuracy, and a two-phase finetune {#sol-2-7}
+### Solution 2.8 — parameters, accuracy, and a two-phase finetune {#sol-2-8}
 
 **1. Parameter counts** (each from `Lux.parameterlength`):
 
@@ -521,10 +521,10 @@ fast-then-careful pattern is a miniature of the **Adam → L-BFGS**
 schedule every PINN in Units 5–10 uses.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.7](../unit_02/unit_02.qmd#ex-2-7)
+[← Back to Unit 2 §2.8](../unit_02/unit_02.qmd#ex-2-8)
 :::
 
-### Solution 2.8 — KAN vs MLP on a sharp feature {#sol-2-8}
+### Solution 2.9 — KAN vs MLP on a sharp feature {#sol-2-9}
 
 ```julia
 using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics, Plots
@@ -569,14 +569,14 @@ which is the honest summary of the KAN literature: an advantage in
 expressiveness.
 
 The Python check, if you want it, is a five-line edit of the
-`pykan` script in §2.8 — replace the dataset function with
+`pykan` script in §2.9 — replace the dataset function with
 `f = lambda x: torch.abs(x[:, [0]]) + 0.2 * torch.sin(5 * x[:, [0]])`.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.8](../unit_02/unit_02.qmd#ex-2-8)
+[← Back to Unit 2 §2.9](../unit_02/unit_02.qmd#ex-2-9)
 :::
 
-### Solution 2.9 — translate the vocabulary {#sol-2-9}
+### Solution 2.10 — translate the vocabulary {#sol-2-10}
 
 | Supervised concept | PINN counterpart | What changes |
 |---|---|---|
@@ -596,7 +596,7 @@ Past a modest density, the binding constraint is **optimisation**
 everywhere — see Unit 7), not data volume.
 
 ::: {.exercise-solution-link}
-[← Back to Unit 2 §2.9](../unit_02/unit_02.qmd#ex-2-9)
+[← Back to Unit 2 §2.10](../unit_02/unit_02.qmd#ex-2-10)
 :::
 
 ## Unit 3 — Sci-ML and PIML
@@ -1223,7 +1223,7 @@ experiment — worth rerunning after reading §7.3.
 [← Back to Unit 5 §5.3](../unit_05/unit_05.qmd#ex-5-3)
 :::
 
-### Solution 5.4 — change the equation, not the plumbing {#sol-5-4}
+### Solution 5.4 — change the equation, not the code {#sol-5-4}
 
 The whole edit, in `ModelingToolkit` terms:
 

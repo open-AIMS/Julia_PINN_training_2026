@@ -503,7 +503,7 @@ correction proportional to the source intensity*.
 - Stream function ↔ vorticity in 2-D incompressible flow:
   $\nabla^2 \psi = -\omega$.
 
-The Laplace / Poisson pair is the workhorse of "what's the
+The Laplace / Poisson pair is the standard model of "what's the
 steady-state response to this source distribution?"
 
 The clean way to answer it is the **Green's function**
@@ -656,7 +656,7 @@ Match by the one verb each movie shows: moves rigidly → advection; splits into
 
 ## 6.4 Finite Differences and Stability Analysis
 
-The classical workhorse — and the method actually used by Unit 1's
+The classical standard — and the method actually used by Unit 1's
 shallow-water solver. The next three subsections cover the
 discretisation rules, the stability constraint they impose (CFL,
 von Neumann), and a worked benchmark against the
@@ -837,7 +837,7 @@ where $F_{i\pm 1/2}$ are the **numerical fluxes** at the cell
 faces — typically computed from a Riemann solver in compressible
 flow, or a simple upwind / Lax–Friedrichs formula for scalar
 advection. **Choice of numerical flux is what distinguishes the
-zoo of FV schemes** (Godunov, Roe, HLL, HLLC, AUSM, etc.).
+family of FV schemes** (Godunov, Roe, HLL, HLLC, AUSM, etc.).
 
 The 2-D shallow-water solver Unit 1 uses is technically a
 *finite-difference* scheme on a staggered grid, but it can be
@@ -1091,7 +1091,7 @@ differences, killing the spurious mode at source. This is one of
 the oldest fixes in geophysical fluid dynamics
 ([Arakawa & Lamb 1977](https://en.wikipedia.org/wiki/Arakawa_grids){target="_blank"})
 and it's why every operational ocean / atmosphere model uses some
-flavour of staggered grid.
+kind of staggered grid.
 
 ### The sponge layer
 

@@ -132,7 +132,7 @@ Pkg.activate()                        # back to your own env
 ```
 
 **4. Prove a course package loads with nothing installed** — the simplest
-"it's under the hood" demonstration:
+"what happens internally" demonstration:
 
 ```julia
 using NeuralPDE        # works, even though Pkg.status showed nothing
@@ -173,7 +173,7 @@ the three GPU packages** in the "GPU" group below.
 - **`ComponentArrays`** — structured, named parameter vectors that keep network
   weights tidy while staying a flat array the optimiser can use.
 - **`KolmogorovArnold`** — Kolmogorov–Arnold network layers (`KDense`), a
-  spline/RBF-based alternative to `Dense` MLP layers (Unit 2 §2.8). Pinned to
+  spline/RBF-based alternative to `Dense` MLP layers (Unit 2 §2.9). Pinned to
   `0.0.1` so it can't perturb the rest of the stack.
 
 ### GPU — *cloud GPU hub only*

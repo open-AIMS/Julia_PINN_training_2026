@@ -118,7 +118,7 @@ with $O(1)$-memory backprop.
 **[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}**
 — Lux-compatible KAN layers (radial basis functions, custom
 gradients). Introduced in
-[Unit 2 §2.8](../unit_02/unit_02.qmd).
+[Unit 2 §2.9](../unit_02/unit_02.qmd).
 :::
 
 ### Classical ML and data
@@ -232,7 +232,7 @@ object-oriented API replacing Linen.
 — Differentiable ODE solvers in PyTorch with adjoint backprop.
 Standard for Neural-ODE and Burgers-class PINN demos. Used
 implicitly in the PyTorch examples of
-[Unit 2 §2.7](../unit_02/unit_02.qmd).
+[Unit 2 §2.8](../unit_02/unit_02.qmd).
 :::
 
 ::: {#pkg-torchdyn}
@@ -245,14 +245,14 @@ implicit models.
 **[`PyTorch`](https://github.com/pytorch/pytorch){target="_blank"}**
 — The deep-learning framework underpinning DeepXDE, PhysicsNeMo,
 PINA, torchdiffeq. The MNIST MLP in
-[Unit 2 §2.7](../unit_02/unit_02.qmd) is its first appearance.
+[Unit 2 §2.8](../unit_02/unit_02.qmd) is its first appearance.
 :::
 
 ### Classical ML / data / discovery
 
 ::: {#pkg-scikitlearn}
 **[`scikit-learn`](https://github.com/scikit-learn/scikit-learn){target="_blank"}**
-— The Python classical-ML workhorse. Used in
+— The standard Python classical-ML library. Used in
 [Unit 2](../unit_02/unit_02.qmd) for the random-forest, softmax,
 and MLP baselines on MNIST.
 :::
@@ -281,5 +281,5 @@ groups). The Python equivalent of the hand-rolled STLSQ in
 **[`pykan`](https://github.com/KindXiaoming/pykan){target="_blank"}**
 — Reference Kolmogorov-Arnold Network implementation
 (Liu et al. 2024). Used in
-[Unit 2 §2.8](../unit_02/unit_02.qmd) for the KAN demo.
+[Unit 2 §2.9](../unit_02/unit_02.qmd) for the KAN demo.
 :::

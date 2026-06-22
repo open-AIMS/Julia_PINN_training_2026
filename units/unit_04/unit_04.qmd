@@ -345,7 +345,7 @@ end
 ```
 
 Three structural differences from the standard supervised-learning
-loop in [Unit 2 §2.7](../unit_02/unit_02.qmd):
+loop in [Unit 2 §2.8](../unit_02/unit_02.qmd):
 
 1. The **forward pass** is an ODE solve, not a feed-forward
    evaluation. Cost is dominated by the integrator.
@@ -577,7 +577,7 @@ black-box neural ODEs in real applications.
 
 ### Lotka–Volterra inverse variant
 
-Same setup, dynamics from §4.1. Two flavours:
+Same setup, dynamics from §4.1. Two variants:
 
 - **Parameter inverse** — assume the LV form and recover the
   scalars $(\alpha, \beta, \gamma, \delta)$. Cheap.

@@ -17,7 +17,7 @@ it **twice**:
    against a `ModelingToolkit` `PDESystem` and discretised in a
    single line. Concise, scalable, the right tool for the AIMS
    capstone — but harder to debug if you don't know the
-   first-principles version first. This is the sidecar in §5.4.
+   first-principles version first. This is the standalone script in §5.4.
 
 Before the implementations, §5.2 is a focused autodiff deep-dive —
 the forward/reverse/forward-over-forward composition that PINNs
@@ -99,7 +99,7 @@ Part 1 — the zero-residual set is *exactly* the ODE's solution family. Solve $
 
 ## 5.2 Autodiff for PINNs: forward, reverse, and second derivatives
 
-[Unit 2 §2.6](../unit_02/unit_02.qmd#sec-autodiff)
+[Unit 2 §2.7](../unit_02/unit_02.qmd#sec-autodiff)
 introduced forward vs reverse mode at the level of "scalar loss
 gradient over parameters". PINNs need more than that. The residual
 $r_\theta(x, t) = \partial_t u_\theta - \alpha\,\partial_{xx} u_\theta$
@@ -132,7 +132,7 @@ PyTorch's `torch.autograd.grad` — implements exactly this stack.
 
 ### Forward mode: spatial derivatives of the network
 
-In Julia, `ForwardDiff.derivative` is the workhorse for scalar
+In Julia, `ForwardDiff.derivative` is the standard tool for scalar
 inputs:
 
 ```{.julia}
@@ -196,7 +196,7 @@ r(x, t)  = ∂t(x, t) - α * ∂xx(x, t)
 ```
 
 In JAX the analogous pattern — `jax.hessian` is `jacfwd ∘ jacrev`
-under the hood, exactly the right composition:
+internally, exactly the right composition:
 
 ```{.python}
 import jax
@@ -465,10 +465,10 @@ adapter in the SciML stack. What you pay: heavier precompile and a
 that ends up training the network.
 
 ::: {#ex-5-4 .callout-note .section-exercise icon="false" collapse="true"}
-## ✏️ Section exercise — change the equation, not the plumbing
+## ✏️ Section exercise — change the equation, not the code
 
 The declarative payoff of `NeuralPDE.jl` is that a different ODE is
-a one-line edit. Swap the equation in the sidecar script for the
+a one-line edit. Swap the equation in the standalone script for the
 **logistic equation** $\dot x = x(1 - x)$ with $x(0) = 0.1$ on
 $t \in [0, 8]$ (exact solution
 $x(t) = 1 / (1 + 9e^{-t})$), re-discretise, and re-solve. Compare
@@ -482,7 +482,7 @@ well at the plateau?).
 💡 Hint
 
 ::: {.exercise-hint-text}
-Only three lines of the sidecar change — the symbolic layer regenerates the residual, loss, and gradient downstream: `eq = Dₜ(x(t)) ~ x(t)*(1 - x(t))`, `bcs = [x(0.0) ~ 0.1]`, and `domains = [t ∈ ClosedInterval(0.0, 8.0)]`. Grade against the logistic curve $1/(1+9e^{-t})$. For the 'reconsider' question: the sigmoid does all its work near the transition $t=\ln 9 \approx 2.2$ and is glued to the plateau for $t \gtrsim 5$, so a uniform `GridTraining` spends half its points where nothing happens — the principle §5.1's adaptive sampling addresses.
+Only three lines of the standalone script change — the symbolic layer regenerates the residual, loss, and gradient downstream: `eq = Dₜ(x(t)) ~ x(t)*(1 - x(t))`, `bcs = [x(0.0) ~ 0.1]`, and `domains = [t ∈ ClosedInterval(0.0, 8.0)]`. Grade against the logistic curve $1/(1+9e^{-t})$. For the 'reconsider' question: the sigmoid does all its work near the transition $t=\ln 9 \approx 2.2$ and is glued to the plateau for $t \gtrsim 5$, so a uniform `GridTraining` spends half its points where nothing happens — the principle §5.1's adaptive sampling addresses.
 :::
 :::
 

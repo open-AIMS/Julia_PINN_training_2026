@@ -253,7 +253,7 @@ concretely visible before we discuss fixes.
 A 1-D reduction of the linearised SWE
 ($\eta_t + H u_x = 0,\;u_t + g\eta_x = 0$ on $[0, 2]\times[0,
 0.05]$) trains in seconds and exhibits all three failure modes
-above. The same example in 2-D has the same flavour, just
+above. The same example in 2-D has the same form, just
 slower:
 
 ![What naïve PINN training on the 1-D linearised SWE looks like. **Left:** at the half-time snapshot, the FD reference shows two counter-propagating Gaussian bumps; the naïve PINN (red dashed) over-smooths into a single broad lump and drifts at the right boundary (BC misfit). **Right:** the residual-vs-time histogram doesn't decrease — late-time bins are *larger* than early-time ones, the textbook signature of causality violation. **Bottom:** the three failure modes diagnosed by §7.2 and the modern fixes from §7.3 that each one motivates.](figures/naive_swe_failure.svg){#fig-naive-swe width=92%}
@@ -672,7 +672,7 @@ worth flagging.
   comparison ("naïve PINN fits the gauges but misses the source
   amplitude") is exactly this story.
 - **Discontinuous unknowns** (step changes, shocks). Smooth-MLP
-  PINNs round them off. KANs ([Unit 2 §2.8](../unit_02/unit_02.qmd))
+  PINNs round them off. KANs ([Unit 2 §2.9](../unit_02/unit_02.qmd))
   or spectral basis ansätze are alternatives worth trying.
 - **Very noisy data.** Without a noise model in the loss, PINNs
   overfit observation noise. Adding a Gaussian-likelihood
@@ -680,7 +680,7 @@ worth flagging.
 
 ### A practical recipe
 
-For inverse problems of Workflow 2 or 3 flavour:
+For inverse problems of Workflow 2 or 3 type:
 
 1. **Start with the classical solution if you have one.** Adjoint
    inversion or Tikhonov-regularised LSQ — these are battle-tested
@@ -763,7 +763,7 @@ PINN workflow touches:
 | [`SciMLSensitivity.jl`](https://docs.sciml.ai/SciMLSensitivity/stable/){target="_blank"} | Forward / adjoint backends (`InterpolatingAdjoint`, `BacksolveAdjoint`, `EnzymeVJP`) for gradients through ODE/PDE solves. |
 | [`Zygote.jl`](https://github.com/FluxML/Zygote.jl){target="_blank"} / [`ForwardDiff.jl`](https://github.com/JuliaDiff/ForwardDiff.jl){target="_blank"} / [`Enzyme.jl`](https://github.com/EnzymeAD/Enzyme.jl){target="_blank"} | Reverse-mode, dual-number forward, and LLVM-level AD. Compose as Unit 5 §5.2 describes; Enzyme is increasingly the default in 2025–26. |
 | [`NeuralOperators.jl`](https://github.com/SciML/NeuralOperators.jl){target="_blank"} | DeepONet, FNO, Markov NO, NOMAD — pairs with `NeuralPDE` for PINO-style losses. |
-| [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"} | Lux-compatible KAN layers (see [Unit 2 §2.8](../unit_02/unit_02.qmd)). |
+| [`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"} | Lux-compatible KAN layers (see [Unit 2 §2.9](../unit_02/unit_02.qmd)). |
 
 A consolidation note worth knowing: the older Flux-based stack
 (`DiffEqFlux`, `FluxNeuralOperators`) is being superseded by the
@@ -1132,7 +1132,7 @@ no deployed product yet).
 PhysicsNeMo (formerly Modulus / SimNet) is the only ecosystem
 with a meaningful corpus of named, multi-year industrial
 deployments. The case studies on the NVIDIA developer page that
-*specifically* use a PINN flavour rather than a generic neural
+*specifically* use a PINN variant rather than a generic neural
 operator:
 
 - **Siemens Energy** — *field-trial*. PINN for static heat

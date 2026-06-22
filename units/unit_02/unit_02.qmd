@@ -9,15 +9,14 @@ date-format: "DD/MM/YYYY"
 A walk from supervised learning and random forests through to neural
 networks, optimisation, and the autodiff stack that PINNs sit on.
 This unit follows the framing of *Mathematical Engineering of Deep
-Learning* (Nazarathy & Klok), chapters 2–5, with code in Julia
-(`MLJ.jl` for classical ML, `Lux.jl` for deep networks) and a
-`scikit-learn` / `PyTorch` cameo so the cross-ecosystem story stays
-alive.
+Learning* (Liquet, Moka & Nazarathy), chapters 2–6, with code in Julia
+(`DecisionTree.jl` for classical ML, `Lux.jl` for deep networks) and a
+`scikit-learn` / `PyTorch` comparison so the cross-ecosystem story
+stays in view.
 
 A single unit can't cover everything — the goal here is *shared
 vocabulary* and a feel for which classical ideas survive the journey
-to PINNs. Deep-network theory and the modern PINN toolkit get their
-own treatment in [Unit 7](../unit_07/unit_07.qmd).
+to PINNs.
 
 ## 2.1 Supervised learning fundamentals
 
@@ -36,7 +35,7 @@ training set.
 A **loss** $\ell(\hat y, y)$ measures how bad a single prediction
 is. The **true risk** is the population mean
 
-$$R(f) = \mathbb{E}_{(x, y)\sim p}[\ell(f(x), y)].$$
+$$R(f) = \mathbb{E}_{(x, y)}[\ell(f(x), y)].$$
 
 We can't compute it, so we minimise the **empirical risk**
 
@@ -67,7 +66,7 @@ $U$-shaped: too simple under-fits (high bias), too complex over-fits
 (high variance). The minimum of the test-error curve marks the
 "right" complexity for that dataset size.
 
-![Test (orange) and training (blue) error vs. model complexity. The classical bias–variance trade-off: complexity beyond the right-hand side of the dotted line buys lower training error at the cost of higher test error. (Figure from *MEDL*, §2.7.)](figures/figure2-9-error_modelcomplexity.svg)
+![Test (red) and training (green) error vs. model complexity. The classical bias–variance trade-off: complexity beyond the right-hand side of the dotted line buys lower training error at the cost of higher test error. (Figure from *MEDL*, §2.7.)](figures/figure2-9-error_modelcomplexity.svg)
 
 For PINNs the same picture applies: the function class is set by the
 network architecture, "complexity" is roughly the parameter count,
@@ -99,7 +98,7 @@ Design matrix: `vander(x, d) = hcat((x .^ p for p in 0:d)...)`; fit each degree 
 :::
 :::
 
-## 2.2 Random forests on MNIST: a cross-language cameo
+## 2.2 Random forests on MNIST: a cross-language comparison
 
 Before deep learning takes over, one quick stop on the
 non-deep-learning side of the world — and a first look at MNIST,
@@ -143,7 +142,7 @@ we're about to do.
 Before training anything, it's worth *looking* at the data. Each MNIST sample is
 a $28 \times 28$ grayscale image; flattened to a length-784 vector of pixel
 intensities, that raw vector is all every model in this unit — forest, softmax,
-MLP — ever sees (only the convolutional network in §2.7 keeps the 2-D grid). Load
+MLP — ever sees (only the convolutional network in §2.8 keeps the 2-D grid). Load
 the training split and show the first 40 digits with their labels:
 
 ```{.julia}
@@ -177,9 +176,13 @@ shared PINN stack, so `using NeuralPDE` stays fast. Why this is a separate step:
 
 A 100-tree forest on flattened MNIST takes a couple of minutes to
 fit and lands around **97% test accuracy** — a strong baseline that
-took deep learning a decade to convincingly beat. The workshop's
-`DecisionTree.jl` (already in the workshop `Project.toml`) plus
-`MLDatasets.jl` for the MNIST loader:
+took deep learning a decade to convincingly beat. We call
+`DecisionTree.jl` (already in the workshop `Project.toml`) directly,
+with `MLDatasets.jl` for the MNIST loader. For broader classical-ML
+work, Julia's umbrella framework is
+[`MLJ.jl`](https://github.com/JuliaAI/MLJ.jl){target="_blank"} — a
+unified, `scikit-learn`-style interface over dozens of models — but we
+use `DecisionTree.jl` on its own here to keep the dependencies light:
 
 ```{.julia filename="units/unit_02/scripts/mnist_rf_julia.jl"}
 using MLDatasets, DecisionTree, Statistics
@@ -416,7 +419,7 @@ print(f"MNIST test accuracy (softmax regression): {acc:.4f}")
 Available as
 [`scripts/mnist_linear_sklearn.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_02/scripts/mnist_linear_sklearn.py){target="_blank"}.
 Runtime: ~30 s on a laptop CPU. Notice that `scikit-learn` itself
-uses **L-BFGS** under the hood for this convex problem — the same
+uses **L-BFGS** internally for this convex problem — the same
 optimiser we'll use for the fine-tuning stage of every PINN in
 [Units 5–7](../unit_05/unit_05.qmd). Convex losses are why L-BFGS
 converges so cleanly here; in deeper networks the loss surface
@@ -510,7 +513,7 @@ every smooth activation is a variation on that same S-curve.
 Fit a one-hidden-layer `Lux` MLP to
 $f(x) = \sin(4\pi x) \cdot e^{-x}$ on $[0, 1]$ at widths
 $5, 20, 100$, and plot the three fits over the target. Then — the
-PINN-relevant part — take the width-20 network in two flavours,
+PINN-relevant part — take the width-20 network in two versions,
 `tanh` and `relu`, and use nested `ForwardDiff.derivative` to plot
 the *second* derivative $f_\theta''(x)$ of each. The `tanh` network
 gives a smooth curve; what does the ReLU network give, and why does
@@ -520,7 +523,7 @@ that disqualify it from any diffusion-type PDE residual?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Build each net as `Lux.Chain(Lux.Dense(1 => w, act), Lux.Dense(w => 1))` with `act = tanh` or `relu`, and train it with the same `Zygote.gradient` + `Optimisers.Adam(1f-2)` loop used in §2.3. For the second derivative, reuse the nested-`ForwardDiff.derivative` pattern from §2.6: wrap the trained net in a scalar closure `u(x) = first(model([x], ps, st))[1]`, then `f2(x) = ForwardDiff.derivative(ξ -> ForwardDiff.derivative(u, ξ), x)`. The tanh `f2` is smooth; the ReLU one is identically zero (a piecewise-linear net), so a `u_xx` residual built on ReLU silently solves the wrong equation.
+Build each net as `Lux.Chain(Lux.Dense(1 => w, act), Lux.Dense(w => 1))` with `act = tanh` or `relu`, and train it with the same `Zygote.gradient` + `Optimisers.Adam(1f-2)` loop used in §2.3. For the second derivative, reuse the nested-`ForwardDiff.derivative` pattern from §2.7: wrap the trained net in a scalar closure `u(x) = first(model([x], ps, st))[1]`, then `f2(x) = ForwardDiff.derivative(ξ -> ForwardDiff.derivative(u, ξ), x)`. The tanh `f2` is smooth; the ReLU one is identically zero (a piecewise-linear net), so a `u_xx` residual built on ReLU silently solves the wrong equation.
 :::
 :::
 
@@ -529,7 +532,167 @@ Build each net as `Lux.Chain(Lux.Dense(1 => w, act), Lux.Dense(w => 1))` with `a
 :::
 :::
 
-## 2.5 Optimisation {#sec-optimisation}
+## 2.5 On using Lux.jl {#sec-lux}
+
+Every neural network in this workshop — and every PINN from
+[Unit 5](../unit_05/unit_05.qmd) on — is built with
+[`Lux.jl`](https://lux.csail.mit.edu){target="_blank"}. The previous
+sections already used it in passing; this section is a short, standalone
+tour of the handful of functions you actually need, with the
+[Lux documentation](https://lux.csail.mit.edu){target="_blank"} worth
+keeping open alongside.
+
+### The core idea: parameters live outside the model
+
+A `Lux` model is an **immutable description** of an architecture — it holds
+*no* weights. The parameters (`ps`) and any auxiliary state (`st`, e.g. a
+`BatchNorm` running average) live in **separate** objects you create once and
+then thread through every call by hand:
+
+```{.julia}
+using Lux, Random
+
+model = Lux.Chain(
+    Lux.Dense(784 => 128, tanh),   # affine 784→128, then tanh
+    Lux.Dense(128 => 10),          # affine 128→10 (logits)
+)
+
+rng    = Random.MersenneTwister(0)
+ps, st = Lux.setup(rng, model)     # ps = parameters, st = state
+```
+
+`Lux.setup` initialises the parameters (Glorot by default) and returns the
+pair. From here on `model`, `ps`, and `st` are three separate things you
+carry together. This is the single most important Lux convention, and the
+reason the SciML / PINN stack is built on it: a loss can be differentiated
+cleanly with respect to `ps` because `ps` is just a `NamedTuple` of arrays,
+not hidden inside the model.
+
+### Specifying a network
+
+The two main building blocks:
+
+- **`Lux.Dense(in => out, activation)`** — a fully-connected layer
+  $x \mapsto \sigma(Wx + b)$. Omit the activation for a plain affine map.
+- **`Lux.Chain(layer1, layer2, …)`** — compose layers front to back.
+
+That covers every MLP in this unit. Other layers slot in the same way —
+`Lux.Conv`, `Lux.MaxPool` (the LeNet CNN of §2.8), `Lux.BatchNorm`,
+`Lux.Dropout`, or `Lux.WrappedFunction(f)` to drop an arbitrary function into
+a chain.
+
+### Inference: calling the model
+
+A `Lux` model is called as a **pure function** `model(x, ps, st)` and returns
+a tuple `(output, new_state)`:
+
+```{.julia}
+x = randn(Float32, 784, 32)         # a batch of 32 inputs (columns)
+ŷ, st = model(x, ps, st)            # ŷ is 10×32; st unchanged here (Dense is stateless)
+```
+
+Inputs are **column-major**: features down the rows, batch across the
+columns, so a `784 => 128` layer expects a `784 × batch` matrix. For layers
+whose behaviour differs between training and inference (`Dropout`,
+`BatchNorm`) switch to evaluation behaviour with `Lux.testmode(st)` before
+predicting.
+
+### Activations and one-hot encoding
+
+Activations are ordinary functions — pass them by name to a layer. Lux
+re-exports the common ones from
+[`NNlib.jl`](https://github.com/FluxML/NNlib.jl){target="_blank"}: `relu`,
+`tanh`, `sigmoid`, `swish`, `gelu`, `softplus`, … plus `softmax` for the
+output. This is exactly the §2.4 menu; for PINNs the default is `tanh` or
+`swish`.
+
+```{.julia}
+Lux.Dense(128 => 10, relu)          # ReLU layer
+Lux.Dense(128 => 10, swish)         # Swish — the PINN default
+```
+
+For classification you want integer labels as **one-hot columns**.
+Hand-rolling it is a one-liner (as in §2.3), but the ecosystem helper is
+`onehotbatch` from
+[`OneHotArrays.jl`](https://github.com/FluxML/OneHotArrays.jl){target="_blank"}:
+
+```{.julia}
+using OneHotArrays
+Y     = onehotbatch(y_train, 0:9)   # 10 × N one-hot matrix
+preds = onecold(ŷ, 0:9)             # argmax back to labels 0–9
+```
+
+### Training: the standard loop
+
+Training is the §2.3 skeleton — and it is the *same* skeleton every PINN
+uses. Take gradients of a scalar loss with respect to `ps` (reverse-mode AD,
+§2.7), then step an optimiser:
+
+```{.julia}
+using Zygote, Optimisers
+
+function loss_fn(ps)
+    ŷ, _ = model(X, ps, st)
+    mean(abs2, ŷ .- Y)              # any scalar loss
+end
+
+opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)   # Adam: see §2.6
+for step in 1:1000
+    g = first(Zygote.gradient(loss_fn, ps))               # ∂loss/∂ps, a NamedTuple
+    opt_state, ps = Optimisers.update(opt_state, ps, g)   # functional update
+end
+```
+
+Two things to notice. `Optimisers.update` **returns** a new
+`(opt_state, ps)` rather than mutating in place — you rebind them each step.
+And the optimiser itself (`Adam`, `Descent`, and the L-BFGS that finishes
+every PINN) is the subject of §2.6; here just treat `Adam(1f-2)` as a
+sensible default.
+
+### Inspecting a trained model
+
+`ps` is a plain `NamedTuple`, so the trained weights are right there to read:
+
+```{.julia}
+Lux.parameterlength(model)    # total trainable parameter count
+Lux.statelength(model)        # size of the state st
+ps.layer_1.weight             # the 128×784 weight matrix of the first Dense
+ps.layer_1.bias               # its bias vector
+```
+
+`Lux.parameterlength` is what §2.8's exercise uses to compare model sizes;
+and because `ps` is just nested arrays you can save it, move it to the GPU
+(`ps |> gpu_device()`, §2.8), or hand it to `NeuralPDE.jl` unchanged.
+
+### Why this design — Lux vs Flux, and the other frameworks
+
+Julia's older deep-learning library,
+[`Flux.jl`](https://fluxml.ai){target="_blank"}, stores parameters *inside*
+the layer objects (a `Dense` carries its own `W` and `b`), so a model is a
+mutable, stateful thing. `Lux.jl` deliberately splits them apart: the model
+is an immutable, **explicit-parameter** function `f(x, ps, st)`. That
+functional style is what makes Lux the right substrate for SciML and PINNs —
+when the loss contains derivatives of the network itself (§2.7), the autodiff
+and the PDE machinery need the parameters as an explicit, immutable argument
+they can differentiate and reshape, not as hidden state. It also keeps GPU
+movement and reproducibility (`rng` in, `ps` out) clean.
+
+For orientation across ecosystems:
+
+- **PyTorch** — like Flux: parameters live on the `nn.Module`, you call
+  `model(x)`, and the weights are implicit. Define-by-run, imperative.
+- **TensorFlow / Keras** — Keras is the high-level layer API; classic
+  TensorFlow built a static computation graph first and ran it afterwards.
+  Mostly implicit-parameter, like PyTorch.
+- **JAX / Flax** — functional and **explicit-parameter**, the same
+  philosophy as Lux: pure functions with parameters passed in. If you know
+  Flax, Lux will feel familiar.
+
+The payoff of the Lux convention is uniformity: the `model(x, ps, st)` /
+`Zygote.gradient` / `Optimisers.update` loop above is *byte-for-byte* the
+shape of every training run in this course, plain classifier or PINN alike.
+
+## 2.6 Optimisation {#sec-optimisation}
 
 Training a neural network — or fitting a PINN — comes down to
 **minimising a scalar loss over a large parameter vector $\theta
@@ -539,7 +702,7 @@ gradient descent and its geometry, the stochastic / mini-batch
 variants, momentum and Adam, and the quasi-Newton method (L-BFGS)
 that often finishes the job. *How* the gradient itself is computed —
 automatic differentiation — is the next section
-([§2.6](#sec-autodiff)).
+([§2.7](#sec-autodiff)).
 Most of this material is treated at greater depth in
 [*Mathematical Engineering of Deep Learning*, Chapter 4 (*Optimization Algorithms*)](../references/references.qmd#ref-liquet2024){target="_blank"},
 our primary reference throughout this unit — with the classic,
@@ -712,7 +875,7 @@ after Adam has done the rough work. The recipe across
 > a few hundred iterations (drive the residual to convergence with
 > exact gradients).
 
-::: {#ex-2-5 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — race the optimisers down a ravine
 
 Implement gradient descent, momentum ($\mu = 0.9$), and Adam *by
@@ -728,18 +891,18 @@ where does Adam's per-parameter scaling visibly help?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Rosenbrock gradient (the part that's easy to get wrong): `∇f(x, y) = [-2(1 - x) - 400x*(y - x^2), 200*(y - x^2)]`. Keep each optimiser under ten lines by mutating the iterate in place with state in a NamedTuple — GD is `x .-= η .* g`; momentum is `v .= μ .* v .+ g; x .-= η .* v`; Adam is the bias-corrected `m`/`v` pair from §2.5 as `x .-= η .* m̂ ./ (sqrt.(v̂) .+ 1e-8)`. The real work is fair tuning: push each `η` up until it just diverges, then back off (GD lands near `1e-3`, Adam near `2e-2`, `μ = 0.9`). Plot `log10 ∘ f` for the contours or the colour scale saturates, then map what you see onto the three §2.5 failure modes.
+Rosenbrock gradient (the part that's easy to get wrong): `∇f(x, y) = [-2(1 - x) - 400x*(y - x^2), 200*(y - x^2)]`. Keep each optimiser under ten lines by mutating the iterate in place with state in a NamedTuple — GD is `x .-= η .* g`; momentum is `v .= μ .* v .+ g; x .-= η .* v`; Adam is the bias-corrected `m`/`v` pair from §2.6 as `x .-= η .* m̂ ./ (sqrt.(v̂) .+ 1e-8)`. The real work is fair tuning: push each `η` up until it just diverges, then back off (GD lands near `1e-3`, Adam near `2e-2`, `μ = 0.9`). Plot `log10 ∘ f` for the contours or the colour scale saturates, then map what you see onto the three §2.6 failure modes.
 :::
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-5)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-6)
 :::
 :::
 
-## 2.6 Automatic differentiation {#sec-autodiff}
+## 2.7 Automatic differentiation {#sec-autodiff}
 
-Every optimiser in §2.5 needs the gradient $\nabla_\theta \mathcal{L}$, and so
+Every optimiser in §2.6 needs the gradient $\nabla_\theta \mathcal{L}$, and so
 far we have taken it "for free." This section is *how* you get it — and it
 matters more for PINNs than for ordinary deep learning, because a PINN
 differentiates its own network *inside* the loss.
@@ -874,7 +1037,7 @@ modes compose. Picking and nesting these backends correctly is a large part of
 what the SciML stack does so that the residual you write in maths comes out
 differentiated correctly *and* fast.
 
-::: {#ex-2-6 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — differentiate a network's output, then its loss
 
 No training — just the autodiff. **(a)** For $u(x) = e^{\sin x}$, compute
@@ -898,11 +1061,11 @@ The second derivative is `ForwardDiff.derivative(t -> ForwardDiff.derivative(u, 
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-6)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-7)
 :::
 :::
 
-## 2.7 Training a model in practice
+## 2.8 Training a model in practice
 
 The previous sections set up everything we need — a function class
 (MLP), an autodiff engine, an optimiser, and a dataset (MNIST) with
@@ -935,7 +1098,7 @@ have to *learn* them — so it needs far fewer parameters and generalises
 better. Hold onto this idea, because it is exactly how **PINNs** work too:
 there the inductive bias is the *PDE itself*, wired into the loss, telling
 the network what physics the solution must satisfy
-(§2.9, [Unit 5](../unit_05/unit_05.qmd)). A CNN biases the model toward
+(§2.10, [Unit 5](../unit_05/unit_05.qmd)). A CNN biases the model toward
 image structure; a PINN biases it toward physics — same principle, with
 the prior coming from a law of nature instead of an architecture.
 Convolutional networks are the subject of
@@ -1111,7 +1274,7 @@ step. The Julia version makes the parameter state explicit;
 PyTorch and `scikit-learn` hide it. The only meaningful differences
 are surface-level. Pick by ecosystem.
 
-::: {#ex-2-7 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-8 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — parameters, accuracy, and a two-phase finetune
 
 The unit has now climbed the whole MNIST ladder: random forest (~97%),
@@ -1139,11 +1302,11 @@ the LeNet CNN above (~98.8%). Two questions about that ladder:
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-7)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-8)
 :::
 :::
 
-## 2.8 Kolmogorov-Arnold networks (KANs)
+## 2.9 Kolmogorov-Arnold networks (KANs)
 
 A recent alternative to the MLP that's been picking up traction in
 the PINN community: **Kolmogorov-Arnold networks**
@@ -1293,7 +1456,7 @@ We won't return to KANs in the worked examples — Units 5–9 stick
 with MLP-PINNs — but they belong in the working vocabulary of any
 practitioner reading the 2024–26 PINN literature.
 
-::: {#ex-2-8 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-9 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — KAN vs MLP on a sharp feature
 
 Sharp features are where KANs claim an edge. Fit both a 2-layer
@@ -1314,11 +1477,11 @@ what happens to the MLP if you give it 10× the training iterations?
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-8)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-9)
 :::
 :::
 
-## 2.9 What carries over to PINNs
+## 2.10 What carries over to PINNs
 
 Three ideas from this unit survive the journey to physics-informed
 networks:
@@ -1338,7 +1501,7 @@ function-approximation idea into a SciML landscape, and
 [Unit 4](../unit_04/unit_04.qmd) introduces the ODE side that PINNs
 will meet head-on in [Unit 5](../unit_05/unit_05.qmd).
 
-::: {#ex-2-9 .callout-note .section-exercise icon="false" collapse="true"}
+::: {#ex-2-10 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — translate the vocabulary
 
 A quick dictionary drill before moving on. For each supervised-learning
@@ -1357,6 +1520,6 @@ For each concept, ask: what supplies the supervision signal in a PINN (the equat
 :::
 
 ::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-9)
+[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-2-10)
 :::
 :::
