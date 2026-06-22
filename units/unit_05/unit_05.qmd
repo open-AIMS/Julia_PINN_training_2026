@@ -453,7 +453,7 @@ optimiser can solve. The same $\dot{x} = -x$ problem becomes:
 {{< include scripts/pinn_neuralpde_ode.jl >}}
 ```
 
-Captured output from `./build.sh execute 5`:
+Running it produces:
 
 {{< include output/pinn_neuralpde_ode.md >}}
 
@@ -506,7 +506,7 @@ extra spatial coordinate and one extra BC pair:
 {{< include scripts/pinn_neuralpde_heat.jl >}}
 ```
 
-Captured output from `./build.sh execute 5`:
+Running it produces:
 
 {{< include output/pinn_neuralpde_heat.md >}}
 

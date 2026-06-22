@@ -781,6 +781,6 @@ cheap. Run with `./build.sh execute 10`; outputs land in
 {{< include scripts/column_fd.jl >}}
 ```
 
-Captured stdout from `./build.sh execute 10`:
+Running it produces:
 
 {{< include output/column_fd.md >}}

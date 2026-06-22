@@ -465,7 +465,12 @@ Classify by bottleneck: is the problem *cost per query* (→ surrogate), an *unk
 A **Hamiltonian Neural Network (HNN)** ([Greydanus et al., 2019](../references/references.qmd#ref-greydanus2019){target="_blank"})
 parametrises the Hamiltonian $H_\theta(q, p)$ of a mechanical system
 with a neural network, then derives the dynamics via Hamilton's
-equations *with autodiff*:
+equations *with autodiff*. Here $q$ is the **generalised position**
+(an angle, a displacement) and $p$ is the **generalised (conjugate)
+momentum**; together they are the system's *canonical coordinates*,
+and the scalar $H(q, p)$ is its total energy. For the pendulum below,
+$q$ is the angle from vertical and $p$ is the angular momentum. The
+dynamics follow from
 
 $$\dot{q} \;=\; \frac{\partial H_\theta}{\partial p}, \qquad
 \dot{p} \;=\; -\,\frac{\partial H_\theta}{\partial q}.$$
@@ -514,7 +519,7 @@ put to work: a derivative of the network *inside* the training loss.
 {{< include scripts/hnn_pendulum.jl >}}
 ```
 
-Captured with `./build.sh execute 3`:
+Running it produces:
 
 {{< include output/hnn_pendulum.md >}}
 
@@ -638,7 +643,7 @@ coefficients, re-fit on the surviving terms, repeat.
 {{< include scripts/sindy_lorenz.jl >}}
 ```
 
-Captured output from `./build.sh execute 3`:
+Running it produces:
 
 {{< include output/sindy_lorenz.md >}}
 
