@@ -260,6 +260,82 @@ recovering $\zeta$ from a noisy trajectory is the simplest possible
 "physics parameter from data" problem and a useful sanity check
 before attempting the AIMS capstone in [Units 8–10](../unit_08/unit_08.qmd).
 
+### Peek inside the solver: the Euler scheme
+
+Every example so far handed the dynamics to `solve` and trusted the black box.
+The damped oscillator is a good place to open it up with the simplest integrator,
+**forward Euler** — partly because the very same one-line update is what links
+Neural ODEs to ResNets in [Unit 4 §4.2](../unit_04/unit_04.qmd).
+
+First, write the second-order equation as a **first-order system** in the two
+coordinates $\mathbf{u} = (x, v)$ with $v = \dot x$ — exactly the trick the
+harmonic oscillator used above, now with the damping term carried into the matrix:
+
+$$
+\ddot x + 2\zeta\omega\,\dot x + \omega^2 x = 0
+\quad\Longleftrightarrow\quad
+\frac{d}{dt}\begin{pmatrix} x \\ v \end{pmatrix}
+= \begin{pmatrix} v \\ -\omega^2 x - 2\zeta\omega\, v \end{pmatrix}
+= \underbrace{\begin{pmatrix} 0 & 1 \\ -\omega^2 & -2\zeta\omega \end{pmatrix}}_{A}
+  \begin{pmatrix} x \\ v \end{pmatrix}.
+$$
+
+With the system in the form $\dot{\mathbf{u}} = f(\mathbf{u})$, **forward Euler**
+just replaces the derivative by its forward finite difference
+([§2.7](../unit_02/unit_02.qmd#sec-autodiff)) and rearranges — march from
+$\mathbf{u}_n \approx \mathbf{u}(t_n)$ to the next sample by a single nudge along
+the vector field:
+
+$$
+\mathbf{u}_{n+1} \;=\; \mathbf{u}_n \;+\; \Delta t\, f(\mathbf{u}_n),
+\qquad t_n = n\,\Delta t.
+$$
+
+That is the whole method: *take the current state, add a small step in the
+direction the field points.* (Hold onto this line — a **ResNet layer** is exactly
+one Euler step of a *learned* field $f_\theta$, which is the bridge to Neural ODEs
+in [Unit 4 §4.2](../unit_04/unit_04.qmd).) Coded by hand and raced against `Tsit5`:
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+ω, ζ = 2π, 0.3
+f(u) = [u[2], -ω^2 * u[1] - 2ζ * ω * u[2]]        # the first-order system, u = (x, v)
+
+# forward Euler, by hand:  uₙ₊₁ = uₙ + Δt · f(uₙ)
+function euler(f, u0, dt, T)
+    us = [u0]
+    for _ in 1:round(Int, T / dt)
+        push!(us, us[end] .+ dt .* f(us[end]))
+    end
+    reduce(hcat, us)
+end
+
+T, u0 = 3.0, [1.0, 0.0]
+ref = solve(ODEProblem((u, p, t) -> f(u), u0, (0.0, T)), Tsit5(); saveat = 0.01)
+
+plt = plot(ref.t, [u[1] for u in ref.u]; label = "Tsit5 (reference)", lw = 3, c = :black,
+           xlabel = "t", ylabel = "x(t)", legend = :topright,
+           title = "Forward Euler vs a real solver (ζ = 0.3)")
+for dt in (0.1, 0.04, 0.01)
+    U = euler(f, u0, dt, T)
+    plot!(plt, range(0, T; length = size(U, 2)), U[1, :]; lw = 1.8, label = "Euler Δt = $dt")
+end
+plt
+```
+
+At $\Delta t = 0.1$ the Euler curve already lags and overshoots; halving the step
+twice brings it onto the reference. A real solver like `Tsit5` buys that accuracy
+with a far better per-step rule *and* automatic step-size control, so you rarely
+set $\Delta t$ by hand.
+
+**Try it.** Rerun the loop at $\Delta t = 0.2$ and watch the amplitude *grow*
+instead of decay: forward Euler injects a little spurious energy each step, so on
+an oscillator a too-coarse step is not merely inaccurate but **unstable** — the
+trajectory blows up. Then shrink $\Delta t$ until the Euler curve sits on the
+`Tsit5` reference, and compare the step counts: that is the price of the simplest
+possible integrator.
+
 ### Nonlinearity: predator and prey
 
 Everything so far has been **linear** — $f(\mathbf{x}) = A\mathbf{x}$, solvable in
