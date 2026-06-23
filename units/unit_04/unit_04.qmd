@@ -461,6 +461,45 @@ literature is honest about not knowing the right functional form**
 flags it as the dominant source of structural uncertainty), and
 it's the natural place to put a learnable closure.
 
+Pin that mortality at a constant value for a moment and the known skeleton
+already produces the signature COTS **boom–bust** — run it forward:
+
+```{julia}
+using OrdinaryDiffEq, Plots
+
+r_C, K = 0.30, 80.0      # coral growth (1/yr), carrying capacity (% cover)
+a, h   = 0.005, 0.10     # COTS attack rate, handling time
+e      = 0.40            # conversion efficiency
+m      = 0.06            # placeholder mortality — the term the UDE will learn
+
+function cots_coral!(du, u, p, t)
+    C, S = u                                  # coral cover (%), COTS density (per ha)
+    graze = a * S * C / (1 + a * h * C)
+    du[1] = r_C * C * (1 - C / K) - graze      # coral:  logistic growth − grazing
+    du[2] = e * graze - m * S                  # COTS:   grazing gain − mortality
+end
+
+sol = solve(ODEProblem(cots_coral!, [60.0, 2.0], (0.0, 200.0)), Tsit5(); saveat = 0.5)
+t = sol.t;  C = [u[1] for u in sol.u];  S = [u[2] for u in sol.u]
+
+p1 = plot(t, C; lw = 2.4, c = :seagreen, label = "coral cover C (%)",
+          xlabel = "time (years)", ylabel = "% cover  /  COTS per ha",
+          title = "COTS–coral skeleton (constant mortality)", legend = :right,
+          framestyle = :box)
+plot!(p1, t, S; lw = 2.4, c = :firebrick, label = "COTS density S (per ha)")
+hline!(p1, [30]; ls = :dash, c = :gray, label = "outbreak threshold")
+p2 = plot(C, S; lw = 2, c = :purple, xlabel = "coral C (%)", ylabel = "COTS S (per ha)",
+          title = "phase portrait", legend = false, framestyle = :box)
+plot(p1, p2; layout = (1, 2), size = (1040, 380),
+     bottom_margin = 5Plots.mm, left_margin = 5Plots.mm)
+```
+
+Even this crude constant-mortality skeleton reproduces the **outbreak-and-crash**:
+COTS irrupt past the 30/ha threshold, coral collapses from ~75% to ~30%, then the
+system spirals to a low-coral coexistence. What it *can't* capture is why real
+outbreaks **recur** and vary in size — that is set by the density- and
+temperature-dependent mortality, the one term the UDE replaces with $N_\theta$.
+
 #### Learned closure: COTS mortality as a small MLP
 
 Replace the unknown mortality with a small network of the state
