@@ -834,6 +834,17 @@ Chapter 8 as the standard alternative. The goal here is a working
 understanding sufficient to read PINN training code and know which
 knob to turn when it doesn't converge.
 
+How hard this minimisation is depends entirely on the *shape* of the
+loss surface, and that shape is something we partly choose. The two
+panels below are the **same** logistic-regression model on the **same**
+data, differing only in the loss function: squared error gives a
+non-convex landscape riddled with flat regions and a saddle, while
+binary cross-entropy gives a smooth convex bowl that gradient descent
+walks straight down. PINN losses live at the hard end of this spectrum
+— a lesson worth keeping in mind for the rest of the unit.
+
+![The loss landscape of logistic regression on a synthetic dataset, as a function of the two parameters $(w, b)$. **(a)** Squared loss $C_i(\theta) = (y^{(i)} - \hat y^{(i)})^2$ — non-convex, with flat plateaus and a saddle. **(b)** Binary cross-entropy $C_i(\theta) = \mathrm{CE}(y^{(i)}, \hat y^{(i)})$ — a single convex basin. Same model, same data; only the loss differs. (Figure 3.4 from *Mathematical Engineering of Deep Learning*.)](figures/figure3-4-logistic_loss_landscape.png)
+
 ### Gradient descent: the geometric core
 
 Given a smooth loss $\mathcal{L}: \mathbb{R}^P \to \mathbb{R}$ and a
@@ -860,6 +871,8 @@ practical learning-rate range for deep networks ($10^{-4}$ to
 $10^{-2}$) is set by this balance — see *MEDL*
 [Chapter 4](../references/references.qmd#ref-liquet2024){target="_blank"} for
 the convergence analysis.
+
+![Gradient descent on the loss contours of a simple linear-regression problem, started from the origin (black dot) and converging to the optimum (green dot). The learning rate $\eta$ ("$\alpha$" in the legend) decides everything: $\eta = 0.01$ and $\eta = 0.0235$ both converge — the larger rate just gets there in fewer steps — but a slightly larger $\eta = 0.024$ overshoots and *diverges* (the iterate runs off through the grey band). The window between "fast" and "broken" can be very narrow. (Figure 2.7 from *Mathematical Engineering of Deep Learning*.)](figures/figure2-7-learning_rate_linear.png)
 
 **Why isn't plain gradient descent enough?** Three failure modes
 that recur throughout deep learning *and* PINN training:
@@ -908,10 +921,14 @@ dominate practice:
 - **Memory.** Full-batch gradients on a million-example dataset
   don't fit on a GPU.
 
+![Gradient descent (red) vs. stochastic gradient descent (blue) on a cost $C(\theta) = \frac1n\sum_i C_i(\theta)$ built from individual terms, both started from $\theta^{(0)}$. **(a)** When the per-term minimisers $u_1, \ldots, u_n$ differ (green dots), SGD follows a noisy path that rattles around inside their convex hull — each step chases one $C_i$, not the average. **(b)** When all terms share the same minimiser, the stochastic gradient *is* the full gradient (up to scale), so SGD tracks GD almost exactly. The noise comes from disagreement between the $C_i$, not from randomness per se. (Figure 4.3 from *Mathematical Engineering of Deep Learning*.)](figures/figure4-3-sgd_vs_gd.png)
+
 PINNs *invert* this picture: their "dataset" is a few thousand
-collocation points, so **full-batch L-BFGS** is feasible and usually
-wins. But every PINN training loop still uses mini-batches for the
-first phase (Adam), so the vocabulary matters.
+collocation points, so **full-batch** methods are feasible — Adam
+typically runs over all points, and **L-BFGS** often finishes the job.
+Mini-batching reappears only when the collocation set is large (e.g.
+high-dimensional domains or data-assimilation terms), so the vocabulary
+is still worth having.
 
 ### Momentum and Adam
 
@@ -932,9 +949,17 @@ agree (the valley floor). For a quadratic loss with condition
 number $\kappa$, momentum reduces the iterations to converge from
 $O(\kappa)$ to $O(\sqrt{\kappa})$ — a square-root speedup.
 
-**Adam** (Kingma & Ba 2015)
-combines momentum with **per-parameter step sizes** based on the
-*magnitude* of recent gradients:
+**Adam** (Kingma & Ba 2015) is best understood as the *fusion of two
+independently-invented ideas*, each useful on its own:
+
+1. **Momentum** (above) — an exponentially-weighted average of the
+   gradient itself, smoothing the *direction* of travel.
+2. **RMSprop** (Hinton, unpublished 2012) — an exponentially-weighted
+   average of the gradient's *squared* magnitude, used to give each
+   parameter its own **per-parameter step size**: directions with
+   large recent gradients are damped, small ones amplified.
+
+Adam runs both averages at once and divides one by the other:
 
 $$
 \begin{aligned}
@@ -946,14 +971,20 @@ v_t &= \beta_2\, v_{t-1} + (1 - \beta_2)\, g_t^2,
 \end{aligned}
 $$
 
-Read as: $\hat{m}_t$ is the (bias-corrected) running average of the
-gradient (the "momentum part"), $\hat{v}_t$ is the running average
-of the *squared* gradient component-wise (the "scale part"), and
-the update divides one by the square root of the other so that each
-parameter gets a step size inversely proportional to how loud its
-historical gradient has been. The bias correction
-($/(1 - \beta_1^t)$, $/(1 - \beta_2^t)$) fixes the initial-transient
-underestimate when $m_0 = v_0 = 0$.
+Read as: $m_t$ is the **momentum part** (running average of the
+gradient), $v_t$ is the **RMSprop part** (running average of the
+*squared* gradient, component-wise), and the update divides one by
+the square root of the other so that each parameter gets a step size
+inversely proportional to how loud its historical gradient has been.
+
+The hats $\hat{m}_t, \hat{v}_t$ are **bias correction**, and they are
+a general fact about exponential smoothing, not an Adam-specific trick.
+Initialising $m_0 = v_0 = 0$ biases an exponentially-weighted average
+toward zero for the first several steps: after $t$ steps the weights
+$(1-\beta)\sum_{k} \beta^{k}$ only sum to $1 - \beta^t$, not $1$.
+Dividing by $1 - \beta_1^t$ and $1 - \beta_2^t$ exactly rescales the
+two averages back to unbiased estimates, and the correction fades away
+($\beta^t \to 0$) once the running averages have warmed up.
 
 Hyperparameter defaults — what *MEDL* [Chapter 4](../references/references.qmd#ref-liquet2024){target="_blank"} recommends and the
 workshop scripts use: $\eta \in [10^{-4}, 10^{-2}]$, $\beta_1 =
@@ -1043,7 +1074,7 @@ Every neural-network loss is the output of a finite computation
 graph — a DAG whose nodes are tensors and whose edges are
 elementary operations.
 
-![A small computational graph. Forward evaluation flows left-to-right; reverse-mode AD (backpropagation) populates gradients right-to-left. (Figure from *MEDL*, §4.4.)](figures/figure4-7-computational_graph.svg)
+![The computational graph for $C(\theta) = \sin(\theta_1 \theta_2) + \exp(\theta_2 + \theta_3) - 2\theta_3$: the inputs $\theta_1, \theta_2, \theta_3$ enter on the left, each node applies one elementary operation, and the output $C(\theta)$ comes out on the right. Forward evaluation flows left-to-right; reverse-mode AD (backpropagation) propagates gradients right-to-left along the same edges. (Figure 4.7 from *Mathematical Engineering of Deep Learning*.)](figures/figure4-7-computational_graph.svg)
 
 **Backpropagation** is exactly reverse-mode automatic
 differentiation applied to that graph: one forward pass evaluates
@@ -1092,6 +1123,68 @@ Zygote.gradient(g, [1.0, 2.0, 3.0])[1]    # [2.0, 4.0, 6.0] — same answer, one
 $\propto n$ and reverse mode $\propto m$. Training a network is "millions of
 parameters in, one scalar loss out" ($n$ huge, $m = 1$), so **reverse mode wins**
 — which is why backprop, and every deep-learning framework, is reverse-mode AD.
+
+### Hands-on: time the two modes yourself {#sec-ad-timing}
+
+Don't take the "$\propto n$ vs. $\propto m$" claim on faith — *measure* it. Take
+the simplest possible scalar-valued function of an $n$-vector and watch the two
+modes scale as $n$ grows. You only need `@elapsed` (built into Julia); the first
+call to each is slow because it compiles, so we time a *second* batch of calls.
+
+```{.julia}
+using ForwardDiff, Zygote
+
+f(v) = sum(sin.(v) .* v.^2)        # R^n → R, one scalar out
+
+for n in (3, 30, 300, 3000)
+    v = collect(range(0.1, 1.0; length = n))
+    ForwardDiff.gradient(f, v); Zygote.gradient(f, v)         # warm up the compiler
+    tf = @elapsed for _ in 1:100; ForwardDiff.gradient(f, v); end
+    tr = @elapsed for _ in 1:100; Zygote.gradient(f, v);     end
+    println("n=$n  forward=$(round(tf/100*1e6; digits=1))µs  reverse=$(round(tr/100*1e6; digits=1))µs")
+end
+```
+
+On a laptop this prints roughly (your absolute numbers will differ; the *trend* is
+the point):
+
+```
+n=3     forward=0.4µs    reverse=0.7µs      # tiny n: forward wins (reverse has setup overhead)
+n=30    forward=3.0µs    reverse=1.0µs      # crossover already passed
+n=300   forward=721µs    reverse=6.3µs      # reverse ~115× faster
+n=3000  forward=21000µs  reverse=98µs       # reverse ~215× faster
+```
+
+Read the two columns: **forward-mode time grows roughly linearly in $n$** (each
+input needs its own pass — one extra "$\dot x$" carried through the computation),
+while **reverse-mode time barely moves** (one backward pass returns *all* $n$
+partials at once). For two or three inputs the linear cost is nothing and forward
+mode is actually *faster*, because reverse mode pays a fixed bookkeeping overhead
+for its tape. Somewhere around $n \approx 10$–$30$ the lines cross, and past that
+reverse mode runs away with it. That single plot is the whole reason training uses
+reverse mode and the inner spatial derivative of a PINN uses forward mode — keep
+reading.
+
+**One honest caveat — loops.** If you rewrite `f` with an explicit scalar loop,
+
+```{.julia}
+function g(v)
+    s = zero(eltype(v))
+    for x in v
+        s += sin(x) * x^2          # same maths, written element-by-element
+    end
+    return s
+end
+```
+
+forward mode is unchanged, but `Zygote` (a *tape-recording* reverse engine) is now
+much **slower** — it records every scalar operation in the loop, so its overhead
+grows with the loop length and it can lose even at $n = 3000$. The lesson is
+practical, not theoretical: tape-based reverse AD loves *vectorised* array code and
+struggles with tight scalar loops. (Newer engines such as `Enzyme.jl`, which
+differentiate compiled code rather than a recorded tape, close much of this gap —
+which is exactly why the SciML stack is moving toward Enzyme.) Try both `f` and
+`g` and compare.
 
 ### Differentiating the network itself: forward-over-reverse (the PINN twist)
 
@@ -1162,17 +1255,46 @@ differentiated correctly *and* fast.
 ::: {#ex-2-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — differentiate a network's output, then its loss
 
-No training — just the autodiff. **(a)** For $u(x) = e^{\sin x}$, compute
-$u''(0.7)$ by nesting `ForwardDiff.derivative` twice, and check it against the
-hand derivative $u'' = (\cos^2 x - \sin x)\,e^{\sin x}$. **(b)** Now the
-forward-over-reverse shape: take the toy "network" $u(x; p) = p_1 \tanh(p_2 x)$,
-form the residual loss
-$\mathcal{L}(p) = \sum_i \bigl(u''(x_i; p) + u(x_i; p)\bigr)^2$ over ten points
-$x_i \in [0, 1]$ (so it wants $u'' = -u$, the oscillator), and compute
-$\nabla_p \mathcal{L}$ — once with `ForwardDiff.gradient` and once by a
-finite-difference check on each component. They should agree. Finally: once $p$
-has *thousands* of entries, which mode would you switch the **outer** pass to,
-and why?
+No training — just the autodiff. Everything here uses only `ForwardDiff`, runs in
+under a second, and needs no data. Work through the three parts in order.
+
+**(a) Nest forward mode to get a second derivative.** Take $u(x) = e^{\sin x}$.
+
+1. Define `u(x) = exp(sin(x))`.
+2. Get the first derivative as a *function* with
+   `u1(x) = ForwardDiff.derivative(u, x)`, then nest once more to get the second:
+   `u2(x) = ForwardDiff.derivative(u1, x)`. (You can also write the nesting in one
+   line — see the hint.)
+3. Evaluate `u2(0.7)` and compare it to the closed form
+   $u'' = (\cos^2 x - \sin x)\,e^{\sin x}$ at $x = 0.7$. They should match to ~15
+   digits (≈ `-0.11281`) — this is *exact* AD, not a finite-difference
+   approximation, so there is no step size to tune.
+
+**(b) The forward-over-reverse shape on a toy "network".** Now mimic the structure
+of a PINN loss, where a derivative of the network sits *inside* the loss. Use the
+two-parameter stand-in $u(x; p) = p_1 \tanh(p_2 x)$.
+
+1. Define `unet(x, p) = p[1] * tanh(p[2] * x)`.
+2. Build the second spatial derivative $u_{xx}$ by nesting `ForwardDiff.derivative`
+   over the *spatial* argument `x` while carrying the parameters `p`:
+   `uxx(x, p) = ForwardDiff.derivative(z -> ForwardDiff.derivative(y -> unet(y, p), z), x)`.
+3. Over ten points $x_i \in [0, 1]$ (`xs = range(0, 1; length = 10)`), form the
+   residual loss
+   $\mathcal{L}(p) = \sum_i \bigl(u''(x_i; p) + u(x_i; p)\bigr)^2$ — this asks the
+   network to satisfy $u'' = -u$, the simple-harmonic oscillator.
+4. Compute the parameter gradient $\nabla_p \mathcal{L}$ **two ways** at, say,
+   `p = [1.0, 2.0]`: once with `ForwardDiff.gradient(loss, p)`, and once with a
+   finite-difference check on each component,
+   $\bigl(\mathcal{L}(p + h\,e_i) - \mathcal{L}(p)\bigr)/h$ with `h = 1e-6`. The
+   two should agree to ~5 digits (≈ `[42.6, 45.0]`).
+
+**(c) Which mode at scale?** In part (b) *both* differentiations used forward mode
+because $p$ has only two entries. Suppose instead $p$ had *thousands* of entries
+(a real network). Which mode would you switch the **outer** parameter gradient to,
+and why? Answer in one sentence using the input-vs-output cost rule
+([§2.7 timing](#sec-ad-timing)) — and note that the inner spatial derivative would
+*stay* forward mode. That split is exactly the forward-over-reverse pattern PINNs
+rely on.
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
