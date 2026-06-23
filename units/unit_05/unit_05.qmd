@@ -277,6 +277,40 @@ Zygote` stack work, and it's also what `NeuralPDE.jl` and JAX's
 `Lineax` / `optax` glue together for you. Get the composition
 right and PINN training scales; get it wrong and it doesn't.
 
+### A subtler pitfall — silently wrong gradients {#sec-silent-ad}
+
+The rule above is about *speed*. There is a second trap that is about
+*correctness*, and it is specific to Julia's split-package AD — worth knowing
+before you hand-roll anything. The clean ideal — `ForwardDiff` for the inner
+input-derivative wrapped in `Zygote` for the outer parameter-gradient,
+i.e. forward-over-reverse — **silently misfires when you wire it by hand**. Ask
+`Zygote.gradient` to differentiate a loss whose residual calls
+`ForwardDiff.gradient(u_θ, x)`, and Zygote returns **`nothing`** for the
+parameters: it can't route cotangents back through the inner `ForwardDiff` call,
+so it treats that whole term as a constant — at most a buried "cannot track
+gradients" warning, never a hard error, just a PINN that *trains to the wrong
+thing*. (The mirror image, `Zygote` nested in `Zygote`, breaks differently — it
+hits an array-mutation limitation in `Lux`'s pullbacks.) This is **the** reason
+hand-rolled PINNs are fiddly in Julia today, and JAX is the clean contrast (the
+`jax.jacfwd` snippets earlier in this section, and
+[§2.7](../unit_02/unit_02.qmd#sec-autodiff)): there `grad`/`jacfwd`/`jacrev` are
+transforms of one traced program and compose by design.
+
+Three robust ways out, in increasing order of "do this for real work":
+
+- **Central differences for the inner derivative.** Replace
+  `ForwardDiff.gradient(u_θ, x)` with a finite difference of plain network
+  evaluations, so `Zygote` only ever differentiates ordinary forward passes. The
+  $O(h^2)$ bias sits far below the training error. This is exactly what the
+  hand-rolled PINN in §5.3 does — and why.
+- **Let `NeuralPDE.jl` assemble the residual.** It wires `ForwardDiff`,
+  `Zygote`, and `ChainRules` together so the nesting is correct and fast; you
+  never touch the composition yourself. This is the route §5.4 onward — and the
+  capstone — takes.
+- **`Enzyme.jl`.** It differentiates compiled code (not a recorded tape) and
+  composes nested modes natively, closing the gap at the source; SciML is moving
+  toward it as the default backend.
+
 ### Connecting back to Unit 1
 
 The forward solver for the shallow-water equations in
@@ -331,9 +365,9 @@ of machinery are exactly what §5.2 motivated:
 
 - `Lux` for the model and its parameter container;
 - a symmetric **central difference** to compute
-  $\dot{x}_\theta(t)$ at collocation points — see the comment in
-  the listing for why the demo prefers it over AD-inside-AD with
-  current package versions;
+  $\dot{x}_\theta(t)$ at collocation points — this sidesteps the
+  silent-gradient pitfall of [§5.2](#sec-silent-ad) (see the comment in
+  the listing for the specifics);
 - `Zygote.gradient` to differentiate the *loss* with respect to
   $\theta$ (many-input scalar-output → reverse mode).
 
