@@ -88,7 +88,8 @@ end
 plt
 ```
 
-Each initial condition lands on a different closed orbit — a
+Each initial condition lands on a different closed orbit, traced
+**counter-clockwise** (prey rise first, predators chase) — a
 **first integral** (a conserved quantity along trajectories;
 $V(x, y) = \delta x - \gamma \log x + \beta y - \alpha \log y$ for
 this LV system) exists, but it is invisible to a method that only

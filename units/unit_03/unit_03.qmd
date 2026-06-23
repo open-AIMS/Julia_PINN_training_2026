@@ -148,7 +148,9 @@ plt
 ```
 
 Each closed loop is a constant-energy orbit; the dots mark where the mass
-is released from rest. The loops never cross or decay — energy is conserved
+is released from rest. The flow runs **clockwise** (the grey arrow): released at
+positive $x$ with zero velocity, the restoring force drives the velocity negative
+first, so the orbit sweeps downward. The loops never cross or decay — energy is conserved
 exactly, which is precisely the structure the Hamiltonian networks of §3.3
 are built to respect.
 
@@ -300,7 +302,8 @@ plot(p1, p2, layout = (1, 2), size = (960, 400), bottom_margin = 4Plots.mm, left
 ```
 
 The populations cycle forever, **out of phase**: prey boom, predators follow, prey
-crash, predators starve, prey recover. In the phase plane that is a *closed orbit*
+crash, predators starve, prey recover. In the phase plane that is a *closed orbit*,
+traced **counter-clockwise** (prey lead, predators lag a quarter-cycle behind)
 — like the oscillator's ellipses, but bent by the nonlinearity. Systems like this
 generally have **no closed-form solution**, which is exactly why we reach for
 numerical solvers (and, later, networks that learn the dynamics directly). We meet
