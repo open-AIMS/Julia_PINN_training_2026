@@ -521,6 +521,20 @@ $$\mathcal{L}(\theta) \;=\; \sum_i
 \begin{pmatrix} \partial_p H_\theta(q_i, p_i) \\[2pt] -\partial_q H_\theta(q_i, p_i) \end{pmatrix}
 \right\|^2.$$
 
+**Contrast: what a plain MLP would do.** Before going further, picture the
+obvious alternative — the baseline we race the HNN against below. A *vanilla*
+MLP skips the energy entirely: it takes the state $(q, p)$ straight in and is
+trained to predict the field $(\dot q, \dot p)$ straight out, as ordinary
+input→output regression on the same noisy samples. So the network *is* the
+vector field, and what it learns is just "at this $(q,p)$, move this way." Two
+inputs, two outputs, nothing else imposed. Crucially, **nothing in that setup
+forces the learned field to be the gradient of any energy** — there is no
+$H_\theta$ behind it — so the recovered dynamics carry no conservation law and,
+on a long rollout, quietly drift. The HNN sees the *exact same* data; the only
+difference is *what the network represents* — one scalar energy $H_\theta$,
+differentiated into the field — and that single structural choice is what keeps
+energy from leaking.
+
 **Lagrangian Neural Networks (LNNs)** ([Cranmer et al., 2020](../references/references.qmd#ref-cranmer2020){target="_blank"}) do
 the analogous trick with the Lagrangian $L_\theta(q, \dot q)$ and
 the Euler–Lagrange equations.
@@ -878,38 +892,33 @@ $$
 \;\in\; \mathbb{R}^k.
 $$
 
-To see it work, build a field that is *secretly* low-rank — two spatial shapes
-modulated by two different time signals — and watch the SVD discover that only
-two modes are needed. Expand the box to explore it:
+If the SVD itself is hazy, here it is on a small matrix — every real matrix $A$
+factorises as $A = U\Sigma V^\top$ with $U$ and $V$ **orthogonal** (orthonormal
+columns) and the **singular values** $\sigma_1 \geq \sigma_2 \geq \ldots \geq 0$
+on the diagonal of $\Sigma$. Expand the box:
 
 ```{julia}
 #| code-fold: true
-#| code-summary: "Explore the snapshot SVD — a rank-2 field, rebuilt from 2 modes"
+#| code-summary: "A 60-second SVD refresher on a small 3×5 matrix"
 using LinearAlgebra
 
-M, N = 64, 200                                # 64 grid points, 200 time samples
-ξ   = range(0, 1; length = M)                # space
-ts  = range(0, 1; length = N)                # time
-ϕ1, ϕ2 = sin.(π .* ξ), sin.(3π .* ξ)         # two spatial patterns
+A = [ 1.0  2.0  0.0  1.0  3.0
+      0.0  1.0  1.0  2.0  1.0
+      2.0  0.0  1.0  1.0  0.0 ]      # a 3×5 matrix
 
-# snapshot matrix: each COLUMN is one time-snapshot of the field over the grid
-X = ϕ1 * cos.(2π .* ts)' .+ 0.4 .* ϕ2 * sin.(8π .* ts)'
-
-U, σ, V = svd(X)                             # the snapshot SVD
-println("relative singular values: ", round.(σ[1:4] ./ σ[1]; digits = 6))
-
-# rebuild the whole 64×200 field from just the first 2 modes + their time series
-X2 = U[:, 1:2] * Diagonal(σ[1:2]) * V[:, 1:2]'
-println("rel. reconstruction error from 2 modes: ", norm(X - X2) / norm(X))
+U, σ, V = svd(A)                      # Julia returns U, the σ vector, and V (not Vᵀ)
+@show size(U) size(σ) size(V)         # (3,3) (3,) (5,3) — economy SVD, r = min(3,5) = 3
+@show round.(σ; digits = 3)           # singular values, largest first
+@show A ≈ U * Diagonal(σ) * V'        # the three factors rebuild A exactly
+@show round.(U'U; digits = 12)        # UᵀU = I: the columns of U are orthonormal
 ```
 
-Only two singular values are nonzero — the field genuinely lives on a 2-D plane
-inside $\mathbb{R}^{64}$ — and two modes rebuild it to machine precision. The
-columns $U_{:,1}, U_{:,2}$ are the spatial patterns $\phi_1, \phi_2$ (up to sign
-and scale), and the rows of $V^\top$ are their time-coefficients $\mathbf{a}(t)$.
-That is the whole of POD on a problem where the answer is obvious; the worked
-example below runs the same three lines on a real oscillating chain, where the
-rank is not $2$ but is still small.
+`svd` hands back $U$ ($3{\times}3$), the vector of singular values $\sigma$, and
+$V$ ($5{\times}3$) — the *economy* form, keeping the $r = \min(3,5) = 3$ nonzero
+directions — and $U\,\mathrm{diag}(\sigma)\,V^\top$ multiplies straight back to
+$A$. The singular vectors are orthonormal and the $\sigma_i$ come out **sorted**,
+which is exactly why keeping the first $k$ columns above is the *best* rank-$k$
+approximation of the matrix.
 
 The decay of $\sigma_i$ tells you whether the reduction will work.
 Fast decay → a few modes capture almost everything → ROM is
