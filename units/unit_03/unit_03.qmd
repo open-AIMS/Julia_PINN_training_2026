@@ -1058,7 +1058,7 @@ plot(p1, p2, p3; layout = @layout([a b; c _]), size = (900, 660),
 ```
 
 The singular values fall off fast and the reconstruction error drops
-below 1% by about nine modes — so the effective dimensionality is far
+below 1% by about a dozen modes — so the effective dimensionality is far
 below the 100 state variables. The leading mode shapes are exactly the
 chain's smooth normal modes: mode 1 is the half-sine "breathing" shape,
 mode 2 the full sine, mode 3 the next overtone — modes ordered by

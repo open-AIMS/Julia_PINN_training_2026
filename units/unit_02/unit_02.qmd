@@ -1641,8 +1641,9 @@ so the layer holds roughly `in × out × grid_len` parameters. The `normalizer`
 one grid covers any input. **Turning `grid_len` up makes every $\phi$ more
 flexible — it captures sharper features, but adds parameters and slows the forward
 pass;** it is the KAN's main capacity knob, the way width and depth are an MLP's.
-The `2 → 5 → 1` network above has $2{\times}5 + 5{\times}1 = 15$ edges at
-`grid_len = 6`, for **105 trainable parameters** — and it fits the field above to
+The `2 → 5 → 1` network above has $2{\times}5 + 5{\times}1 = 15$ edges, and with
+`grid_len = 6` spline heights plus one base weight on each edge ($7$ apiece) that
+comes to **105 trainable parameters** — and it fits the field above to
 a training MSE of $\approx 4\times10^{-6}$. (Contrast the MLP, where each edge holds a single
 weight; a KAN moves the parameters *onto* the edges as little functions.)
 
