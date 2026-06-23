@@ -589,13 +589,17 @@ Same setup, dynamics from §4.1. Two variants:
 
 The functional inverse is where neural-network capacity pays off:
 classical parameter estimation can't recover an unknown functional
-shape, but a UDE with a 2-layer MLP can. *Code placeholder —
-`units/unit_04/scripts/ude_lv.jl` (TODO).*
+shape, but a UDE with a 2-layer MLP can. We leave this one as a
+hands-on exercise rather than a shipped script: build it yourself in
+the [section exercise below](#ex-4-3) — drop the $+\delta x y$ term and
+learn it as a small network — with a complete worked implementation,
+including the learned-vs-true $N_\theta$ comparison, in
+[Solution 4.3](../exercise_solutions/exercise_solutions.qmd#sol-4-3).
 
 ::: {#ex-4-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the functional inverse, in miniature
 
-Fill in the `ude_lv.jl` placeholder yourself. Generate
+Write the `ude_lv.jl` functional-inverse script yourself. Generate
 Lotka–Volterra data ($\alpha, \beta, \gamma, \delta$ as in §4.1,
 $t \in [0, 8]$, 60 samples, 2% noise), then build the UDE that keeps
 $\dot x = \alpha x - \beta x y$ and $\dot y = -\gamma y + N_\theta(x, y)$
