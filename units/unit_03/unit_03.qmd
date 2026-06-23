@@ -895,7 +895,7 @@ $$
 Need the SVD itself refreshed first? Expand the box.
 
 ::: {.callout-note collapse="true"}
-## A 60-second SVD refresher (on a small 3×5 matrix)
+## An SVD refresher (on a small 3×5 matrix)
 
 Every real matrix $A$ factorises as $A = U\Sigma V^\top$ with $U$ and $V$
 **orthogonal** (orthonormal columns) and the **singular values**
