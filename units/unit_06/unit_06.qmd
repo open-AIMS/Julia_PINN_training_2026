@@ -46,7 +46,7 @@ classify, and solve them.
 | **Wave** | $u_{tt} = c^2\,\nabla^2 u$ | Hyperbolic | Vibrations, sound, electromagnetic waves |
 | **Advection–diffusion** | $u_t + c\,\partial_x u = \alpha\,u_{xx}$ | Mixed (parabolic + 1st-order hyperbolic) | Pollutant or heat in a flow |
 | **Burgers** | $u_t + u\,u_x = \nu\,u_{xx}$ | Nonlinear | Shock formation; simple fluid model |
-| **Shallow water** | $\eta_t + H\,\nabla\!\cdot\!\mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in §6.8) |
+| **Shallow water** | $\eta_t + H\,\nabla\cdot \mathbf{u} = 0,\;\;\mathbf{u}_t + g\,\nabla\eta = 0$ | Hyperbolic system | Ocean and atmospheric flow (revisited in §6.8) |
 
 ### Order, Linearity, and Type
 
@@ -363,7 +363,7 @@ conditions for these methods to work:
 
 - **Nonlinearity** kills separation of variables and superposition
   (Burgers, Navier–Stokes, the shallow-water equations as soon as
-  you re-introduce the advective $\mathbf{u}\!\cdot\!\nabla\mathbf{u}$
+  you re-introduce the advective $\mathbf{u}\cdot \nabla\mathbf{u}$
   term).
 - **Variable coefficients** ($\alpha = \alpha(x)$, $H = H(x, y)$
   as in Unit 1's bay) prevent the spatial eigenproblem from
@@ -560,7 +560,7 @@ heat equation:
   in elastic media.
 - **The Unit 1 shallow-water surge** — once we drop the drag
   term, what's left is exactly a 2-D wave equation
-  $\eta_{tt} = \nabla\!\cdot\!(gH\,\nabla\eta)$ for the surface
+  $\eta_{tt} = \nabla\cdot (gH\,\nabla\eta)$ for the surface
   elevation (see [§6.8](#sec-revisiting-unit-1)).
 
 ### The Advection equation — pure transport
@@ -1057,7 +1057,7 @@ necessarily came up.
 The 2-D linearised shallow-water equations Unit 1 used are
 
 $$
-\underbrace{\eta_t + \nabla\!\cdot\!(H\,\mathbf{u}) = 0}_{\text{continuity}},
+\underbrace{\eta_t + \nabla\cdot (H\,\mathbf{u}) = 0}_{\text{continuity}},
 \qquad
 \underbrace{\mathbf{u}_t + g\,\nabla\eta = -b\,\mathbf{u}}_{\text{momentum}}.
 $$
