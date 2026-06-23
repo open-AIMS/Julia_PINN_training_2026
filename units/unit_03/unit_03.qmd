@@ -564,6 +564,18 @@ Running it produces:
 
 {{< include output/hnn_pendulum.md >}}
 
+**What is actually being learned?** The HNN's network has a *single scalar
+output* — the Hamiltonian $H_\theta(q, p)$, the energy surface on the right
+below. It never sees the field $(\dot q, \dot p)$ as a target; the field is the
+*gradient* of $H_\theta$, produced on demand by `ForwardDiff`, and the trajectory
+is that field integrated. So learning a good $H_\theta$ is the whole game — and
+the left panel confirms it worked: integrate the learned field from a held-out
+start and the HNN's orbit sits right on the true pendulum orbit, while the
+vanilla MLP — which fits the field directly, with no energy behind it — already
+wanders off its loop.
+
+![**What the HNN learns.** *Right:* the network's only output, the scalar Hamiltonian $H_\theta(q, p)$ (filled contours), against the true energy contours (white dashed) — recovered up to an additive constant, which the dynamics ignore because only $\nabla H_\theta$ enters. *Left:* the phase-space orbit obtained by integrating each model's learned field from a held-out start; the HNN (green) tracks the true closed orbit (black), the vanilla MLP (red dashed) does not. The HNN fits an *energy*, and its motion is derived from it.](figures/hnn_pendulum_learned.png)
+
 Both models fit the data, but only the HNN's field is the gradient of an
 energy, so its flow is symplectic. On a long rollout that shows up
 directly as energy drift: the HNN holds energy almost flat while the

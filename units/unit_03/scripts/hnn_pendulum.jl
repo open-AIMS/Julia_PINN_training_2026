@@ -94,3 +94,34 @@ plot(solh.t, drifth; lw = 2, label = "HNN (∂H/∂p, -∂H/∂q)",
      legend = :topleft)
 plot!(solv.t, driftv; lw = 2, ls = :dash, label = "vanilla MLP field")
 savefig(joinpath(@__DIR__, "..", "figures", "hnn_energy_drift.png"))
+
+# ── figure: WHAT THE HNN LEARNS — the scalar H_θ(q,p) it fits, and the orbit
+#    its autodiff-derived field traces (vs the true pendulum and the vanilla MLP).
+#    The HNN's only output is the surface H_θ; the field and the orbit are
+#    *derived* from it, never fit directly. ──────────────────────────────────
+fine(rhs) = solve(ODEProblem((u, _, _) -> rhs(u), u0, (0.0, 15.0)), Tsit5();
+                  reltol = 1e-8, abstol = 1e-8, saveat = 0.02)
+orbit(sol) = ([u[1] for u in sol.u], [u[2] for u in sol.u])
+ot = orbit(fine(u -> collect(truefield(u...))))     # true pendulum
+oh = orbit(fine(u -> collect(hnn_field(u, psh))))   # HNN's learned field
+ov = orbit(fine(u -> van_field(u, psv)))            # vanilla's learned field
+
+pq = plot(ot...; lw = 3, c = :black, label = "true pendulum",
+          xlabel = "q (angle)", ylabel = "p (momentum)", framestyle = :box,
+          title = "orbit traced by the learned field", legend = :topright)
+plot!(pq, oh...; lw = 2, c = :seagreen,  label = "HNN")
+plot!(pq, ov...; lw = 2, c = :firebrick, ls = :dash, label = "vanilla MLP")
+
+qs = range(-2.6, 2.6; length = 100)
+pg = range(-2.0, 2.0; length = 100)
+Htrue_grid  = [Htrue(q, p)    for p in pg, q in qs]
+Hlearn_grid = [Hθ([q, p], psh) for p in pg, q in qs]
+Hlearn_grid .-= Hθ([0.0, 0.0], psh)                 # H_θ is fixed only up to a constant; pin H(0,0)=0
+ph = contourf(qs, pg, Hlearn_grid; c = :viridis, levels = 12, framestyle = :box,
+              xlabel = "q (angle)", ylabel = "p (momentum)",
+              title = "learned Hθ(q,p)  (white dashed = true H)")
+contour!(ph, qs, pg, Htrue_grid; levels = 8, c = :white, ls = :dash, lw = 1, colorbar = false)
+
+plot(pq, ph; layout = (1, 2), size = (1040, 430),
+     bottom_margin = 5Plots.mm, left_margin = 5Plots.mm)
+savefig(joinpath(@__DIR__, "..", "figures", "hnn_pendulum_learned.png"))
