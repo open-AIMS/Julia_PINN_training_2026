@@ -822,6 +822,18 @@ low-dimensional structure.
 
 ### The snapshot SVD
 
+Here is the picture before the algebra. Suppose you record a system as it
+evolves — a temperature profile along a rod, a velocity field over a grid: at
+each instant you measure $M$ numbers (one per grid point), and you take $N$ such
+snapshots in time. Each snapshot is a single point in $\mathbb{R}^M$, so the
+whole recording is a cloud of $N$ points in that $M$-dimensional space. The
+question POD asks is: *does that cloud really fill all $M$ dimensions, or does it
+sit close to a low-dimensional plane?* If just a few spatial patterns, faded in
+and out over time, explain almost every snapshot, then we can keep only those
+patterns plus their time-coefficients and **reconstruct** $\mathbf{x}(t)$ from a
+handful of numbers instead of $M$. The singular value decomposition is the tool
+that finds those patterns — and tells you how many you need.
+
 Collect $N$ snapshots of the state $\mathbf{x}_k \in \mathbb{R}^M$
 (e.g. $M$ = number of grid cells, $N$ = number of time samples)
 into a snapshot matrix:
@@ -850,6 +862,39 @@ $$
 \mathbf{a}(t) = U_k^\top \mathbf{x}(t)
 \;\in\; \mathbb{R}^k.
 $$
+
+To see it work, build a field that is *secretly* low-rank — two spatial shapes
+modulated by two different time signals — and watch the SVD discover that only
+two modes are needed. Expand the box to explore it:
+
+```{julia}
+#| code-fold: true
+#| code-summary: "Explore the snapshot SVD — a rank-2 field, rebuilt from 2 modes"
+using LinearAlgebra
+
+M, N = 64, 200                                # 64 grid points, 200 time samples
+ξ   = range(0, 1; length = M)                # space
+ts  = range(0, 1; length = N)                # time
+ϕ1, ϕ2 = sin.(π .* ξ), sin.(3π .* ξ)         # two spatial patterns
+
+# snapshot matrix: each COLUMN is one time-snapshot of the field over the grid
+X = ϕ1 * cos.(2π .* ts)' .+ 0.4 .* ϕ2 * sin.(8π .* ts)'
+
+U, σ, V = svd(X)                             # the snapshot SVD
+println("relative singular values: ", round.(σ[1:4] ./ σ[1]; digits = 6))
+
+# rebuild the whole 64×200 field from just the first 2 modes + their time series
+X2 = U[:, 1:2] * Diagonal(σ[1:2]) * V[:, 1:2]'
+println("rel. reconstruction error from 2 modes: ", norm(X - X2) / norm(X))
+```
+
+Only two singular values are nonzero — the field genuinely lives on a 2-D plane
+inside $\mathbb{R}^{64}$ — and two modes rebuild it to machine precision. The
+columns $U_{:,1}, U_{:,2}$ are the spatial patterns $\phi_1, \phi_2$ (up to sign
+and scale), and the rows of $V^\top$ are their time-coefficients $\mathbf{a}(t)$.
+That is the whole of POD on a problem where the answer is obvious; the worked
+example below runs the same three lines on a real oscillating chain, where the
+rank is not $2$ but is still small.
 
 The decay of $\sigma_i$ tells you whether the reduction will work.
 Fast decay → a few modes capture almost everything → ROM is
