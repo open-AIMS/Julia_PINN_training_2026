@@ -585,7 +585,7 @@ finite-difference solver pulls on a grid and Unit 7 measures as raw
 training-step throughput — and it is what makes the
 [Unit 9 / Unit 10](../unit_09/unit_09.qmd) capstone columns tractable.
 
-![The trained PINN field $u(x, y, 0.2)$ (left, on the GPU) beside the analytic solution $e^{-2\alpha\pi^2 t}\sin\pi x\,\sin\pi y$ (right) — a single $\sin\!\cdot\!\sin$ mode decaying under 2-D diffusion. The two are visually indistinguishable (L2 $3.2\times10^{-5}$).](figures/pinn_2d_diffusion_gpu.png)
+![The trained PINN field $u(x, y, 0.2)$ (left, on the GPU) beside the analytic solution $e^{-2\alpha\pi^2 t}\sin\pi x\,\sin\pi y$ (right) — a single $\sin\cdot\sin$ mode decaying under 2-D diffusion. The two are visually indistinguishable (L2 $3.2\times10^{-5}$).](figures/pinn_2d_diffusion_gpu.png)
 
 ## 5.6 Failure modes already visible
 
