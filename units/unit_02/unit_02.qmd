@@ -1584,46 +1584,18 @@ this is an active research front.
 
 ### KAN in Julia (`KolmogorovArnold.jl`)
 
-A 2-layer KAN approximating $f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$
-— a Liu et al. demo — in the Julia ecosystem using
-[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}:
+A 2-layer KAN approximating a **spatiotemporal field** — the decaying
+heat-equation eigenmode $u(x, t) = e^{-t}\sin(\pi x)$ on
+$(x, t) \in [0, 1]^2$ — in the Julia ecosystem using
+[`KolmogorovArnold.jl`](https://github.com/vpuri3/KolmogorovArnold.jl){target="_blank"}.
+Two inputs $(x, t)$, one scalar output: the same shape a PINN's solution
+network has.
 
-```{.julia filename="units/unit_02/scripts/kan_julia.jl"}
-# Uses KolmogorovArnold.jl (pinned to 0.0.1), which ships in the course @pinn
-# environment — no install needed.
-using KolmogorovArnold, Lux, Random, Zygote, Optimisers, Statistics
-
-rng = Random.MersenneTwister(0)
-
-# data ─────────────────────────────────────────────────────────────────
-n = 1000
-X = 2f0 .* rand(rng, Float32, 2, n) .- 1f0
-y = reshape(exp.(sinpi.(X[1, :]) .+ X[2, :].^2), 1, n)
-
-# KAN 2 → 5 → 1.  KDense(in, out, grid_len): grid_len = number of RBF basis
-# centres on each edge — the spline resolution (more = a finer learnable φ).
-grid_len = 6
-model = Lux.Chain(
-    KDense(2, 5, grid_len; basis_func = rbf, normalizer = softsign),
-    KDense(5, 1, grid_len; basis_func = rbf, normalizer = softsign),
-)
-ps, st = Lux.setup(rng, model)
-
-loss(ps, st) = mean(abs2, first(model(X, ps, st)) .- y)
-opt_state = Optimisers.setup(Optimisers.Adam(1f-2), ps)
-for k in 1:2000
-    gs = first(Zygote.gradient(p -> loss(p, st), ps))
-    opt_state, ps = Optimisers.update(opt_state, ps, gs)
-end
-@info "test MSE = $(loss(ps, st))"
+```{.julia filename="units/unit_02/scripts/kan_julia.jl" code-fold="true" code-summary="Show the KAN trainer + comparison plot"}
+{{< include scripts/kan_julia.jl >}}
 ```
 
-*Setup note.* `KolmogorovArnold.jl` ships in the course `@pinn`
-environment (pinned to 0.0.1), so `using KolmogorovArnold` just works —
-no `Pkg.add` needed. The package uses **radial basis functions** as the
-per-edge basis instead of B-splines — a near-equivalent
-parameterisation with better Julia ergonomics. See [The `@pinn` Julia
-environment](../pinn_env/pinn_env.qmd#adding-packages).
+![A `2 → 5 → 1` KAN (105 parameters) trained on 2000 random $(x, t)$ samples to approximate the heat-equation eigenmode $u(x, t) = e^{-t}\sin(\pi x)$. **Left:** the exact field; **middle:** the KAN's prediction; **right:** the pointwise error — under $1.5\times10^{-2}$ everywhere after 3000 Adam steps (training MSE $\approx 4\times10^{-6}$). Two inputs in, one scalar out — the shape of a PINN solution network.](figures/kan_xt.png)
 
 **What's actually on each edge — the splines and the parameters.** Every edge's
 learnable function $\phi$ is a weighted sum of `grid_len` fixed *basis bumps* —
@@ -1637,8 +1609,8 @@ one grid covers any input. **Turning `grid_len` up makes every $\phi$ more
 flexible — it captures sharper features, but adds parameters and slows the forward
 pass;** it is the KAN's main capacity knob, the way width and depth are an MLP's.
 The `2 → 5 → 1` network above has $2{\times}5 + 5{\times}1 = 15$ edges at
-`grid_len = 6`, for **105 trainable parameters** — and it fits the demo target to
-a test MSE of $\approx 10^{-3}$. (Contrast the MLP, where each edge holds a single
+`grid_len = 6`, for **105 trainable parameters** — and it fits the field above to
+a training MSE of $\approx 4\times10^{-6}$. (Contrast the MLP, where each edge holds a single
 weight; a KAN moves the parameters *onto* the edges as little functions.)
 
 ![On one KAN edge the basis bumps are **fixed** (left): six smooth Gaussian-like humps spaced across the input range. The edge's learnable function $\phi$ (right, thick black) is just their **weighted sum** — training only slides the six heights $w_k$ up and down (the faint dashed curves are the scaled bumps that add up to it). Turning `grid_len` up adds more bumps, so $\phi$ can bend more sharply.](figures/kan_splines.png)
@@ -1656,7 +1628,8 @@ radial basis functions, which behave the same way for our purposes.)
 
 ### KAN in Python (`pykan`)
 
-The reference Liu-et-al. implementation, in Python:
+The reference Liu et al. implementation, in Python — on their original
+two-variable benchmark $f(x_1, x_2) = \exp(\sin(\pi x_1) + x_2^2)$:
 
 ```{.python filename="units/unit_02/scripts/kan_pykan.py"}
 # pip install pykan
