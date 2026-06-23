@@ -438,7 +438,7 @@ function you can plot.
 
 ```{.julia code-fold="true" code-summary="UDE pendulum sketch (illustrative)"}
 # Hybrid pendulum: gravity known, friction learned.
-using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity
+using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity, Random
 
 friction = Lux.Chain(Lux.Dense(1 => 8, tanh), Lux.Dense(8 => 1))
 ps, st   = Lux.setup(Random.default_rng(), friction)
