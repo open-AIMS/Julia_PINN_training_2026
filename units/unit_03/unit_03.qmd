@@ -152,6 +152,37 @@ is released from rest. The loops never cross or decay — energy is conserved
 exactly, which is precisely the structure the Hamiltonian networks of §3.3
 are built to respect.
 
+**The second-order equation, two equivalent codings.** The phase portrait above
+integrated the oscillator as a *first-order system* in the two coordinates
+$(x, v)$ — the right-hand column of the $\Longleftrightarrow$ at the top of this
+section. That rewrite is the standard move, but it is worth seeing both forms in
+code side by side, because `OrdinaryDiffEq` can *also* take the **second-order**
+equation directly via `SecondOrderODEProblem`, where you write the acceleration
+$\ddot{x}$ as a function of $\dot{x}$ and $x$. We show the general damped equation
+$\ddot{x} + 2\zeta\omega\,\dot{x} + \omega^2 x = 0$ so $\zeta = 0$ is exactly the
+undamped oscillator above and $\zeta > 0$ is the next subsection; both codings
+integrate to the same trajectory:
+
+```{julia}
+using OrdinaryDiffEq
+
+ω, ζ          = 2π, 0.1                 # ζ = 0 recovers ẍ + ω²x = 0 above
+x0, v0, tspan = 1.0, 0.0, (0.0, 3.0)
+
+# (1) first-order system in two coordinates u = (x, v), with v = ẋ
+firstorder(u, p, t) = [u[2], -ω^2 * u[1] - 2ζ * ω * u[2]]
+sol1 = solve(ODEProblem(firstorder, [x0, v0], tspan), Tsit5(); saveat = 0.01)
+
+# (2) the literal second-order ODE  ẍ = -ω²x - 2ζω ẋ, written as the acceleration
+accel(dx, x, p, t) = -ω^2 * x - 2ζ * ω * dx
+sol2 = solve(SecondOrderODEProblem(accel, v0, x0, tspan), Tsit5(); saveat = 0.01)
+# SecondOrderODEProblem stores the state as (ẋ, x): velocity first, position second
+
+x1 = [u[1] for u in sol1.u]            # position from the first-order system
+x2 = [u[2] for u in sol2.u]            # position from the second-order problem
+maximum(abs, x1 .- x2)                 # ≈ 0 — the two codings agree
+```
+
 `OrdinaryDiffEq.Tsit5()` is a 5th-order explicit Runge–Kutta solver
 — a sensible default for non-stiff problems. For stiff systems
 (e.g. fast diffusion coupled to slow advection) one picks an
