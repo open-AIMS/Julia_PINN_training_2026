@@ -512,8 +512,11 @@ the symplectic flow. Train on observed trajectories by minimising
 the residual
 
 $$\mathcal{L}(\theta) \;=\; \sum_i
-\bigl\| (\dot q_i, \dot p_i) -
-       (\partial_p H_\theta, -\partial_q H_\theta)(q_i, p_i) \bigr\|^2.$$
+\left\|
+\begin{pmatrix} \dot q_i \\[2pt] \dot p_i \end{pmatrix}
+-
+\begin{pmatrix} \partial_p H_\theta(q_i, p_i) \\[2pt] -\partial_q H_\theta(q_i, p_i) \end{pmatrix}
+\right\|^2.$$
 
 **Lagrangian Neural Networks (LNNs)** ([Cranmer et al., 2020](../references/references.qmd#ref-cranmer2020){target="_blank"}) do
 the analogous trick with the Lagrangian $L_\theta(q, \dot q)$ and
@@ -616,6 +619,39 @@ short symbolic expression? The construction:
    sparse coefficient matrix $\Xi$. The nonzero entries *are* the
    equation.
 
+Written out, that linear system is what the sparse regression actually
+solves — stack the $m$ time samples as rows, with $n$ states (here $n = 3$:
+$x, y, z$) and $p$ library terms:
+
+$$
+\underbrace{\begin{bmatrix}
+\dot x_1 & \dot y_1 & \dot z_1 \\
+\vdots   & \vdots   & \vdots   \\
+\dot x_m & \dot y_m & \dot z_m
+\end{bmatrix}}_{\dot X\ \,(m \times n)}
+\;=\;
+\underbrace{\begin{bmatrix}
+1      & x_1    & y_1    & z_1    & x_1^2  & x_1 y_1 & \cdots \\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots  &        \\
+1      & x_m    & y_m    & z_m    & x_m^2  & x_m y_m & \cdots
+\end{bmatrix}}_{\Theta(X)\ \,(m \times p)}
+\;
+\underbrace{\begin{bmatrix}
+\xi^x_1 & \xi^y_1 & \xi^z_1 \\
+\vdots  & \vdots  & \vdots  \\
+\xi^x_p & \xi^y_p & \xi^z_p
+\end{bmatrix}}_{\Xi\ \,(p \times n)}
+$$
+
+Each **column** of $\Xi$ is the coefficient vector for one state's
+equation — $\dot x = \Theta(X)\,\xi^x$, and likewise for $y$ and $z$ — so the
+columns decouple and can be solved one at a time. The library is deliberately
+*wide* (many candidate terms, large $p$) but the truth is **sparse**: for the
+Lorenz $\dot x = \sigma(y - x)$, the column $\xi^x$ is zero everywhere except
+the two rows for $x$ and $y$. Sparse regression is exactly the search for that
+— the *fewest* library columns whose combination reproduces each column of
+$\dot X$ — and the surviving nonzero pattern of $\Xi$ *is* the recovered system.
+
 The sparsity is enforced either by $\ell_1$ regularisation (LASSO)
 or by **STLSQ** — Sequentially Thresholded Least Squares:
 ordinary least squares → set small coefficients to zero → refit on
@@ -666,9 +702,13 @@ $(\sigma, \rho, \beta) \approx (10, 28, 8/3)$ — the canonical
 demonstration that *a sparse prior plus enough data is sometimes
 all you need*.
 
-A bare-bones STLSQ implementation (no `DataDrivenDiffEq` dependency)
-makes the recipe explicit: build the library, threshold the OLS
-coefficients, re-fit on the surviving terms, repeat.
+Julia *does* have a full SINDy stack — SciML's
+[`DataDrivenDiffEq.jl`](https://github.com/SciML/DataDrivenDiffEq.jl){target="_blank"}
+with [`DataDrivenSparse.jl`](https://github.com/SciML/DataDrivenSparse.jl){target="_blank"}
+for the sparse solvers (`STLSQ`, `ADMM`, …), the Julia counterpart to Python's
+`pysindy`. Here, though, we roll our own bare-bones STLSQ (no
+`DataDrivenDiffEq` dependency) to make the recipe explicit: build the library,
+threshold the OLS coefficients, re-fit on the surviving terms, repeat.
 
 ```{.julia code-fold="true" code-summary="`scripts/sindy_lorenz.jl` — full source"}
 {{< include scripts/sindy_lorenz.jl >}}
