@@ -533,10 +533,14 @@ with respect to the **parameters** — many of them, one scalar loss — the
 cheap direction for **reverse mode**. And because a derivative of the
 network sits *inside* the loss, the two differentiations **nest**: a
 forward-mode input-gradient wrapped in a reverse-mode parameter-gradient,
-the **forward-over-reverse** composition of §2.7. (The tiny network in the
-script below is small enough that we can use forward mode for the outer
-pass too — simpler to read — but the structure is the same.) Same engine
-as a PINN; here it conserves energy instead of enforcing a PDE residual.
+the **forward-over-reverse** composition of §2.7. (The script below shows both
+sides: the vanilla baseline trains its parameters with reverse-mode `Zygote`,
+but the HNN's parameter gradient has to fall back to `ForwardDiff` — reverse
+mode *silently returns `nothing`* when asked to differentiate through the inner
+forward-mode input-gradient, the exact nesting caveat flagged in
+[§5.3](../unit_05/unit_05.qmd) and [Solution 2.7](../exercise_solutions/exercise_solutions.qmd#sol-2-7),
+and a big part of why real PINNs lean on `NeuralPDE.jl`.) Same engine as a PINN;
+here it conserves energy instead of enforcing a PDE residual.
 
 ### A pendulum sanity check
 
@@ -560,7 +564,7 @@ Running it produces:
 Both models fit the data, but only the HNN's field is the gradient of an
 energy, so its flow is symplectic. On a long rollout that shows up
 directly as energy drift: the HNN holds energy almost flat while the
-vanilla MLP's leaks away — here **an order of magnitude** more — and the
+vanilla MLP's leaks away — here **well over an order of magnitude** more — and the
 gap widens the longer you integrate.
 
 ![Energy drift $H(t) - H(0)$ on a 50-time-unit pendulum rollout from $(q_0, p_0) = (2, 0)$. The HNN derives its field from $\partial H_\theta$, so energy barely moves; the vanilla MLP fits the same data but its field is *not* a gradient, so energy steadily leaks away.](figures/hnn_energy_drift.png)
@@ -651,6 +655,16 @@ Lorenz $\dot x = \sigma(y - x)$, the column $\xi^x$ is zero everywhere except
 the two rows for $x$ and $y$. Sparse regression is exactly the search for that
 — the *fewest* library columns whose combination reproduces each column of
 $\dot X$ — and the surviving nonzero pattern of $\Xi$ *is* the recovered system.
+
+*A note on the symbol.* $\Xi$ is a capital Greek **Xi** (lower-case $\xi$,
+pronounced "ksi"). Brunton et al. wrote the coefficient matrix this way in the
+original SINDy paper and the convention stuck, so we keep it — apologies if it
+is an unfamiliar glyph; blame the sparse-regression literature, not the maths.
+If you are wondering how to *type* it: in Julia (the REPL, VS Code, a Quarto
+cell) you write `\Xi` and press <kbd>Tab</kbd>, and it turns into $\Xi$. The same
+backslash-name-then-`Tab` trick produces every Greek letter and most symbols in
+this course — `\xi`⇥ $\to \xi$, `\Theta`⇥ $\to \Theta$, `\alpha`⇥ $\to \alpha$,
+even `\dot`-accents and subscripts.
 
 The sparsity is enforced either by $\ell_1$ regularisation (LASSO)
 or by **STLSQ** — Sequentially Thresholded Least Squares:
