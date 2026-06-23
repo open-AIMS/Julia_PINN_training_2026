@@ -1066,7 +1066,40 @@ size), and it is *not* finite differences
 $\bigl(f(x+h)-f(x)\bigr)/h$ (which forces a bad trade between truncation error at
 large $h$ and round-off at small $h$). Instead it computes the **exact**
 derivative — to machine precision — by applying the chain rule to the elementary
-operations your code already runs. There are two ways to do it.
+operations your code already runs.
+
+### Numerical differentiation, briefly
+
+The intro flagged finite differences as the thing AD is *not* — but they are
+worth keeping in your pocket, because they stay the practical fallback when AD
+won't compose. Sampling $f$ at points a step $h$ apart gives the three formulas
+you actually use:
+
+$$
+f'(x) \approx \frac{f(x+h) - f(x)}{h}\ \ (\text{forward},\ O(h)),
+\qquad
+f'(x) \approx \frac{f(x+h) - f(x-h)}{2h}\ \ (\text{central},\ O(h^2)),
+$$
+
+$$
+f''(x) \approx \frac{f(x+h) - 2f(x) + f(x-h)}{h^2}\ \ (\text{central second derivative},\ O(h^2)).
+$$
+
+The **central** difference is the one to reach for: the same two extra
+evaluations as the forward formula, but its leading error cancels to $O(h^2)$.
+Everything then hinges on the step $h$ — too large and the **truncation** error
+($O(h)$ or $O(h^2)$) dominates; too small and **round-off** does, because you are
+subtracting two nearly-equal floats and dividing by a tiny number. The error is
+minimised at an awkward middle value ($h \sim \sqrt{\varepsilon_{\text{mach}}}
+\approx 10^{-8}$ for forward, $\varepsilon_{\text{mach}}^{1/3} \approx 10^{-5}$
+for central in Float64), and you never reach full machine precision.
+
+Automatic differentiation exists to delete that whole trade-off — exact
+derivatives, no $h$ to tune — and it comes in **two flavours**, forward and
+reverse, which the rest of this section builds up. Finite differences still earn
+their keep as the robust fallback when the AD backends won't nest cleanly —
+exactly the role the central difference plays in the hand-rolled PINN of
+[Unit 5 §5.2](../unit_05/unit_05.qmd#sec-silent-ad).
 
 ### Computational graphs and backprop
 
