@@ -173,12 +173,12 @@ column's upwelling, not as a coupled-PDE PINN problem (that's the
 path [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"} found brittle). The SWE solve is offline; its
 output is a time series at the mooring location.
 
-### Coupling: $w$ from $\nabla_h\!\cdot\!\mathbf{u}_h$
+### Coupling: vertical velocity from horizontal divergence
 
-By incompressibility, $\partial_z w = -\nabla_h\!\cdot\!\mathbf{u}_h$.
+By incompressibility, $\partial_z w = -\nabla_h\cdot \mathbf{u}_h$.
 With $w(-H) = 0$ and the SWE flow uniform in depth,
 
-$$w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t).$$
+$$w(z, t) = -(z + H)\,\nabla_h\cdot \mathbf{u}_h(t).$$
 
 A simple linear-in-$z$ vertical velocity profile, computed offline
 from the SWE run and fed as a time series into the column model.
@@ -188,9 +188,9 @@ from the SWE run and fed as a time series into the column model.
 
 Implement the coupling formula. Take a synthetic divergence
 time series mimicking a storm response,
-$\nabla_h\!\cdot\!\mathbf{u}_h(t) = -2\times10^{-7}\,
+$\nabla_h\cdot \mathbf{u}_h(t) = -2\times10^{-7}\,
 \exp[-((t - 10\,\text{d})/1\,\text{d})^2]\;\text{s}^{-1}$, over 30
-days, and compute $w(z, t) = -(z + H)\,\nabla_h\!\cdot\!\mathbf{u}_h(t)$
+days, and compute $w(z, t) = -(z + H)\,\nabla_h\cdot \mathbf{u}_h(t)$
 for the $H = 100$ m column. Plot $w$ at $z = -10, -50, -90$ m.
 Check three things: $w(-H, t) = 0$ always; the sign during the
 storm (negative divergence = convergence... or is it? — work out
@@ -203,7 +203,7 @@ shape assume physically about the horizontal flow?
 💡 Hint
 
 ::: {.exercise-hint-text}
-Code it directly: `div_h(t) = -2e-7*exp(-((t-10)/1)^2)` and `w(z,t) = -(z+H)*div_h(t)` with $H=100$; evaluate at $z = -10, -50, -90$ over a day-grid and plot `w.*86400` (m/day). For the sign, don't eyeball it — integrate continuity $\partial_z w = -\nabla_h\!\cdot\mathbf{u}_h$ upward from $w(-H)=0$: the trace is *negative* (convergence), so $\partial_z w > 0$ and $w > 0$ everywhere above the floor (converging water has nowhere to go but up ⇒ upwelling). Peak near the surface is $|z+H|\times|\nabla\!\cdot\!u| = 90\times2\times10^{-7} \approx 1.6$ m/day — compare with the §9.6 $w_0 \sim 1$ m/day. The linear-in-$z$ shape assumes a depth-uniform (barotropic) horizontal flow — exactly what a shallow-water solver gives.
+Code it directly: `div_h(t) = -2e-7*exp(-((t-10)/1)^2)` and `w(z,t) = -(z+H)*div_h(t)` with $H=100$; evaluate at $z = -10, -50, -90$ over a day-grid and plot `w.*86400` (m/day). For the sign, don't eyeball it — integrate continuity $\partial_z w = -\nabla_h\cdot \mathbf{u}_h$ upward from $w(-H)=0$: the trace is *negative* (convergence), so $\partial_z w > 0$ and $w > 0$ everywhere above the floor (converging water has nowhere to go but up ⇒ upwelling). Peak near the surface is $|z+H|\times|\nabla\cdot u| = 90\times2\times10^{-7} \approx 1.6$ m/day — compare with the §9.6 $w_0 \sim 1$ m/day. The linear-in-$z$ shape assumes a depth-uniform (barotropic) horizontal flow — exactly what a shallow-water solver gives.
 :::
 :::
 
@@ -524,14 +524,38 @@ this same forward solver.
 
 ## 9.8 Which task is for which audience? {#sec-which-task}
 
-The capstone comes in two parallel versions. Pick by your
-hardware, your time budget, and what you want out of the exercise.
+The capstone has **one required task and one optional extension**:
 
-| | **Task A** ([§9.9](#sec-task-a)) | **Task B** ([§9.10](#sec-task-b)) |
+- **Task A** ([§9.9](#sec-task-a)) is **the capstone everyone does**.
+  It runs end-to-end on a laptop CPU and shows the full forward-PINN +
+  inverse-PINN pipeline on a single site.
+- **Task B** ([§9.10](#sec-task-b)) is an **optional, advanced
+  extension** for those who want the operational-scale version —
+  three sites jointly, the modern-PINN toolkit, and GPU scaling. Skip
+  it entirely and you have still completed the capstone.
+
+::: {.callout-tip}
+## A GPU is optional, not required
+
+**Task A is designed for a laptop CPU** — you can do the whole task,
+see the whole pipeline, and learn everything it teaches without a
+GPU. The course GPU hub *is* available to you, though, and a GPU
+simply makes Task A faster and lets you reach the tightest accuracy
+target ([§9.9.3](#sec-task-a)) more comfortably (see
+[Unit 10 §10.2](../unit_10/unit_10.qmd) for the CPU-vs-GPU detail).
+So: **use the GPU if you have it and want the speed; don't worry if
+you don't.** Task B, by contrast, really does want a GPU for its
+*full* three-site run — but even there the sub-scale prototypes run
+on CPU.
+:::
+
+Pick by your hardware, time budget, and goals:
+
+| | **Task A** ([§9.9](#sec-task-a)) — *required* | **Task B** ([§9.10](#sec-task-b)) — *optional / advanced* |
 |---|---|---|
-| **Audience** | self-paced learner, one-day workshop, no GPU | research project, semester-long student, industrial prototyping |
-| **Hardware** | laptop CPU (any modern M-series or recent x86) | NVIDIA GPU for the full run; CPU for sub-scale prototypes |
-| **Time budget** | ~30 min once data is generated | ~30 min on GPU per run; ~30 h on CPU |
+| **Audience** | every participant; self-paced learner, one-day workshop | research project, semester-long student, industrial prototyping |
+| **Hardware** | laptop CPU (any modern M-series or recent x86); **GPU optional** — available on the hub, just faster | CPU for the sub-scale prototypes; NVIDIA GPU for the full three-site run |
+| **Time budget** | ~30 min on CPU once data is generated; minutes on GPU | ~30 min on GPU per run; hours on CPU |
 | **Geometry** | one site (Cleveland Bay, $H = 15$ m) | three sites jointly (Cleveland Bay + Davies Reef + Myrmidon Reef, $H$ up to 100 m) |
 | **PINN toolkit** | small MLP, soft BCs, hand-tuned weights | Fourier features + hard BC + adaptive weights + causal training |
 | **Parameter count** | ~5 000 | ~200 000 |
@@ -541,16 +565,18 @@ Both tasks share §9.7 (forward solve) and [§9.11 toy
 ladder](#sec-toy-tasks). The remainder of this unit is each
 task's full spec.
 
-## 9.9 Task A — single-site inverse on a laptop (CPU) {#sec-task-a}
+## 9.9 Task A — single-site inverse (laptop CPU; GPU optional) {#sec-task-a}
 
-> **The introductory capstone.** Recover the storm wind-stress
+> **The required capstone.** Recover the storm wind-stress
 > envelope $\tau(t)$ from a *single* mooring's data using a small
-> PINN that trains in 10–30 minutes on a laptop CPU.
+> PINN that trains in 10–30 minutes on a laptop CPU — faster still if
+> you use the course GPU.
 
 The goal is to see the full forward-PINN + inverse-PINN pipeline
-end-to-end without waiting for a GPU. We deliberately keep
-everything small enough that an L-BFGS run finishes in coffee-break
-time on commodity hardware.
+end-to-end. Everything is kept small enough that an L-BFGS run
+finishes in coffee-break time on a laptop; the same code runs
+unchanged (and faster) on the course GPU hub if you have access —
+**a GPU is optional here, not required**.
 
 ### 9.9.1 Spec
 
@@ -572,21 +598,108 @@ time on commodity hardware.
 
 ### 9.9.2 Workflow
 
+Follow these seven steps in order. Each maps directly onto a block of
+the starter skeleton below.
+
 1. **Generate the synthetic data** (if not already present) with
-   `scripts/generate_mooring_csvs.jl --site A` —
-   produces `data/mooring_A.csv`.
-2. **Solve the forward problem** with a small PINN against the
-   `MethodOfLines.jl` reference (§9.7). Hard BC at $z = -H$ via
-   $T_\theta(z, t) = T_{\text{deep}} + (z + H)\,N_\theta(z, t)$.
-   Train Adam(1e-3) for 2 000 iterations then L-BFGS for 500.
-3. **Set up the joint inverse loss**
-   $\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_d \mathcal{L}_{\text{data}} + \lambda_{\text{reg}} \int |\tau_\phi'|^2\,dt + \mathcal{L}_{\text{BC}} + \mathcal{L}_{\text{IC}}$
-   with $\lambda_r = 1$, $\lambda_d = 100$, $\lambda_{\text{reg}} = 10^{-2}$.
-4. **Train the inverse PINN.** Adam(1e-3) for 5 000 iterations
-   then L-BFGS for 1 000.
-5. **Diagnose** — residual histogram vs $t$
-   ([Unit 7 §7.5](../unit_07/unit_07.qmd)) and heat-budget closure
-   at each depth.
+   `scripts/generate_mooring_csvs.jl --site A` — produces
+   `data/mooring_A.csv` (5 sensors × 720 hourly samples). Load it and
+   plot all five depths first ([§9.1 exercise](#ex-9-1)) so you know
+   what the storm looks like before you model it.
+2. **Build the column constants and forcings** from §9.5–§9.6: the
+   diffusivity $\kappa(z)$, the Beer–Lambert source shape, the
+   initial profile $T_0(z)$, and the deep reservoir $T_{\text{deep}}$.
+   (Working non-dimensionally — as the shipped solution does — folds
+   these into a Péclet number $\mathrm{Pe}$ and a heating shape
+   $S(\zeta)$; see [Unit 10 §10.2](../unit_10/unit_10.qmd).)
+3. **Define the two networks.** $T_\theta(z, t)$ recovers the
+   temperature field; $\tau_\phi(t)$ recovers the unknown storm
+   envelope. Bake the **hard deep BC** ($T = T_{\text{deep}}$ at
+   $z = -H$) and the **hard IC** into the field ansatz so those two
+   constraints hold *for free* and only the surface flux BC stays a
+   soft penalty ([Unit 7 §7.3](../unit_07/unit_07.qmd)).
+4. **Solve the forward problem first** with a *known* $\tau$, scoring
+   the field network against the `MethodOfLines.jl` reference (§9.7).
+   Certify the forward solve (target $L^2 < 0.05\,°\text{C}$) *before*
+   trusting any inverse on top of it.
+5. **Assemble the joint inverse loss**
+   $\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_d \mathcal{L}_{\text{data}} + \lambda_b \mathcal{L}_{\text{surf-BC}} + \lambda_{\text{reg}} \int |\tau_\phi'|^2\,dt$
+   (the hard IC + deep BC mean no separate $\mathcal{L}_{\text{IC}}$
+   / deep-BC terms). **The loss weights are the whole game here** — a
+   *large* data weight $\lambda_d$ and a *tiny* smoothing weight
+   $\lambda_{\text{reg}}$ are what keep the recovered storm peak from
+   collapsing; see the weight-sweep table in
+   [Unit 10 §10.2](../unit_10/unit_10.qmd).
+6. **Train the inverse PINN.** Adam(1e-3) on the field network,
+   Adam(3e-3) on the (smaller) $\tau$ network. A few thousand steps
+   on CPU shows the method working; more steps (and/or the GPU) tighten
+   the peak toward the §9.9.3 target.
+7. **Diagnose and report** — overlay $\hat\tau(t)$ on the truth,
+   plot the residual histogram vs $t$ ([Unit 7 §7.5](../unit_07/unit_07.qmd)),
+   and check heat-budget closure at each sensor depth.
+
+#### Starter skeleton (Task A) {#sec-task-a-skeleton}
+
+A scaffold for steps 3–6, distilled from the shipped solution
+[`task_a_inverse_pinn.jl`](../unit_10/unit_10.qmd). Fill in the
+`# TODO` lines from the equations in §9.3–§9.5; the full worked
+version (with the FD reference, metrics, and the validated weights) is
+in [Unit 10 §10.2](../unit_10/unit_10.qmd) behind the solution gate.
+This block is for reading, not for `quarto render` to execute.
+
+```julia
+using Lux, Optimisers, Zygote, Random, Statistics
+
+# ── physics (non-dimensional column; see §9.3–§9.6 and Unit 10 §10.2) ──
+const Pe = 1.5f0                       # diffusion number for Site A
+S_shape(ζ) = exp.((ζ .- 1f0) ./ 0.20f0)  # known Beer–Lambert heating shape S(ζ)
+# TODO: load mooring_A.csv → (ζ_obs, τ_obs, T_obs)  [non-dimensionalise z,t,T]
+
+# ── two networks ──────────────────────────────────────────────────────
+T_net = Chain(Dense(2=>48, tanh), Dense(48=>48, tanh), Dense(48=>1))  # field T_θ(ζ,t)
+τ_net = Chain(Dense(1=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # storm τ_φ(t)
+
+# Hard IC (t=0 ⇒ 0) and hard deep BC (ζ=0 ⇒ 0) baked into the ansatz:
+θ(p, ζ, t) = ζ .* t .* first(T_net(vcat(ζ, t), p, stT))   # θ(0,·)=0, θ(·,0)=0 for free
+τφ(q, t)   = first(τ_net(t, q, stτ))                       # recovered forcing
+
+# Derivatives by finite-difference-in-input (no nested AD; Unit 5 §5.3):
+h = 2f-3
+∂t(p,ζ,t)  = (θ(p,ζ,t.+h) .- θ(p,ζ,t.-h)) ./ (2h)
+∂ζζ(p,ζ,t) = (θ(p,ζ.+h,t) .- 2 .* θ(p,ζ,t) .+ θ(p,ζ.-h,t)) ./ h^2
+
+# ── loss: the WEIGHTS are the lesson (large λ_d, tiny λ_reg) ───────────
+λ_d, λ_b, λ_reg = 6000f0, 10f0, 1f-5
+function loss(pT, pτ)
+    L_pde  = mean(abs2, ∂t(pT,ζc,tc) .- Pe .* ∂ζζ(pT,ζc,tc) .- S_shape(ζc) .* τφ(pτ,tc))
+    L_data = mean(abs2, θ(pT, ζ_obs, τ_obs) .- T_obs)
+    L_bc   = mean(abs2, ( θ(pT,ζ1,tb) .- θ(pT,ζ1 .- h,tb) ) ./ h)  # surface ∂ζθ(1,·)=0
+    L_reg  = mean(abs2, (τφ(pτ,tg.+h) .- τφ(pτ,tg.-h)) ./ (2h))     # H¹ smoothness on τ
+    return L_pde + λ_d*L_data + λ_b*L_bc + λ_reg*L_reg
+end
+
+# ── train (Adam on both networks) ─────────────────────────────────────
+optT = Optimisers.setup(Adam(1f-3), pT)
+optτ = Optimisers.setup(Adam(3f-3), pτ)
+for _ in 1:N_iters
+    gT, gτ = Zygote.gradient(loss, pT, pτ)
+    optT, pT = Optimisers.update(optT, pT, gT)
+    optτ, pτ = Optimisers.update(optτ, pτ, gτ)
+end
+```
+
+::: {.callout-tip}
+## Tips
+
+- **Forward before inverse.** Get the field network matching the FD
+  reference with a *known* $\tau$ first. An inverse stacked on a
+  broken forward is undebuggable.
+- **If the recovered peak is too low**, raise $\lambda_d$ before
+  anything else (not the collocation count) — that is the single most
+  important knob (Unit 10 §10.2).
+- **To run on the GPU**, wrap parameters, inputs and data in
+  `Lux.gpu_device()` — the loss and training loop above are unchanged.
+:::
 
 ### 9.9.3 Success criteria
 
@@ -629,11 +742,22 @@ $\lambda_r / \lambda_d$ adds ~10 minutes per pass.
 - No cross-site coupling.
 - No Fourier-feature embedding.
 - No adaptive loss weighting.
-- No GPU.
 
-Those land in Task B.
+Those land in the optional Task B. (A GPU, on the other hand, is
+welcome here — it just isn't required; see the note in §9.8.)
 
-## 9.10 Task B — three-site joint inverse (GPU first steps) {#sec-task-b}
+## 9.10 Task B (optional, advanced) — three-site joint inverse {#sec-task-b}
+
+::: {.callout-important}
+## This task is optional
+
+Task B is an **advanced extension for those who want the
+operational-scale problem**. You do not need it to complete the
+capstone — Task A ([§9.9](#sec-task-a)) is the required piece. Take
+Task B on if you have GPU access (the course hub) and want to see
+joint multi-site inversion and the modern-PINN toolkit at full
+scale. The sub-scale prototype steps below still run on a laptop CPU.
+:::
 
 > **The advanced capstone.** Recover a *single* shared wind-stress
 > envelope $\tau(t)$ from all three moorings *jointly*, with the
@@ -693,6 +817,69 @@ single coherent storm signal explains all three.
      the JAX stack ([Unit 7 §7.6](../unit_07/unit_07.qmd)).
 5. **Queue the full run on a GPU** when available — the code
    doesn't change, only the `device` and the collocation count.
+
+#### Starter skeleton (Task B) {#sec-task-b-skeleton}
+
+Task B reuses Task A's column, loss, and training loop almost
+verbatim — the one structural change is that **all sites share a
+single $\tau$-network** while each keeps its own temperature network.
+The scaffold below shows that extension; the worked two-site
+prototype is [`task_b_subscale_prototype.jl`](../unit_10/unit_10.qmd)
+and the full three-site trainer is `task_b_joint_inverse.jl` (both in
+[Unit 10 §10.3](../unit_10/unit_10.qmd), behind the solution gate).
+Start from the Task A skeleton ([§9.9.2](#sec-task-a-skeleton)) and
+add the shared-$\tau$ loop. Display-only; not executed by `render`.
+
+```julia
+# Per-site column model: Site A is diffusion-only (Wadv=0); Site B and C
+# add surface-intensified upwelling (Wadv>0) so their Péclet is larger.
+struct Site; Pe::Float32; Wadv::Float32; ℓS::Float32; end
+S_shape(s, ζ) = exp.((ζ .- 1f0) ./ s.ℓS)
+w_shape(ζ)    = ζ     # linear surface-intensified upwelling, the §9.2 form w∝(z+H):
+                      # 0 at depth (ζ=0), max at surface (ζ=1). (§9.5's sine is an alternative.)
+
+sites  = [Site(1.5f0, 0f0, 0.20f0),        # A — Cleveland Bay  (diffusion only)
+          Site(1.0f0, 1.2f0, 0.25f0)]      # B — Davies Reef    (advection + diffusion)
+
+# ONE shared storm network; one temperature network PER site.
+τ_net   = Chain(Dense(1=>64, tanh), Dense(64=>64, tanh), Dense(64=>1))   # shared τ_φ(t)
+T_nets  = [Chain(Dense(2=>64, tanh), Dense(64=>64, tanh), Dense(64=>1)) for _ in sites]
+
+# Per-site residual now carries the advection term too (cf. §9.3 term (b)):
+function site_residual(s, θ, ∂t, ∂ζ, ∂ζζ, τφ, ζc, tc)
+    ∂t(ζc,tc) .+ s.Wadv .* w_shape(ζc) .* ∂ζ(ζc,tc) .-           # advection
+        s.Pe .* ∂ζζ(ζc,tc) .- S_shape(s,ζc) .* τφ(tc)            # diffusion + shared source
+end
+
+# Joint loss = Σ_sites (PDE + data + BC), + ONE H¹ prior on the shared τ:
+function joint_loss(pτ, pTs)
+    L = 0f0
+    for (s, pT) in zip(sites, pTs)
+        L += site_pde(s, pT, pτ) + λ_d*site_data(s, pT) + λ_b*site_bc(s, pT)
+    end
+    return L + λ_reg * tau_smoothness(pτ)
+end
+# Train pτ together with every pT (one Adam state per parameter set), then
+# compare the joint τ̂ against each site-alone inverse — the joint should win.
+```
+
+::: {.callout-tip}
+## Tips
+
+- **Same recipe, more sites.** Keep Task A's static weights
+  ($\lambda_d = 6000$, $\lambda_{\text{reg}} = 10^{-5}$, hard IC +
+  deep BC). The "modern toolkit" (Fourier features, adaptive
+  weighting, causal training) is the *menu* for the deep $H=100$ m
+  column — reach for it only once the static baseline is trustworthy
+  (Unit 10 §10.3 explains why).
+- **Validate the headline claim.** Run each site *alone*, then
+  *jointly*. The joint $\hat\tau$ peak error should beat both
+  single-site recoveries — that cross-site gain is the point of
+  Task B.
+- **GPU launch is a device swap**, not a rewrite: `Lux.gpu_device()`
+  on parameters/data, optionally `Reactant.@compile` the step, same
+  Adam schedule (see step 4 above).
+:::
 
 ### 9.10.3 Success criteria
 

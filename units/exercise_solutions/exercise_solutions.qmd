@@ -472,12 +472,19 @@ gfd = [(loss(p0 .+ h .* (1:2 .== i)) - loss(p0)) / h for i in 1:2]
 @assert maximum(abs, g .- gfd) < 1e-3                   # matches
 ```
 
-**Which mode at scale?** Reverse. With thousands of parameters and one scalar
+**(c) Which mode at scale?** Reverse. With thousands of parameters and one scalar
 loss, reverse mode costs ≈ one extra backward pass *regardless* of the parameter
-count, while forward mode would cost one pass per parameter. So a real PINN keeps
-forward mode for the few-input spatial derivative (inner) and switches to reverse
-mode for the many-parameter gradient (outer) — the forward-over-reverse nesting of
-§2.7.
+count, while forward mode would cost one pass per parameter — exactly the linear
+blow-up the [§2.7 timing experiment](../unit_02/unit_02.qmd#sec-ad-timing) shows
+(forward time $\propto n$, reverse time roughly flat). So a real PINN keeps forward
+mode for the few-input spatial derivative (inner) and switches to reverse mode for
+the many-parameter gradient (outer) — the forward-over-reverse nesting of §2.7.
+
+(Heads-up for the curious: you *cannot* fix part (b) by simply wrapping the loss in
+`Zygote.gradient` — differentiating *through* a `ForwardDiff.derivative` closure
+that captures `p` silently returns the wrong number. Correct forward-over-reverse
+nesting needs the backends wired together properly, which is what `NeuralPDE.jl`
+does for you.)
 
 ::: {.exercise-solution-link}
 [← Back to Unit 2 §2.7](../unit_02/unit_02.qmd#ex-2-7)
@@ -494,7 +501,7 @@ mode for the many-parameter gradient (outer) — the forward-over-reverse nestin
 | LeNet-5 CNN | 61,706 | ~98.8% |
 
 By hand the softmax is $784\!\times\!10 + 10 = 7\,850$ and the MLP is
-$784\!\cdot\!256 + 256 + 256\!\cdot\!128 + 128 + 128\!\cdot\!10 + 10 = 235\,146$.
+$784\cdot 256 + 256 + 256\cdot 128 + 128 + 128\cdot 10 + 10 = 235\,146$.
 The CNN is the **most accurate yet has under a third** of the MLP's
 weights. Why so few? A convolution applies the *same* small filter
 (here $5\times5$ — a few dozen weights per channel pair) at *every*
@@ -2315,7 +2322,7 @@ The answer key, compactly (grade yourself against Unit 9
   ($T_{\text{surface}} = 28$, $T_{\text{deep}} = 18$,
   $z_t = -30$ m, $\delta_t = 5$ m).
 - **Forcings (all prescribed):** $w(z, t)$ from the offline SWE
-  driver via $w = -(z+H)\nabla_h\!\cdot\!\mathbf{u}_h$;
+  driver via $w = -(z+H)\nabla_h\cdot \mathbf{u}_h$;
   $\kappa(z, t)$ from one of the three closures;
   $Q_{\text{np}}(t)$ (longwave + sensible + latent, the BC);
   $Q_{\text{SW}}(t)$ (diurnal half-cosine, entering through
@@ -2406,7 +2413,7 @@ end
 - $w(-H, t) = -((-H) + H)\cdot(\ldots) = 0$ ✓ for all $t$ — the
   rigid bottom can't pump water through itself.
 - **Sign:** the trace is a negative divergence — *convergence*.
-  Continuity says $\partial_z w = -\nabla_h\!\cdot\!\mathbf{u}_h > 0$;
+  Continuity says $\partial_z w = -\nabla_h\cdot \mathbf{u}_h > 0$;
   integrating up from $w(-H) = 0$ makes $w > 0$ everywhere above
   the bottom: horizontally converging water has nowhere to go but
   **up**. So this storm trace drives upwelling — peak
@@ -2414,7 +2421,7 @@ end
   ≈ **1.6 m/day** near the surface, ~0.9 m/day at mid-column —
   right on the reference $w_0 \sim 1$ m/day scale.
 - **What linear-in-$z$ assumes:** that
-  $\nabla_h\!\cdot\!\mathbf{u}_h$ is independent of depth, i.e. the
+  $\nabla_h\cdot \mathbf{u}_h$ is independent of depth, i.e. the
   horizontal flow is **barotropic** (depth-uniform) — which is what
   a shallow-water model produces by construction. A real stratified
   shelf has baroclinic structure and $w(z)$ bends accordingly;

@@ -19,7 +19,7 @@ T_deep = 22.0
 def kappa_z(z):  return 1e-3 * np.exp(z / 5.0) + 1e-5     # mixed-layer profile
 def w_z(z, t):   return 0.0                              # forward problem: no wind
 def Q_np(t):     return -120.0                           # net cooling (W/m^2)
-def S_z(z, t):   return 400.0 / 4.0e6 * np.exp(z / 8.0)  # body source
+def S_z(z, t):   return 400.0 / 4.0e6 / 8.0 * np.exp(z / 8.0)  # body source S = Q_SW/(rho0*cp*zeta)*e^(z/zeta), zeta=8 m
 
 # Geometry: z in [-H, 0], t in [0, Tf]
 geom     = dde.geometry.Interval(-H, 0.0)
