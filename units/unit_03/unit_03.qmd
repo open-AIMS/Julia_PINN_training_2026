@@ -432,8 +432,8 @@ sol  = solve(prob, Tsit5())     # a forward pass; training then fits θ to obser
 Training fits only $\theta$ (the network) while the logistic term stays
 fixed — so the model can bend to data *without* discarding the physics
 you already know. [Unit 4 §4.3](../unit_04/unit_04.qmd) builds this out
-into two full worked examples: a pendulum with unknown friction, and a
-Crown-of-Thorns starfish / coral-reef model on the Great Barrier Reef.
+into a worked domain example: a Crown-of-Thorns starfish / coral-reef
+model on the Great Barrier Reef.
 
 ### Surrogate models for expensive simulations
 
@@ -892,25 +892,26 @@ $$
 \;\in\; \mathbb{R}^k.
 $$
 
-If the SVD itself is hazy, here it is on a small matrix — every real matrix $A$
-factorises as $A = U\Sigma V^\top$ with $U$ and $V$ **orthogonal** (orthonormal
-columns) and the **singular values** $\sigma_1 \geq \sigma_2 \geq \ldots \geq 0$
-on the diagonal of $\Sigma$. Expand the box:
+Need the SVD itself refreshed first? Expand the box.
+
+::: {.callout-note collapse="true"}
+## A 60-second SVD refresher (on a small 3×5 matrix)
+
+Every real matrix $A$ factorises as $A = U\Sigma V^\top$ with $U$ and $V$
+**orthogonal** (orthonormal columns) and the **singular values**
+$\sigma_1 \geq \sigma_2 \geq \ldots \geq 0$ on the diagonal of $\Sigma$:
 
 ```{julia}
-#| code-fold: true
-#| code-summary: "A 60-second SVD refresher on a small 3×5 matrix"
 using LinearAlgebra
 
 A = [ 1.0  2.0  0.0  1.0  3.0
       0.0  1.0  1.0  2.0  1.0
       2.0  0.0  1.0  1.0  0.0 ]      # a 3×5 matrix
 
-U, σ, V = svd(A)                      # Julia returns U, the σ vector, and V (not Vᵀ)
+U, σ, V = svd(A)                      # the singular value decomposition: A = U Σ Vᵀ
 @show size(U) size(σ) size(V)         # (3,3) (3,) (5,3) — economy SVD, r = min(3,5) = 3
 @show round.(σ; digits = 3)           # singular values, largest first
 @show A ≈ U * Diagonal(σ) * V'        # the three factors rebuild A exactly
-@show round.(U'U; digits = 12)        # UᵀU = I: the columns of U are orthonormal
 ```
 
 `svd` hands back $U$ ($3{\times}3$), the vector of singular values $\sigma$, and
@@ -919,6 +920,7 @@ directions — and $U\,\mathrm{diag}(\sigma)\,V^\top$ multiplies straight back t
 $A$. The singular vectors are orthonormal and the $\sigma_i$ come out **sorted**,
 which is exactly why keeping the first $k$ columns above is the *best* rank-$k$
 approximation of the matrix.
+:::
 
 The decay of $\sigma_i$ tells you whether the reduction will work.
 Fast decay → a few modes capture almost everything → ROM is
