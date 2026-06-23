@@ -415,73 +415,19 @@ $$\dot{\mathbf{x}} = \underbrace{f_{\text{phys}}(\mathbf{x}, t)}_{\text{known}}
 You write down whatever physics you trust ($f_{\text{phys}}$) and
 let a small neural network absorb the rest. Train on observed
 $\mathbf{x}(t)$. The result is a model you can simulate, analyse,
-and *interpret* — the NN is small and you can probe it. This is the
-position taken throughout the AIMS capstone in
-[Unit 9](../unit_09/unit_09.qmd): the column PDE structure is
-hard-coded; the unknown wind-stress envelope is the learned piece.
+and *interpret* — the NN is small and you can probe it.
 
-### Worked example: pendulum with unknown friction
+### Worked example: Crown-of-Thorns starfish on the Great Barrier Reef
 
-The damped pendulum
-
-$$\ddot{q} + b\,\dot{q} + \tfrac{g}{L}\sin q = 0$$
-
-is a sandbox UDE. Hold the gravitational restoring term
-$\tfrac{g}{L}\sin q$ as known physics and replace the friction term
-with an unknown function $g_\theta(\dot{q})$:
-
-$$\ddot{q} + g_\theta(\dot{q}) + \tfrac{g}{L}\sin q = 0.$$
-
-Train $g_\theta$ against trajectory data; recover its functional
-shape (often nearly linear for small $\dot{q}$, with corrections
-elsewhere). The output is **interpretable**: $g_\theta$ is a 1D
-function you can plot.
-
-```{.julia code-fold="true" code-summary="UDE pendulum sketch (illustrative)"}
-# Hybrid pendulum: gravity known, friction learned.
-using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity, Random
-
-friction = Lux.Chain(Lux.Dense(1 => 8, tanh), Lux.Dense(8 => 1))
-ps, st   = Lux.setup(Random.default_rng(), friction)
-
-const g_over_L = 9.81
-
-function ude_pendulum!(du, u, p, t)
-    q, q̇   = u
-    fric, _ = friction([q̇], p, st)
-    du[1]   = q̇
-    du[2]   = -fric[1] - g_over_L * sin(q)
-end
-
-# … usual training loop: solve, misfit, adjoint, Adam.
-```
-
-A clean sandbox for inverse problems before we hit the capstone column
-in [Unit 9](../unit_09/unit_09.qmd).
-
-### A domain example: Crown-of-Thorns starfish on the Great Barrier Reef
-
-The Great Barrier Reef has lost roughly half its hard-coral cover
-since 1985. The peer-reviewed AIMS attribution of that loss
-([De'ath, Fabricius, Sweatman & Puotinen 2012, *PNAS*](https://www.pnas.org/doi/10.1073/pnas.1208909109){target="_blank"})
-puts the breakdown at **48% from cyclones, 42% from
-Crown-of-Thorns starfish (COTS) predation, and 10% from coral
-bleaching** — and notes that *without* COTS, coral cover would
-have *increased* by ~0.9% per year despite the cyclones and
-bleaching. COTS is, by some distance, the biggest controllable
-biological driver of reef decline that AIMS studies.
-
-A reef carries ~1–10 adult COTS per hectare in its "background"
-state; **active outbreaks** are declared at >30 adults/ha
-([GBRMPA dashboard](https://www2.gbrmpa.gov.au/our-work/programs-and-projects/crown-thorns-starfish-management/crown-thorns-starfish-project-dashboard){target="_blank"}).
-A single female releases $10^6$–$10^8$ eggs per spawning event, so
-outbreaks can flip on quickly when conditions favour larval
-survival. The operational response — vessel-based diver injection
-with bile-salt or vinegar — culled **73 881 COTS over 11 710 ha
-across 234 target reefs in 2024–25**, delivering up to a 6× COTS
-reduction and +44% coral cover where the control was timely. AIMS
-provides the population-state input that prioritises which reefs
-to target.
+The Great Barrier Reef has lost roughly half its hard-coral cover since 1985,
+and the peer-reviewed AIMS attribution
+([De'ath et al. 2012, *PNAS*](https://www.pnas.org/doi/10.1073/pnas.1208909109){target="_blank"})
+pins **~42% of that loss on Crown-of-Thorns starfish (COTS) predation** — second
+only to cyclones, and *the* biggest driver AIMS can actually act on. Reefs sit at
+1–10 adult COTS per hectare until an **outbreak** (>30/ha) strips the coral; AIMS
+monitors densities and targets culling accordingly. The hard part for a modeller
+is not the grazing — that part is textbook predator–prey — but *why COTS
+populations crash*: their **mortality**.
 
 The modelling question we'll borrow: **given monitored
 time-series of coral cover $C(t)$ and COTS density $S(t)$ on a
@@ -528,12 +474,15 @@ $$
             \;-\; \underbrace{N_\theta\!\bigl(S, C, T_a(t)\bigr)}_{\text{learned mortality}} \cdot S.
 $$
 
-Train against synthetic COTS / coral trajectories (or, eventually,
-the AIMS Long-Term Monitoring Program's manta-tow records). The
-learned $N_\theta$ has biological meaning — plot it against $S$
-at fixed $C$ to see whether it recovers a density-dependent
-Allee-like effect; plot against $T_a$ at fixed $(S, C)$ to see
-whether warming suppresses mortality (or doesn't).
+Training is exactly the §4.2 Neural-ODE loop — integrate the model forward,
+compare to the observed $C(t), S(t)$ trajectories, backprop through the solver
+via the adjoint, step Adam — except $N_\theta$ is now the *only* learned piece,
+with everything else held at its known value. Train against synthetic COTS /
+coral trajectories (or, eventually, the AIMS Long-Term Monitoring Program's
+manta-tow records), then read the answer straight off the network: the learned
+$N_\theta$ has biological meaning — plot it against $S$ at fixed $C$ to see
+whether it recovers a density-dependent Allee-like effect; plot against $T_a$ at
+fixed $(S, C)$ to see whether warming suppresses mortality (or doesn't).
 
 ```{.julia code-fold="true" code-summary="COTS-coral UDE sketch (illustrative)"}
 # Hybrid COTS-coral model:
