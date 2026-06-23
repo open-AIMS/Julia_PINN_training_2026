@@ -38,7 +38,7 @@ classify, and solve them.
 | Name | Equation | Type | Typical application |
 |------|----------|------|---------------------|
 | **Laplace** | $\nabla^2 u = 0$ | Elliptic | Steady-state temperature, electrostatic potential |
-| **Poisson** | $\nabla^2 u = f$ | Elliptic | Potential with sources (gravity, charge) |
+| **Poisson** | $\nabla^2 u = -f$ | Elliptic | Potential with sources (gravity, charge) |
 | **Helmholtz** | $\nabla^2 u + k^2 u = 0$ | Elliptic | Standing waves, frequency-domain wave problems |
 | **Heat / diffusion** | $u_t = \alpha\,\nabla^2 u$ | Parabolic | Heat conduction, mass diffusion |
 | **Reaction–diffusion** | $u_t = \alpha\,\nabla^2 u + f(u)$ | Parabolic (nonlinear) | Pattern formation, population dynamics |

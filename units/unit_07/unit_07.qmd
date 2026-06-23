@@ -93,7 +93,7 @@ A clean elliptic example. The PINN handles the circular geometry
 mesh-free — a classical advantage over finite differences. Closed-form
 solution: $u(r, \theta) = r^3 \sin(3\theta)$.
 
-![Left: the closed-form three-lobed harmonic $u(r, \theta) = r^3 \sin(3\theta)$ on the unit disk, with Dirichlet boundary $u(R, \theta) = \sin(3\theta)$ and a small inner cutoff $r_{\min}$. Right: a schematic PINN collocation cloud — the actual solve samples ~400 random interior residual points (green) and ~36 uniform boundary points (orange); the diagram draws fewer for clarity. The mesh-free advantage: random sampling on a disk needs no quadrature scheme or curvilinear mesh.](figures/laplace_disk.svg){#fig-laplace-disk width=92%}
+![Left: the closed-form three-lobed harmonic $u(r, \theta) = r^3 \sin(3\theta)$ on the unit disk, with Dirichlet boundary $u(R, \theta) = \sin(3\theta)$ and a small inner cutoff $r_{\min}$. Right: a schematic PINN collocation cloud — the solve evaluates the PDE residual at interior points (green) and the Dirichlet condition at a sparser ring of boundary points (orange); the diagram draws fewer for clarity. The mesh-free advantage: the collocation points sit directly inside the disk — no curvilinear mesh or quadrature scheme needed.](figures/laplace_disk.svg){#fig-laplace-disk width=92%}
 
 ```{julia}
 #| eval: false
@@ -147,7 +147,7 @@ error — a first taste of the frequency story §7.2 tells.
 💡 Hint
 
 ::: {.exercise-hint-text}
-`phi = discretization.phi` returns a 1-element vector, so wrap each eval in `first`: `u_pinn = [first(phi([r,θ], res.u)) for r in rs, θ in θs]` over `rs = range(r_min, R; length=50)`, `θs = range(0, 2π; length=100)`. The exact field is `[r^3*sin(3θ) for r in rs, θ in θs]`. Relative $L^2$ is `sqrt(sum(abs2, u_pinn .- u_exact)/sum(abs2, u_exact))`; `findmax(abs.(u_pinn .- u_exact))` returns (value, index) — map it back through `rs`/`θs` to see it land near the rim (recall the §7.1 figure: ~400 interior points but only ~36 soft boundary points, and the field's amplitude all lives near $r=R$). For (b), change only the two `bcs` lines to `sin(6θ)` and `r_min^6*sin(6θ)`.
+`phi = discretization.phi` returns a 1-element vector, so wrap each eval in `first`: `u_pinn = [first(phi([r,θ], res.u)) for r in rs, θ in θs]` over `rs = range(r_min, R; length=50)`, `θs = range(0, 2π; length=100)`. The exact field is `[r^3*sin(3θ) for r in rs, θ in θs]`. Relative $L^2$ is `sqrt(sum(abs2, u_pinn .- u_exact)/sum(abs2, u_exact))`; `findmax(abs.(u_pinn .- u_exact))` returns (value, index) — map it back through `rs`/`θs` to see it land near the rim (recall the §7.1 figure: many interior residual points but only a thin ring of soft boundary points, and the field's amplitude all lives near $r=R$). For (b), change only the two `bcs` lines to `sin(6θ)` and `r_min^6*sin(6θ)`.
 :::
 :::
 

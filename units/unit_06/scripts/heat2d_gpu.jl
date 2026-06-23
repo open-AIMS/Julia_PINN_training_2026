@@ -18,7 +18,8 @@
 #
 # Run on the GPU hub (the @pinn env has CUDA.jl):
 #   julia --project=@pinn units/unit_06/scripts/heat2d_gpu.jl
-# Nothing here runs during `quarto render` — the .qmd shows it `eval: false`.
+# Nothing here runs during `quarto render` — the .qmd shows this as a static
+# listing and includes the pre-captured output from output/heat2d_gpu.md.
 # ===========================================================================
 
 using CUDA, Printf
