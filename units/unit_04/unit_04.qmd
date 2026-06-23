@@ -490,7 +490,7 @@ plot!(p1, t, S; lw = 2.4, c = :firebrick, label = "COTS density S (per ha)")
 hline!(p1, [30]; ls = :dash, c = :gray, label = "outbreak threshold")
 p2 = plot(C, S; lw = 2, c = :purple, xlabel = "coral C (%)", ylabel = "COTS S (per ha)",
           title = "phase portrait", legend = false, framestyle = :box)
-plot(p1, p2; layout = (1, 2), size = (1040, 380),
+plot(p1, p2; layout = (1, 2), size = (900, 350),
      bottom_margin = 5Plots.mm, left_margin = 5Plots.mm)
 ```
 
@@ -514,55 +514,90 @@ $$
 $$
 
 Training is exactly the §4.2 Neural-ODE loop — integrate the model forward,
-compare to the observed $C(t), S(t)$ trajectories, backprop through the solver
-via the adjoint, step Adam — except $N_\theta$ is now the *only* learned piece,
-with everything else held at its known value. Train against synthetic COTS /
-coral trajectories (or, eventually, the AIMS Long-Term Monitoring Program's
-manta-tow records), then read the answer straight off the network: the learned
-$N_\theta$ has biological meaning — plot it against $S$ at fixed $C$ to see
-whether it recovers a density-dependent Allee-like effect; plot against $T_a$ at
-fixed $(S, C)$ to see whether warming suppresses mortality (or doesn't).
+compare to the observed $C(t), S(t)$ trajectories, backprop through the solver,
+step Adam — except $N_\theta$ is now the *only* learned piece, with everything
+else held at its known value.
 
-```{.julia code-fold="true" code-summary="COTS-coral UDE sketch (illustrative)"}
-# Hybrid COTS-coral model:
-#   - logistic coral growth and Holling-II grazing as known physics,
-#   - density- and temperature-dependent COTS mortality as a learned NN.
-using Lux, OrdinaryDiffEq, Zygote, Optimisers, SciMLSensitivity, Random
+Let's make that concrete and **run it end to end** on the cleanest version of
+the problem: the mortality depends on density alone, $m(S)$, and is the *only*
+unknown. We invent a hidden truth $m_\star(S) = 0.035 + 0.045\,(S/35)^2$ — a
+baseline plus a density-dependent crowding/disease term — generate noisy COTS /
+coral trajectories from it, then ask whether a small network, dropped into the
+mortality slot with all other physics held fixed, can **recover that curve from
+the trajectories alone**. (Adding $C$ and a temperature anomaly $T_a(t)$ as extra
+inputs is the *same* machinery with a wider first layer.) The full runnable script
+is [`scripts/cots_ude_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/cots_ude_train.jl){target="_blank"};
+its core:
 
-mortality_net = Lux.Chain(
-    Lux.Dense(3 => 16, tanh),
-    Lux.Dense(16 => 16, tanh),
-    Lux.Dense(16 => 1),
-)
-ps, st = Lux.setup(Random.MersenneTwister(0), mortality_net)
+```{.julia filename="units/unit_04/scripts/cots_ude_train.jl"}
+using Lux, Zygote, Optimisers, ComponentArrays, Random, Statistics
 
-# Known parameters (Morello et al. 2014, rough orders of magnitude)
-const r_C, K = 0.30, 80.0       # coral growth rate (1/yr), carrying capacity (% cover)
-const a, h   = 0.005, 0.10       # attack rate, handling time
-const e      = 0.40              # conversion efficiency
+# known physics — held FIXED; only the mortality m(S) is learned
+r_C, K, a, h, e = 0.30, 80.0, 0.005, 0.10, 0.40
+graze(C, S) = a*S*C / (1 + a*h*C)
 
-# Temperature anomaly driver (read from observations or model out)
-T_anom(t) = 0.3 * sin(2π * t / 1.0)   # placeholder annual cycle
+# the small NN closure, softplus-wrapped so mortality stays ≥ 0
+net = Lux.Chain(Lux.Dense(1 => 16, tanh), Lux.Dense(16 => 16, tanh), Lux.Dense(16 => 1))
+p0, st = Lux.setup(Random.MersenneTwister(1), net)
+ps = ComponentArray{Float64}(p0)
+mθ(S, p) = log1p(exp(first(net([S], p, st))[1]))
 
-function cots_coral!(du, u, p, t)
-    C, S = u                                 # coral cover (%), COTS density (per ha)
-    graze = a * S * C / (1 + a * h * C)
-    m_S, _ = mortality_net([S, C, T_anom(t)], p, st)
-    du[1] = r_C * C * (1 - C / K) - graze
-    du[2] = e * graze - m_S[1] * S
+# the hybrid field: known coral + grazing, learned mortality m_θ(S)·S
+ude_field(u, p) = (C = u[1]; S = u[2]; g = graze(C, S);
+                   [r_C*C*(1 - C/K) - g,  e*g - mθ(S, p)*S])
+
+# roll the field forward with an explicit RK4 step; Zygote.Buffer makes the
+# in-place trajectory differentiable, so the gradient flows through the solver
+function rollout(field, u0, dt, n)
+    buf = Zygote.Buffer(zeros(2, n + 1)); buf[:, 1] = u0; u = u0
+    for k in 1:n
+        k1 = field(u);                k2 = field(u .+ 0.5dt .* k1)
+        k3 = field(u .+ 0.5dt .* k2); k4 = field(u .+ dt .* k3)
+        u  = u .+ (dt/6) .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4); buf[:, k+1] = u
+    end
+    copy(buf)
 end
 
-# … usual training loop: solve, trajectory-misfit against AIMS LTMP data,
-#   adjoint sensitivities, Adam → L-BFGS.
+# `data`, `u0`, `idx`, `dt`, `n` come from simulating the hidden-truth model
+# (same RK4 `rollout`, with `m_true(S)`) and sampling it with 3% noise.
+loss(p) = sum(abs2, rollout(u -> ude_field(u, p), u0, dt, n)[:, idx] .- data)
+# … Adam on `loss` via Zygote.pullback — the §4.2 trajectory-loss loop verbatim.
 ```
 
-The pedagogical pay-off: the UDE separates *what we trust* (the
-logistic-grazing skeleton, with parameters fit to decades of
-monitoring) from *what we don't* (the closure that says *why*
-COTS adults die at the rates they do). A successful fit gives an
-ecologist a plottable, biologically-interpretable mortality
-surface — exactly the kind of artefact that motivates UDEs over
-black-box neural ODEs in real applications.
+::: {.callout-note collapse="true"}
+## Why an explicit RK4 here, not the §4.2 adjoint?
+
+[§4.2](#from-resnets-to-neural-odes) trained its Neural ODE by backpropagating
+through `OrdinaryDiffEq`'s solver with `SciMLSensitivity`'s **adjoint**
+(`sensealg = InterpolatingAdjoint(...)`) — the right tool for stiff or
+high-dimensional systems, where a hand-written solver would be slow or unstable.
+Here the system is tiny and non-stiff (two states, smooth), so we instead unroll a
+fixed-step **RK4 loop and let plain `Zygote` differentiate straight through it**
+(`Zygote.Buffer` makes the in-place writes differentiable). Two reasons: it keeps
+the example **self-contained** — nothing beyond what `@pinn` already ships, no
+`SciMLSensitivity` — and it makes the "backprop *through* the solver" idea
+**literal**: the integrator you differentiate is right there in `rollout`, not
+hidden behind a `sensealg`. For a production-scale UDE you would switch back to the
+adjoint, exactly as in §4.2.
+:::
+
+Train it (Adam, ~1000 steps) and the network recovers the hidden mortality law to
+**~7% mean error over the density range the data actually visits**:
+
+![Left: the trained UDE (lines) tracks the noisy COTS / coral observations
+(dots). Right: the learned closure (blue dashed) recovers the hidden mortality
+law $m_\star(S)$ (black) closely *inside* the density range the trajectories
+explore (shaded), and is left unconstrained *outside* it — the honest signature of
+every UDE result.](figures/cots_ude_fit.png){#fig-cots-ude width=92%}
+
+That right panel is the whole point of the method. The UDE separates *what we
+trust* (the logistic-grazing skeleton) from *what we don't* (why COTS adults die),
+and hands the ecologist a plottable, biologically-interpretable mortality curve —
+recovered from trajectories alone, agreeing with truth where the data constrains
+it and openly extrapolating where it doesn't. That last contrast — faithful
+interpolation, unconstrained extrapolation — is exactly what makes UDEs honest, and
+it is the same caution you'll apply to the learned closures in the
+[capstone](../unit_08/unit_08.qmd).
 
 ### Lotka–Volterra inverse variant
 
