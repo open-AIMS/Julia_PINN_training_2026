@@ -73,6 +73,121 @@ network architecture, "complexity" is roughly the parameter count,
 and the test set is replaced by held-out collocation points in the
 PDE domain.
 
+### Ordinary least squares: the `\` operator
+
+Before adding any penalty, recall the plainest fit of all. Julia's
+left-division `\` solves linear systems: for a square invertible $A$,
+`A \ b` returns the $x$ with $Ax = b$. For a **tall** matrix $X$ — more
+data rows than parameters — there is no exact solution, so `X \ y`
+instead returns the **ordinary least-squares** (OLS) estimate: the
+$\beta$ minimising $\lVert y - X\beta\rVert_2^2$, computed stably by QR
+(no explicit normal equations). Stacking a column of ones for the
+intercept turns line-fitting into a single call:
+
+```{.julia filename="units/unit_02/scripts/ols_regression.jl"}
+# 5 noisy points, roughly on the line  y = 2 + 3x
+x = [0.0, 1.0, 2.0, 3.0, 4.0]
+y = [2.1, 5.2, 7.8, 11.1, 13.9]
+
+# design matrix: column of 1s (intercept) next to x (slope)
+X = [ones(length(x)) x]
+
+# least-squares fit — `\` minimizes ‖y - Xβ‖² for this tall X
+β = X \ y
+
+println("intercept = ", round(β[1], digits = 3))   # ≈ 2.12
+println("slope     = ", round(β[2], digits = 3))   # ≈ 2.95
+```
+
+The recovered intercept $\approx 2.12$ and slope $\approx 2.95$ are
+close to the $y = 2 + 3x$ the data came from. The textbook closed form
+is $\hat\beta = (X^\top X)^{-1} X^\top y$, but `\` is what you actually
+call — and it's the building block the next section regularises.
+
+### Regularisation: penalising complexity
+
+Cross-validation *measures* over-fitting; **regularisation** actively
+*fights* it. Rather than trimming the function class by hand, keep it
+flexible but add a penalty $\Omega(\theta)$ on the parameters to the
+empirical risk, pulling the fit toward simpler solutions:
+
+$$
+\min_{\theta}\; \hat R(f_\theta) \;+\; \lambda\,\Omega(\theta),
+\qquad \lambda \ge 0 .
+$$
+
+The **regularisation strength** $\lambda$ trades data-fit against
+simplicity: $\lambda = 0$ is the unpenalised fit, large $\lambda$ forces
+small parameters. For a linear model $f(x) = \beta^\top x$ under squared
+loss this is simply **least squares plus a penalty**. Taking the squared
+$L_2$ norm $\Omega(\beta) = \lVert\beta\rVert_2^2$ gives **ridge regression**,
+
+$$
+\hat\beta_\lambda
+  = \arg\min_{\beta}\;
+    \underbrace{\lVert y - X\beta\rVert_2^2}_{\text{least squares}}
+    + \lambda\,\lVert\beta\rVert_2^2
+  \;=\; (X^\top X + \lambda I)^{-1} X^\top y ,
+$$
+
+which is exactly the ordinary-least-squares normal equations
+$\hat\beta = (X^\top X)^{-1} X^\top y$ with $\lambda I$ added to the
+diagonal. Two consequences: $\lambda = 0$ recovers OLS, and any
+$\lambda > 0$ both **shrinks** the coefficients toward zero *and* makes
+$X^\top X + \lambda I$ invertible even when $X^\top X$ is singular or
+ill-conditioned (*MEDL* §2.5).
+
+A 12-feature problem where only 3 features matter, fit from just 15
+points, makes the effect concrete:
+
+```{.julia filename="units/unit_02/scripts/ridge_regression.jl"}
+using LinearAlgebra, Random, Statistics
+Random.seed!(1)
+
+# synthetic linear data: y = Xβ + noise, only 3 of 12 features matter
+p      = 12
+β_true = vcat([3.0, -2.0, 1.5], zeros(p - 3))
+gen(m) = (X = randn(m, p); (X, X * β_true .+ 0.5 .* randn(m)))
+Xtr, ytr = gen(15)     # small training set → OLS overfits
+Xte, yte = gen(2000)   # large test set → clean risk estimate
+
+rmse(β, X, y) = sqrt(mean(abs2, y .- X * β))
+
+# ordinary least squares:  minimize ‖y − Xβ‖²            (β̂ = X \ y)
+β_ols = Xtr \ ytr
+
+# ridge (L2):  minimize ‖y − Xβ‖² + λ‖β‖²
+#   closed form  β̂(λ) = (XᵀX + λI)⁻¹ Xᵀy  — OLS normal equations + λI
+ridge(X, y, λ) = (X'X + λ * I) \ (X'y)
+
+println("λ        ‖β‖      test RMSE")
+for λ in (0.0, 1.0, 10.0, 100.0)
+    β = ridge(Xtr, ytr, λ)
+    println(rpad(λ, 8), rpad(round(norm(β), digits = 2), 9),
+            round(rmse(β, Xte, yte), digits = 2))
+end
+```
+
+Sweeping $\lambda$ traces the same $U$-shape as the bias–variance curve
+above — now along one continuous knob instead of by swapping models:
+
+| $\lambda$ | $\lVert\hat\beta\rVert$ | test RMSE |
+|:--|:--|:--|
+| $0$ (OLS) | $3.89$ | $1.54$ |
+| $1$       | $3.57$ | $\mathbf{1.31}$ |
+| $10$      | $2.51$ | $1.91$ |
+| $100$     | $0.73$ | $3.33$ |
+
+OLS over-fits the 15 noisy points; a little regularisation
+($\lambda = 1$) gives the lowest test error; too much ($\lambda = 100$)
+over-shrinks and under-fits. Swapping the $L_2$ penalty for the $L_1$
+norm $\Omega(\beta) = \lVert\beta\rVert_1$ gives the **LASSO**, which
+drives many coefficients *exactly* to zero (automatic feature selection)
+but has no closed form. The same $L_2$ idea returns later as **weight
+decay** in deep networks (§2.8), and in PINNs, where the extra
+PDE-residual loss terms act as physics-informed regularisers
+([Unit 5](../unit_05/unit_05.qmd)).
+
 ::: {#ex-2-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — watch the U-shape appear
 
