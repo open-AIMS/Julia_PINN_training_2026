@@ -817,6 +817,12 @@ training orbit's range, and what does it do *outside* it? That contrast — fait
 interpolation, unconstrained extrapolation — is the honest summary of every UDE
 result you'll ever publish.
 
+**Grey-box stretch.** Following the *Fitting the physical constants too* block above,
+also pack one interpretable scalar into the parameter vector and recover it jointly
+with the closure. Free $\beta$ (the prey-loss rate in the *trusted* equation $\dot x =
+\alpha x - \beta x y$), **not** $\gamma$ — the worked solution explains why the latter
+is non-identifiable here.
+
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
 

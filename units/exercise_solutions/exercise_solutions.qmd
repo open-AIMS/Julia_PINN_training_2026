@@ -1023,67 +1023,111 @@ JAX users: the same experiment is ~30 lines with
 
 ### Solution 4.3 — the functional inverse, in miniature {#sol-4-3}
 
+The code below differentiates the trajectory loss straight through an explicit
+RK4 rollout with plain `Zygote` (`Zygote.Buffer` makes the in-place writes
+differentiable) — no `SciMLSensitivity`, so it runs in the workshop's `@pinn`
+environment exactly as written. As a grey-box twist, the parameter vector packs
+**one interpretable scalar alongside the network weights**: we recover the
+prey-loss rate $\beta$ *jointly* with the closure $N_\theta$.
+
+::: {.callout-tip collapse="false"}
+## Which scalar can you safely co-estimate? — identifiability
+
+A natural instinct is to free the *predator* death rate $\gamma$. **Don't** — it is
+**non-identifiable** here. The predator equation is $\dot y = N_\theta(x,y) - \gamma y$,
+and the network can represent *any* function of $(x,y)$, so for any constant $c$
+the pair $\bigl(N_\theta(x,y) - c\,y,\; \gamma - c\bigr)$ produces the identical
+trajectory. The optimiser has no way to separate "$-\gamma y$" from "whatever the
+network does with $y$" — they trade off freely and $\hat\gamma$ drifts to nonsense.
+
+The cure is to co-estimate a scalar the network **cannot** reach. We free $\beta$
+instead, which lives in the **trusted prey equation** $\dot x = \alpha x - \beta x y$
+— a term with *no* network in it. The $x$-data pins $\beta$ on its own, and below it
+comes back as $\hat\beta = 1.004$ (true $1.0$). The lesson generalises: only
+co-estimate parameters that appear in a *known, network-free* part of the model.
+:::
+
 ```julia
-using Lux, OrdinaryDiffEq, SciMLSensitivity, Zygote, Optimisers,
-      ComponentArrays, Random, Plots
+using Lux, Zygote, Optimisers, Optimization, OptimizationOptimJL,
+      ComponentArrays, Random, Statistics, OrdinaryDiffEq, Plots
 
-α, β, γ, δ = 1.5, 1.0, 3.0, 1.0
-lv!(du, u, p, t) = (du[1] = α*u[1] - β*u[1]*u[2];
+rng = Random.MersenneTwister(0)
+const α, β_true, γ, δ = 1.5, 1.0, 3.0, 1.0     # β is the unknown we recover
+
+# 1. Data — solve LV, sample 60×, add 2% multiplicative noise
+lv!(du, u, p, t) = (du[1] = α*u[1] - β_true*u[1]*u[2];
                     du[2] = δ*u[1]*u[2] - γ*u[2])
+u0, ts = [1.0, 1.0], range(0.0, 8.0; length = 60)
+truth  = Array(solve(ODEProblem(lv!, u0, (0.0, 8.0)), Tsit5(); saveat = ts))
+data   = truth .* (1 .+ 0.02 .* randn(rng, size(truth)))
 
-ts    = range(0.0f0, 8.0f0; length = 60)
-rng   = Random.MersenneTwister(0)
-truth = Array(solve(ODEProblem(lv!, Float32[1, 1], (0f0, 8f0)),
-                    Tsit5(); saveat = ts))
-data  = truth .* (1 .+ 0.02f0 .* randn(rng, Float32, size(truth)))
+# 2. Model — known prey term (with unknown β) + neural predator-growth closure
+nn = Lux.Chain(Lux.Dense(2 => 8, tanh), Lux.Dense(8 => 1))
+p0, stt = Lux.setup(rng, nn)
+Nθ(u, p)    = first(nn(u, p.net, stt))[1]
+field(u, p) = [α*u[1] - p.β*u[1]*u[2],   Nθ(u, p) - γ*u[2]]   # +δxy → N_θ(x,y)
 
-# UDE: keep everything except the predator-growth term, learn that
-nn      = Lux.Chain(Lux.Dense(2 => 8, tanh), Lux.Dense(8 => 1))
-ps, st  = Lux.setup(rng, nn)
-ps      = ComponentArray(ps)
+# pack an interpretable scalar β ALONGSIDE the network weights (grey-box)
+ps = ComponentArray{Float64}((β = 0.6, net = ComponentArray{Float64}(p0)))
 
-function ude!(du, u, p, t)
-    N = first(nn(u, p, st))[1]
-    du[1] = α*u[1] - β*u[1]*u[2]
-    du[2] = N - γ*u[2]                      # δxy replaced by N_θ(x, y)
+dt = 0.02; n = round(Int, 8/dt)
+function rollout(p)                       # RK4; Zygote.Buffer ⇒ differentiable
+    buf = Zygote.Buffer(zeros(2, n+1)); buf[:, 1] = u0; u = u0
+    for k in 1:n
+        k1 = field(u, p);              k2 = field(u .+ 0.5dt .* k1, p)
+        k3 = field(u .+ 0.5dt .* k2, p); k4 = field(u .+ dt .* k3, p)
+        u  = u .+ (dt/6) .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4); buf[:, k+1] = u
+    end
+    copy(buf)
 end
+idx = round.(Int, range(1, n+1; length = 60))
+predict(p) = rollout(p)[:, idx]
+wx, wy = 1/std(data[1, :]), 1/std(data[2, :])      # put both states on equal footing
+loss(p) = mean(abs2, (predict(p)[1, :] .- data[1, :]) .* wx) +
+          mean(abs2, (predict(p)[2, :] .- data[2, :]) .* wy)
 
-predict(p) = Array(solve(ODEProblem(ude!, Float32[1, 1], (0f0, 8f0), p),
-                         Tsit5(); saveat = ts,
-                         sensealg = InterpolatingAdjoint()))
-loss(p) = sum(abs2, predict(p) .- data)
-
-opt = Optimisers.setup(Optimisers.Adam(5f-3), ps)
-for i in 1:600
-    g = first(Zygote.gradient(loss, ps))
-    opt, ps = Optimisers.update(opt, ps, g)
+# 3. Train — Adam to find the basin, then an L-BFGS polish (the §4.3 recipe)
+function adam!(ps, lr, iters)
+    os = Optimisers.setup(Optimisers.Adam(lr), ps)
+    for _ in 1:iters
+        os, ps = Optimisers.update(os, ps, Zygote.gradient(loss, ps)[1])
+    end
+    ps
 end
+ps   = adam!(ps, 0.01, 600)
+optf = OptimizationFunction((p, _) -> loss(p), Optimization.AutoZygote())
+ps   = solve(OptimizationProblem(optf, ps), OptimizationOptimJL.LBFGS();
+             maxiters = 300).u
+@show ps.β        # ⇒ 1.004  (true 1.0)
 
-# compare N_θ(x, y) with δ·x·y over a grid
-xs = range(0.2f0, 4f0; length = 60); ys = range(0.2f0, 2.5f0; length = 60)
-Nθ = [first(nn(Float32[x, y], ps, st))[1] for y in ys, x in xs]
-Ntrue = [δ * x * y for y in ys, x in xs]
-p1 = heatmap(xs, ys, Nθ,    title = "learned N_θ(x, y)")
-p2 = heatmap(xs, ys, Ntrue, title = "true δ·x·y")
-p3 = heatmap(xs, ys, Nθ .- Ntrue, title = "difference", c = :balance)
-plot(p1, p2, p3, layout = (1, 3), size = (1100, 320))
-# overlay the training orbit on the difference panel:
-plot!(p3, truth[1, :], truth[2, :], c = :black, lw = 1.5, label = "orbit")
+# Read it off — learned N_θ(x,y) vs the true δ·x·y, with the orbit overlaid
+xs = range(0, maximum(data[1, :])*1.08; length = 70)
+ys = range(0, maximum(data[2, :])*1.08; length = 70)
+diff = [Nθ([x, y], ps) - δ*x*y for y in ys, x in xs]
+heatmap(xs, ys, diff; c = :balance, clims = (-3, 3),
+        xlabel = "x (prey)", ylabel = "y (predator)",
+        title = "Nθ(x,y) − δxy   (orbit overlaid)")
+plot!(truth[1, :], truth[2, :]; c = :black, lw = 2, label = "training orbit")
 ```
 
-Inside the band of phase space the training orbit actually visits,
-the difference panel is near zero — $N_\theta$ recovers
-$\delta x y$ to a few percent, *without ever being told the term
-was bilinear*. Outside the orbit (corners of the grid the
-trajectory never enters), the difference grows arbitrarily: the
-loss never constrained those inputs, so the network freelances.
-Plot the orbit over the difference heatmap and the correspondence
-is unmistakable — the trustworthy region of a learned closure *is*
-the data's footprint in state space.
+![Left: the UDE fits the noisy two-species trajectory and recovers the prey-loss
+scalar $\hat\beta = 1.004$ (true $1.0$). Right: the signed error
+$N_\theta(x,y) - \delta x y$. The near-zero (white) band hugs the **training orbit**;
+the error blooms both *inside* the loop and in the far corners — phase space the
+trajectory never visits.](figures/ude_lv_solution.png){#fig-sol-4-3 width=92%}
 
-That picture is what you should reproduce, in grown-up form, for
-the capstone's learned wind-stress envelope: report the recovered
-function together with the region where the data actually
+Two readings, one figure. The scalar comes back essentially exact
+($\hat\beta = 1.004$) because it sits in the trusted prey equation the data pins
+directly. The **function** is recovered only where the data lives: along the orbit
+ring the signed error is near zero — $N_\theta$ reproduces $\delta x y$ to a few
+percent *without ever being told the term was bilinear* — while inside the loop and
+in the corners the orbit never enters, the error grows without bound, because the
+loss never constrained those inputs and the network freelances.
+
+That contrast — **faithful interpolation, unconstrained extrapolation** — is the
+honest summary of every UDE result you will ever publish, and exactly the picture
+to reproduce, in grown-up form, for the capstone's learned wind-stress envelope:
+report the recovered function *together with* the region where the data actually
 constrains it.
 
 ::: {.exercise-solution-link}
