@@ -11,9 +11,7 @@ $\dot{\mathbf{x}} = f(\mathbf{x}, t)$ and let
 `OrdinaryDiffEq.jl` integrate them. This unit takes the next step:
 **make $f$ itself learnable**. Two routes — replace $f$ entirely
 with a neural network (Neural ODEs), or splice a small network into
-known physics (UDEs). The first is the bridge from deep networks to
-continuous-depth models; the second sets up every inverse problem
-in the capstone.
+known physics (UDEs).
 
 We treat the solver as a black box throughout — adaptive
 step-size control, stiff vs non-stiff, implicit methods are
