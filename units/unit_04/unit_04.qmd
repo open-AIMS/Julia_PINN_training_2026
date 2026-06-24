@@ -668,31 +668,30 @@ baseline plus a density-dependent crowding/disease term — generate noisy COTS 
 coral trajectories from it, then ask whether a small network, dropped into the
 mortality slot with all other physics held fixed, can **recover that curve from
 the trajectories alone**. (Adding $C$ and a temperature anomaly $T_a(t)$ as extra
-inputs is the *same* machinery with a wider first layer.) The full runnable script
-is [`scripts/cots_ude_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/cots_ude_train.jl){target="_blank"};
-its core:
+inputs is the *same* machinery with a wider first layer.) Here is the whole thing —
+data generation, the hybrid field, the differentiable solver, and a two-stage
+**Adam → L-BFGS** fit (only the ~20 lines of `Plots` code that draw the figure
+below are left in the file [`scripts/cots_ude_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/cots_ude_train.jl){target="_blank"}):
 
 ```{.julia filename="units/unit_04/scripts/cots_ude_train.jl"}
-using Lux, Zygote, Optimisers, ComponentArrays, Random, Statistics
+using Lux, Zygote, Optimisers, Optimization, OptimizationOptimJL,
+      ComponentArrays, Random, Statistics
 
-# known physics — held FIXED; only the mortality m(S) is learned
-r_C, K, a, h, e = 0.30, 80.0, 0.005, 0.10, 0.40
+rng = Random.MersenneTwister(1)
+
+# known physics — held FIXED in both the ground truth and the UDE
+const r_C, K = 0.30, 80.0      # coral growth rate (1/yr), carrying capacity (% cover)
+const a, h   = 0.005, 0.10     # COTS attack rate, handling time
+const e      = 0.40            # conversion efficiency
 graze(C, S) = a*S*C / (1 + a*h*C)
 
-# the small NN closure, softplus-wrapped so mortality stays ≥ 0
-net = Lux.Chain(Lux.Dense(1 => 16, tanh), Lux.Dense(16 => 16, tanh), Lux.Dense(16 => 1))
-p0, st = Lux.setup(Random.MersenneTwister(1), net)
-ps = ComponentArray{Float64}(p0)
-mθ(S, p) = log1p(exp(first(net([S], p, st))[1]))
+# the HIDDEN mortality law the UDE must recover from data alone
+m_true(S) = 0.035 + 0.045*(S/35)^2
 
-# the hybrid field: known coral + grazing, learned mortality m_θ(S)·S
-ude_field(u, p) = (C = u[1]; S = u[2]; g = graze(C, S);
-                   [r_C*C*(1 - C/K) - g,  e*g - mθ(S, p)*S])
-
-# roll the field forward with an explicit RK4 step; Zygote.Buffer makes the
-# in-place trajectory differentiable, so the gradient flows through the solver
+# explicit RK4 rollout of a 2-state field; Zygote.Buffer makes it differentiable
 function rollout(field, u0, dt, n)
-    buf = Zygote.Buffer(zeros(2, n + 1)); buf[:, 1] = u0; u = u0
+    buf = Zygote.Buffer(zeros(eltype(u0), length(u0), n + 1))
+    buf[:, 1] = u0; u = u0
     for k in 1:n
         k1 = field(u);                k2 = field(u .+ 0.5dt .* k1)
         k3 = field(u .+ 0.5dt .* k2); k4 = field(u .+ dt .* k3)
@@ -701,10 +700,49 @@ function rollout(field, u0, dt, n)
     copy(buf)
 end
 
-# `data`, `u0`, `idx`, `dt`, `n` come from simulating the hidden-truth model
-# (same RK4 `rollout`, with `m_true(S)`) and sampling it with 3% noise.
-loss(p) = sum(abs2, rollout(u -> ude_field(u, p), u0, dt, n)[:, idx] .- data)
-# … Adam on `loss` via Zygote.pullback — the §4.2 trajectory-loss loop verbatim.
+# ground-truth data: integrate the true model, sample yearly, add 3% noise
+true_field(u) = (C = u[1]; S = u[2]; g = graze(C, S);
+                 [r_C*C*(1 - C/K) - g,  e*g - m_true(S)*S])
+u0    = [60.0, 2.0]
+T, dt = 60.0, 0.1
+n     = Int(T / dt)
+idx   = 1:10:(n + 1)                       # observe once a year
+clean = rollout(true_field, u0, dt, n)[:, idx]
+Cv, Sv = clean[1, :], clean[2, :]
+data   = clean .* (1 .+ 0.03 .* randn(rng, size(clean)))
+
+# the UDE: mortality is a small NN of S; every other term stays known
+net = Lux.Chain(Lux.Dense(1 => 16, tanh), Lux.Dense(16 => 16, tanh), Lux.Dense(16 => 1))
+p0, stt = Lux.setup(rng, net)
+ps = ComponentArray{Float64}(p0)
+ps.layer_3.bias .= -2.95                   # softplus(-2.95)≈0.05 → sane initial mortality
+mθ(S, p) = log1p(exp(first(net([S], p, stt))[1]))   # softplus keeps mortality ≥ 0
+
+ude_field(u, p) = (C = u[1]; S = u[2]; g = graze(C, S);
+                   [r_C*C*(1 - C/K) - g,  e*g - mθ(S, p)*S])
+predict(p) = rollout(u -> ude_field(u, p), u0, dt, n)
+
+wC, wS = 1/std(Cv), 1/std(Sv)              # weight coral and COTS misfits equally
+function loss(p)
+    sol = predict(p)[:, idx]
+    mean(abs2, (sol[1, :] .- data[1, :]) .* wC) + mean(abs2, (sol[2, :] .- data[2, :]) .* wS)
+end
+
+# train in two stages — the standard SciML recipe:
+#   1) Adam: robust first-order steps that get us into the right basin;
+#   2) L-BFGS: a quasi-Newton polish that converges sharply once we are close.
+function adam!(ps, lr, iters)
+    os = Optimisers.setup(Optimisers.Adam(lr), ps)
+    for _ in 1:iters
+        os, ps = Optimisers.update(os, ps, Zygote.gradient(loss, ps)[1])
+    end
+    ps
+end
+ps = adam!(ps, 0.01, 500)                                          # stage 1: Adam
+optf = OptimizationFunction((p, _) -> loss(p), Optimization.AutoZygote())
+ps   = solve(OptimizationProblem(optf, ps),                        # stage 2: L-BFGS
+             OptimizationOptimJL.LBFGS(); maxiters = 300).u
+# mθ(·, ps) is now the recovered mortality law — plotted against m_true above.
 ```
 
 ::: {.callout-note collapse="true"}
@@ -724,8 +762,9 @@ hidden behind a `sensealg`. For a production-scale UDE you would switch back to 
 adjoint, exactly as in §4.2.
 :::
 
-Train it (Adam, ~1000 steps) and the network recovers the hidden mortality law to
-**~7% mean error over the density range the data actually visits**:
+Train it — 500 Adam steps to drop into the right basin, then an L-BFGS polish — and
+the network recovers the hidden mortality law to **under 10% mean error over the
+density range the data actually visits**:
 
 ![Left: the trained UDE (lines) tracks the noisy COTS / coral observations
 (dots). Right: the learned closure (blue dashed) recovers the hidden mortality
@@ -742,47 +781,61 @@ interpolation, unconstrained extrapolation — is exactly what makes UDEs honest
 it is the same caution you'll apply to the learned closures in the
 [capstone](../unit_08/unit_08.qmd).
 
-### Lotka–Volterra inverse variant
+### Fitting the physical constants too
 
-Same setup, dynamics from §4.1. Two variants:
+Nothing forces the known scalars $(r_C, K, a, h, e)$ to stay fixed. In practice you
+rarely know them exactly — and the *same* trajectory loss can estimate them
+**jointly with the closure**: just put them in the parameter vector. With
+`ComponentArrays` that is essentially a one-line change — pack a `phys` block
+alongside the network weights:
 
-- **Parameter inverse** — assume the LV form and recover the
-  scalars $(\alpha, \beta, \gamma, \delta)$. Cheap.
-- **Functional inverse** — drop one term (say the predator–prey
-  interaction $-\beta x y$) and learn it as a small network. Now
-  you're recovering a *function*, not a number — exactly the
-  capstone problem in miniature.
+```julia
+ps = ComponentArray(phys = (r_C = 0.30, K = 80.0, a = 0.005, h = 0.10, e = 0.40),
+                    net  = ComponentArray{Float64}(p0))
+```
 
-The functional inverse is where neural-network capacity pays off:
-classical parameter estimation can't recover an unknown functional
-shape, but a UDE with a 2-layer MLP can. We leave this one as a
-hands-on exercise rather than a shipped script: build it yourself in
-the [section exercise below](#ex-4-3) — drop the $+\delta x y$ term and
-learn it as a small network — with a complete worked implementation,
-including the learned-vs-true $N_\theta$ comparison, in
-[Solution 4.3](../exercise_solutions/exercise_solutions.qmd#sol-4-3).
+Read `p.phys.r_C`, `p.phys.K`, … inside `ude_field` instead of the global constants,
+and the loss gradient now flows to **both** the handful of mechanistic constants and
+the neural closure; Adam → L-BFGS optimises them together. Two cautions: the scalars
+and the network weights live on very different scales, so standardise them or give
+the physical block its own learning rate; and watch **identifiability** — fit too
+many free constants against too little data and the parameters and the closure
+trade off against one another. This *grey-box* estimation — a few interpretable
+numbers **and** an unknown function from a single trajectory loss — is exactly the
+capstone setting in [Units 8–10](../unit_08/unit_08.qmd).
 
 ::: {#ex-4-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the functional inverse, in miniature
 
-Write the `ude_lv.jl` functional-inverse script yourself. Generate
-Lotka–Volterra data ($\alpha, \beta, \gamma, \delta$ as in §4.1,
-$t \in [0, 8]$, 60 samples, 2% noise), then build the UDE that keeps
-$\dot x = \alpha x - \beta x y$ and $\dot y = -\gamma y + N_\theta(x, y)$
-— i.e. drop the $+\delta x y$ predator-growth term and learn it with
-a 2 → 8 → 1 network. Train (Adam → a few hundred iterations is
-enough), then plot the learned $N_\theta(x, y)$ against the true
-surface $\delta x y$ over the visited region of the phase plane.
-Two checks: does $N_\theta$ match $\delta x y$ *inside* the training
-orbit's range, and what does it do *outside* it? That contrast — good
-interpolation, unconstrained extrapolation — is the honest summary
-of every UDE result you'll ever publish.
+This is the **functional inverse** of a UDE, and the perfect contrast to a
+parameter inverse. A *parameter* inverse assumes you know the model's form and
+recovers a few **scalars**; a *functional* inverse drops a whole **term** and learns
+it as a network — recovering a *function*, not a number. It is the §4.3 COTS example
+in miniature: there the unknown was the mortality $m(S)$; here it will be the
+predator–prey interaction.
+
+Build `ude_lv.jl` yourself, in three steps:
+
+1. **Data.** Solve Lotka–Volterra ($\alpha, \beta, \gamma, \delta$ as in §4.1,
+   $t \in [0, 8]$, 60 samples) and add 2% multiplicative noise.
+2. **Model.** Keep the terms you trust and replace the predator-growth term
+   $+\delta x y$ with a $2 \to 8 \to 1$ network:
+   $$\dot x = \alpha x - \beta x y, \qquad \dot y = -\gamma y + N_\theta(x, y).$$
+   Train on the trajectory loss (Adam for a few hundred steps; an L-BFGS polish like
+   §4.3's is an optional extra).
+3. **Read it off.** Plot the learned $N_\theta(x, y)$ against the true surface
+   $\delta x y$ over the region the orbit actually visits.
+
+The one question that matters: does $N_\theta$ match $\delta x y$ *inside* the
+training orbit's range, and what does it do *outside* it? That contrast — faithful
+interpolation, unconstrained extrapolation — is the honest summary of every UDE
+result you'll ever publish.
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
 
 ::: {.exercise-hint-text}
-Generate data with `truth = solve(...)` then `data = truth .* (1 .+ 0.02f0 .* randn(...))`. The UDE rhs keeps the known terms inline and swaps the predator-growth term for the net: `du[1] = α*u[1] - β*u[1]*u[2]; du[2] = first(nn(u, p, st))[1] - γ*u[2]` — i.e. $+\delta xy$ becomes $N_\theta(x,y)$. Training is identical to ex-4-2's loop (`ComponentArray` params, `InterpolatingAdjoint`, Adam a few hundred iters). For the comparison, evaluate `N_θ` and `δ·x·y` on a grid with two comprehensions and `heatmap` both — then overlay the training orbit with `plot!` to see exactly where the agreement ends.
+Generate data with `truth = solve(...)` then `data = truth .* (1 .+ 0.02f0 .* randn(...))`. The UDE rhs keeps the known terms inline and swaps the predator-growth term for the net: `du[1] = α*u[1] - β*u[1]*u[2]; du[2] = first(nn(u, p, st))[1] - γ*u[2]` — i.e. $+\delta xy$ becomes $N_\theta(x,y)$. For training, either reuse ex-4-2's adjoint loop (`InterpolatingAdjoint`) **or** §4.3's `Zygote.Buffer` RK4 `rollout`, which needs no extra package. For the comparison, evaluate `N_θ` and `δ·x·y` on a grid with two comprehensions and `heatmap` both — then overlay the training orbit with `plot!` to see exactly where the agreement ends.
 :::
 :::
 

@@ -13,8 +13,10 @@
 # already ships. Output: figures/cots_ude_fit.png
 #
 #   Pkg deps (all already in the course environment):
-#     Lux, Zygote, Optimisers, ComponentArrays, Plots, Random, Statistics
-using Lux, Zygote, Optimisers, ComponentArrays, Random, Statistics, Printf, Plots
+#     Lux, Zygote, Optimisers, Optimization, OptimizationOptimJL,
+#     ComponentArrays, Plots, Random, Statistics
+using Lux, Zygote, Optimisers, Optimization, OptimizationOptimJL,
+      ComponentArrays, Random, Statistics, Printf, Plots
 
 rng = Random.MersenneTwister(1)
 
@@ -73,13 +75,14 @@ function loss(p)
     mean(abs2, (sol[1, :] .- data[1, :]) .* wC) + mean(abs2, (sol[2, :] .- data[2, :]) .* wS)
 end
 
-# ── train: Adam through the solver (gradients via Zygote) ───────────────────
-function train!(ps, lr, iters)
+# ── train in two stages — the standard SciML recipe ─────────────────────────
+#   1) Adam: robust, cheap first-order steps that get us into the right basin;
+#   2) L-BFGS: a quasi-Newton polish that converges sharply once we are close.
+# Both differentiate the same trajectory loss with Zygote (through the RK4 solver).
+function adam!(ps, lr, iters)
     os = Optimisers.setup(Optimisers.Adam(lr), ps)
-    for it in 1:iters
-        l, bk = Zygote.pullback(loss, ps)
-        os, ps = Optimisers.update(os, ps, bk(one(l))[1])
-        it % 100 == 0 && @printf("  iter %4d   loss %.4e\n", it, l)
+    for _ in 1:iters
+        os, ps = Optimisers.update(os, ps, Zygote.gradient(loss, ps)[1])
     end
     ps
 end
@@ -87,9 +90,15 @@ end
 @printf("observations        : %d  (3%% noise);  S visits [%.1f, %.1f] per ha\n",
         length(tobs), minimum(Sv), maximum(Sv))
 @printf("initial loss        : %.4e\n", loss(ps))
-ps = train!(ps, 0.01, 600)
-ps = train!(ps, 0.002, 400)
-@printf("final loss          : %.4e\n", loss(ps))
+
+ps = adam!(ps, 0.01, 500)                       # stage 1: Adam
+@printf("after 500 Adam steps: %.4e\n", loss(ps))
+
+# stage 2: L-BFGS polish, via the Optimization.jl wrapper (Zygote gradients)
+optf = OptimizationFunction((p, _) -> loss(p), Optimization.AutoZygote())
+res  = solve(OptimizationProblem(optf, ps), OptimizationOptimJL.LBFGS(); maxiters = 300)
+ps   = res.u
+@printf("after L-BFGS polish : %.4e\n", loss(ps))
 
 # recovery quality over the range the data actually explored
 Smin, Smax = minimum(Sv), maximum(Sv)
