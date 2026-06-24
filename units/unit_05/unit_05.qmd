@@ -57,6 +57,36 @@ $\lambda_{\text{IC}}, \lambda_{\text{BC}}, \lambda_{\text{PDE}}$ are
 the main hyperparameters — tuning them well is a major theme of
 [Unit 7](../unit_07/unit_07.qmd).
 
+### A second example: the heat equation
+
+The same recipe carries over to PDEs — now with a genuine *boundary* term.
+Take the 1-D **heat equation** on $x \in [0, 1]$, $t \in [0, T]$,
+
+$$\partial_t u \;=\; \alpha\, \partial_{xx} u,$$ {#eq-heat}
+
+approximated by a network $u_\theta(x, t)$. Three losses combine. The **PDE
+residual** at interior collocation points $\{(x_i, t_i)\}$,
+
+$$\mathcal{L}_{\text{PDE}}(\theta) \;=\; \frac{1}{N_r}\sum_{i=1}^{N_r}
+  \bigl|\,\partial_t u_\theta - \alpha\, \partial_{xx} u_\theta\,\bigr|^2_{(x_i, t_i)},$$
+
+the **initial condition** $u(x, 0) = u_0(x)$,
+
+$$\mathcal{L}_{\text{IC}}(\theta) \;=\; \frac{1}{N_0}\sum_{j=1}^{N_0}
+  \bigl|\,u_\theta(x_j, 0) - u_0(x_j)\,\bigr|^2,$$
+
+and the **boundary condition** — say the homogeneous Dirichlet ends
+$u(0, t) = u(1, t) = 0$,
+
+$$\mathcal{L}_{\text{BC}}(\theta) \;=\; \frac{1}{N_b}\sum_{k=1}^{N_b}
+  \bigl|\,u_\theta(0, t_k)\,\bigr|^2 + \bigl|\,u_\theta(1, t_k)\,\bigr|^2.$$
+
+The PINN minimises their weighted sum
+$\lambda_{\text{PDE}}\mathcal{L}_{\text{PDE}} + \lambda_{\text{IC}}\mathcal{L}_{\text{IC}}
++ \lambda_{\text{BC}}\mathcal{L}_{\text{BC}}$. The only genuinely new ingredient
+versus the ODE is $\partial_{xx} u_\theta$ — a *second* derivative of the network
+with respect to its input — which is exactly what §5.2 below shows how to compute.
+
 ### Collocation points
 
 Where do you put the $\{t_i\}$? Options:
@@ -114,8 +144,14 @@ Julia (`ForwardDiff` / `Zygote` / `Enzyme`) and JAX
 
 ### Three derivatives, three modes
 
-For a network $u_\theta(\mathbf{x}, t): \mathbb{R}^{d+1} \to \mathbb{R}$
-with $P$ parameters, three derivative computations recur:
+The running example is the heat equation of @eq-heat,
+$\partial_t u = \alpha\, \partial_{xx} u$, whose residual
+
+$$r_\theta(x, t) \;=\; \partial_t u_\theta(x, t) \;-\; \alpha\, \partial_{xx} u_\theta(x, t)$$
+
+needs exactly the derivatives in the table below. For a network
+$u_\theta(\mathbf{x}, t): \mathbb{R}^{d+1} \to \mathbb{R}$ with $P$ parameters,
+three derivative computations recur:
 
 | What | Shape | Right mode |
 |---|---|---|
