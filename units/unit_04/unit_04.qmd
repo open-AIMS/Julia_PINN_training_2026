@@ -149,6 +149,84 @@ Define `V(x, y) = δ*x - γ*log(x) + β*y - α*log(y)`, set `V0 = V(u0...)`, and
 :::
 :::
 
+### Logistic growth and functional responses
+
+A population rarely grows without limit. The **logistic** model caps it with a
+carrying capacity $K$,
+
+$$\dot N = r\,N\Bigl(1 - \frac{N}{K}\Bigr),$$
+
+giving the familiar S-curve — near-exponential when rare, levelling off at the
+stable equilibrium $N = K$. It is exactly the coral-growth term in the §4.3 COTS
+model.
+
+Couple a consumer to that resource and the key question is *how fast does it feed
+as resource density $N$ rises?* — the **functional response** $g(N)$. Holling's
+three canonical shapes (attack rate $a$, handling time $h$):
+
+$$
+\underbrace{g_{\mathrm{I}} = aN}_{\text{Type I (linear)}}
+\qquad
+\underbrace{g_{\mathrm{II}} = \frac{aN}{1 + a h N}}_{\text{Type II (saturating)}}
+\qquad
+\underbrace{g_{\mathrm{III}} = \frac{aN^2}{1 + a h N^2}}_{\text{Type III (sigmoid)}}
+$$
+
+Type I never saturates; Type II plateaus at $1/h$ once handling time bottlenecks
+intake — this is the **grazing term used in §4.3**; Type III adds a low-density
+refuge (a predator that switches or learns prey) before saturating.
+
+```{julia}
+using Plots
+a, h = 1.0, 0.3
+N = range(0, 12; length = 200)
+plot(N, a .* N; lw = 2.4, label = "Type I   aN", ylims = (0, 4),
+     xlabel = "resource density N", ylabel = "per-capita intake g(N)",
+     title = "Holling functional responses", legend = :right, framestyle = :box)
+plot!(N, a .* N ./ (1 .+ a*h .* N);          lw = 2.4, label = "Type II   aN/(1+ahN)")
+plot!(N, a .* N.^2 ./ (1 .+ a*h .* N.^2);    lw = 2.4, ls = :dash, label = "Type III  aN²/(1+ahN²)")
+hline!([1/h]; ls = :dot, c = :gray, label = "saturation 1/h")
+```
+
+### A compartmental model: SIR
+
+Epidemics are dynamics too. The **SIR** model partitions a population into
+**S**usceptible, **I**nfected and **R**ecovered and moves mass between them:
+
+$$
+\dot S = -\beta\, S I, \qquad
+\dot I = \beta\, S I - \gamma I, \qquad
+\dot R = \gamma I,
+$$
+
+with $S, I, R$ as population fractions. New infections need an S–I contact
+($\beta S I$ — itself a mass-action functional response); recovery drains $I$ at
+rate $\gamma$. The outcome hinges on the **basic reproduction number**
+$R_0 = \beta/\gamma$: an outbreak grows only if $R_0 > 1$.
+
+```{julia}
+using OrdinaryDiffEq, Plots
+function sir!(du, u, p, t)
+    β, γ = p; S, I, R = u
+    du[1] = -β*S*I
+    du[2] =  β*S*I - γ*I
+    du[3] =  γ*I
+end
+sol = solve(ODEProblem(sir!, [0.99, 0.01, 0.0], (0.0, 120.0), (0.4, 0.1)),
+            Tsit5(); saveat = 0.5)
+plot(sol; lw = 2.4, label = ["S" "I" "R"], xlabel = "time (days)",
+     ylabel = "population fraction", title = "SIR epidemic  (R₀ = β/γ = 4)",
+     framestyle = :box, legend = :right)
+```
+
+Variants just redraw the compartment graph: **SIS** (no lasting immunity —
+recovereds flow back to S, so the disease can stay endemic) and **SEIR** (an
+**E**xposed/latent stage before infectiousness). Fitting such models to real
+spread data is its own craft — the
+[**SafeBlues**](https://safeblues.org/){target="_blank"} project released a "safe
+virtual virus" across university campuses to study exactly this kind of dynamic
+epidemic-model fitting on genuine contact data.
+
 ## 4.2 From ResNets to Neural ODEs
 
 This section walks the *bridge* between the discrete-layer MLPs of

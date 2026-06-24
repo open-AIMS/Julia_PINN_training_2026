@@ -11,8 +11,8 @@ rect(cx, cy, w, h) = Shape([cx-w/2, cx+w/2, cx+w/2, cx-w/2], [cy-h/2, cy-h/2, cy
 const W, H = 3.0, 0.9
 const CX = 4.0
 
-plt = plot(; xlim = (-0.5, 9.5), ylim = (-0.3, 12.3), legend = false,
-           framestyle = :none, size = (560, 720), background_color = :white)
+plt = plot(; xlim = (-0.5, 9.5), ylim = (-0.3, 13.3), legend = false,
+           framestyle = :none, size = (560, 760), background_color = :white)
 
 # vertical flow boxes (bottom -> top)
 boxes = [(1.0, "hₗ   (input)",            RGB(0.93,0.93,0.93)),
@@ -44,7 +44,7 @@ annotate!(plt, xr+0.15, 4.7, text("identity\nskip", 9, :crimson, :left))
 annotate!(plt, CX-W/2-0.55, 4.4, text("f", 12, :steelblue, :right))
 annotate!(plt, CX-W/2-0.30, 4.4, text("θ", 8, :steelblue, :left))
 plot!(plt, [CX-W/2-0.15, CX-W/2-0.15], [3.0-H/2, 5.8+H/2]; lw = 2, c = :steelblue)
-annotate!(plt, CX, 12.05, text("Residual block:  hₗ₊₁ = hₗ + f_θ(hₗ)", 10, :black))
+annotate!(plt, CX, 12.9, text("Residual block:  hₗ₊₁ = hₗ + f_θ(hₗ)", 10, :black))
 
 savefig(plt, joinpath(@__DIR__, "..", "figures", "resnet_block.png"))
 println("wrote figures/resnet_block.png")
