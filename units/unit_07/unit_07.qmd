@@ -1032,7 +1032,7 @@ stress concentrations.
 
 This is the area where students need the sharpest warning.
 **GraphCast** (Lam et al., *Science* 2023), **FourCastNet**
-(Pathak et al. 2023, NVIDIA), **ClimaX** (Nguyen et al., ICML
+(Pathak et al. 2022, NVIDIA), **ClimaX** (Nguyen et al., ICML
 2023) and the operational **NVIDIA Earth-2** systems are
 *operator-learning* models — GNNs, transformers, spherical
 neural operators — trained on ERA5 reanalysis without an
@@ -1087,10 +1087,9 @@ many-body problems and lose orthogonality of eigenstates.
 A useful honesty check: areas where PINNs are conspicuously
 *absent* from the success stories include large-scale turbulent
 CFD, multiphase flow, plasma physics for fusion, and
-high-Reynolds aerodynamics. The operator-learning approaches
-have eaten that lunch; whether PINNs ever return to it depends
-on whether the §7.3 modern fixes scale further than they
-currently do.
+high-Reynolds aerodynamics. Operator-learning approaches
+now dominate those areas; whether PINNs return to them depends
+on whether the §7.3 fixes scale further than they currently do.
 
 ::: {#ex-7-7 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — read one keystone paper properly
