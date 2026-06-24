@@ -1130,6 +1130,30 @@ to reproduce, in grown-up form, for the capstone's learned wind-stress envelope:
 report the recovered function *together with* the region where the data actually
 constrains it.
 
+::: {.callout-note}
+## "Can't we just regularize the corners away?"
+
+A natural reflex on seeing that bloom is to reach for regularization — and it is
+worth being precise about what that buys you. The corners are **not** classic
+overfitting: the trajectory fit is smooth, not noisy, and the network reproduces
+$\delta x y$ cleanly *along the orbit*. What you are seeing is **non-identifiability
+off the support of the data** — the loss only ever evaluates $N_\theta$ at points
+$(x(t),y(t))$ on the orbit, so for every input the orbit never visits the gradient
+of the loss is *exactly zero*. There is nothing to overfit there; there is nothing
+to fit at all.
+
+So an L2 weight penalty or a smoothness penalty will **tame the symptom, not cure
+the disease**: it shrinks the off-orbit surface toward a smooth, low-amplitude
+default, so the corners calm down and the trustworthy collar around the orbit
+widens a little — but it relaxes toward *zero*, not toward $x y$. Tamer is not
+truer. The only penalty that would recover $\delta x y$ in the corners is one that
+encodes bilinearity as a prior — i.e. telling the model the very term it was
+supposed to discover. **No regularizer substitutes for data:** if you need the
+closure to be correct under initial conditions that explore other parts of phase
+space, the fix is training data whose trajectory actually goes there (different
+ICs, or a forced system), not a penalty term.
+:::
+
 ::: {.exercise-solution-link}
 [← Back to Unit 4 §4.3](../unit_04/unit_04.qmd#ex-4-3)
 :::
