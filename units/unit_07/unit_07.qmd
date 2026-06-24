@@ -132,8 +132,7 @@ res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 Run it and the trained network reproduces the three-lobed harmonic
 to a relative $L^2$ error of about 2% after 3000 LBFGS iterations on
 a single CPU — the runnable version, which adds the grading and
-plotting calls, is
-[`scripts/laplace_disk_solve.jl`](scripts/laplace_disk_solve.jl).
+plotting calls, is `units/unit_07/scripts/laplace_disk_solve.jl`.
 *Where* that error concentrates, and what the collocation cloud has
 to do with it, is the section exercise.
 
@@ -731,9 +730,12 @@ For inverse problems of Workflow 2 or 3 type:
 3. **Add the data term gradually** — start with the data weight at
    $10^{-2}\times$ the residual weight, then ramp it up. (Adaptive
    weighting from §7.3 makes this automatic.)
-4. **Diagnose with residual histograms.** A PINN whose residual
-   doesn't decrease uniformly in $t$ is causality-violating; fix
-   that before believing the recovered source.
+4. **Watch the residual in time, not just in total.** Track how the
+   residual at each time $t$ falls *during training*; if late $t$ is
+   driven down before early $t$ is resolved, the fit is
+   causality-violating (§7.3). And remember the converse trap from
+   §7.2: a small total residual on its own does not prove the
+   recovered source is right.
 5. **Sanity-check on a known truth.** Generate synthetic data
    from a known ψ; recover it; ensure the recovered shape and
    amplitude are within tolerance. Only then turn it loose on
