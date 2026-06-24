@@ -124,6 +124,14 @@ $(x, v)$ plane — is a family of concentric ellipses. This is the
 example the Hamiltonian / Lagrangian neural networks of §3.3 are
 designed to handle without drifting.
 
+An ODE *is* a vector field. At every point $(x, v)$ of the phase plane the
+right-hand side $f(x, v) = (v, -\omega^2 x)$ pins down a little velocity arrow —
+"if you are *here*, move *that* way" — and a solution is simply the curve that
+follows the arrows from its starting point. Solving the ODE is threading those
+arrows; the grey field below is $f$ itself, and the coloured orbits thread through
+it. (This is the same "the network *is* a vector field" picture that
+[Unit 4 §4.2](../unit_04/unit_04.qmd) builds Neural ODEs on.)
+
 ```{julia}
 using OrdinaryDiffEq, Plots
 
@@ -138,6 +146,20 @@ plt = plot(xlabel = "position  x", ylabel = "velocity  v",
            title = "Harmonic oscillator — phase portrait",
            legend = :outerright, size = (720, 460),
            framestyle = :box, gridalpha = 0.25)
+
+# the ODE drawn as a vector field: an arrow f(x,v) = (v, -ω²x) at each grid point.
+# directions are normalised in screen units (x and v have very different scales)
+# so the arrows show *flow direction*, not raw magnitude; orbits are tangent to them.
+bx = Float64[]; bv = Float64[]; qx = Float64[]; qv = Float64[]
+Rx, Rv, len = 4.4, 27.0, 0.05          # axis spans + screen-normalised arrow length
+for x in range(-1.9, 1.9; length = 9), v in range(-11.5, 11.5; length = 7)
+    sx, sv = v / Rx, (-ω^2 * x) / Rv
+    n = hypot(sx, sv); n == 0 && continue
+    push!(bx, x); push!(bv, v)
+    push!(qx, sx/n * Rx * len); push!(qv, sv/n * Rv * len)
+end
+quiver!(plt, bx, bv, quiver = (qx, qv), c = :gray75, lw = 0.8, label = "")
+
 for (k, a) in enumerate(u0s)
     sol = solve(ODEProblem(oscillator, [a, 0.0], tspan), Tsit5(); saveat = 0.005)
     plot!(plt, sol[1, :], sol[2, :], lw = 2.6, c = pal[k], label = "x(0) = $a")
@@ -147,8 +169,8 @@ annotate!(plt, 0.0, 11.0, text("↻  clockwise flow", 9, :gray))
 plt
 ```
 
-Each closed loop is a constant-energy orbit; the dots mark where the mass
-is released from rest. The flow runs **clockwise** (the grey arrow): released at
+Each closed loop is a constant-energy orbit, everywhere **tangent to the grey
+vector-field arrows**; the dots mark where the mass is released from rest. The flow runs **clockwise** (the grey arrow): released at
 positive $x$ with zero velocity, the restoring force drives the velocity negative
 first, so the orbit sweeps downward. The loops never cross or decay — energy is conserved
 exactly, which is precisely the structure the Hamiltonian networks of §3.3

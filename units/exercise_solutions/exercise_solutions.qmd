@@ -990,6 +990,12 @@ plot!(pred[1, :], pred[2, :], label = "Neural ODE", ls = :dash, lw = 2)
 vline!([0], alpha = 0); # cosmetic
 ```
 
+![Trained on $t \le 6$ (green) the Neural ODE tracks the spiral; **extrapolated** to
+$t = 12$ (red dashed) it keeps orbiting instead of decaying inward — the learned
+field is unconstrained in the small-radius states the training data never visited,
+so the decay rate drifts. The black curve is the true spiral over the full
+interval.](figures/neural_ode_extrap.png){#fig-sol-4-2 width=72%}
+
 Expected behaviour: inside the training window the fit is
 excellent (final loss $\sim 10^{-2}$ on this scale). Extrapolating
 to $t = 12$, the spiral continues *roughly* correctly for another

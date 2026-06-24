@@ -156,9 +156,24 @@ carrying capacity $K$,
 
 $$\dot N = r\,N\Bigl(1 - \frac{N}{K}\Bigr),$$
 
-giving the familiar S-curve — near-exponential when rare, levelling off at the
-stable equilibrium $N = K$. It is exactly the coral-growth term in the §4.3 COTS
-model.
+near-exponential when rare, levelling off at the stable equilibrium $N = K$. It is
+exactly the coral-growth term in the §4.3 COTS model. Solve it from a few starting
+sizes and the S-curve is unmistakable — and $N = K$ attracts from both sides:
+
+```{julia}
+using OrdinaryDiffEq, Plots
+logistic(N, p, t) = p.r * N * (1 - N / p.K)
+prob = ODEProblem(logistic, 0.0, (0.0, 20.0), (r = 0.4, K = 100.0))
+
+plt = plot(xlabel = "time t", ylabel = "population N", framestyle = :box,
+           title = "Logistic growth   Ṅ = rN(1 − N/K)", legend = :right, gridalpha = 0.25)
+for N0 in (2.0, 20.0, 160.0)
+    sol = solve(remake(prob; u0 = N0), Tsit5(); saveat = 0.1)
+    plot!(plt, sol.t, sol.u, lw = 2.6, label = "N(0) = $N0")
+end
+hline!(plt, [100.0]; ls = :dash, c = :gray, label = "carrying capacity K")
+plt
+```
 
 Couple a consumer to that resource and the key question is *how fast does it feed
 as resource density $N$ rises?* — the **functional response** $g(N)$. Holling's
@@ -172,21 +187,30 @@ $$
 \underbrace{g_{\mathrm{III}} = \frac{aN^2}{1 + a h N^2}}_{\text{Type III (sigmoid)}}
 $$
 
-Type I never saturates; Type II plateaus at $1/h$ once handling time bottlenecks
-intake — this is the **grazing term used in §4.3**; Type III adds a low-density
-refuge (a predator that switches or learns prey) before saturating.
+All three level off at the **same** maximum intake $1/h$ (a satiated consumer) —
+they differ only in *how* they get there. Type I climbs linearly until satiated,
+then clips flat; Type II decelerates from the very first bite as handling time
+bottlenecks intake — this is the **grazing term used in §4.3**; Type III is
+**S-shaped**, with a low-density refuge (a predator that switches or learns prey)
+before it accelerates and then saturates.
 
 ```{julia}
 using Plots
 a, h = 1.0, 0.3
-N = range(0, 12; length = 200)
-plot(N, a .* N; lw = 2.4, label = "Type I   aN", ylims = (0, 4),
+P    = 1/h                                   # the shared satiation ceiling
+N    = range(0, 18; length = 300)
+plot(N, min.(a .* N, P); lw = 2.4, label = "Type I   min(aN, 1/h)", ylims = (0, 1.2P),
      xlabel = "resource density N", ylabel = "per-capita intake g(N)",
      title = "Holling functional responses", legend = :right, framestyle = :box)
-plot!(N, a .* N ./ (1 .+ a*h .* N);          lw = 2.4, label = "Type II   aN/(1+ahN)")
-plot!(N, a .* N.^2 ./ (1 .+ a*h .* N.^2);    lw = 2.4, ls = :dash, label = "Type III  aN²/(1+ahN²)")
-hline!([1/h]; ls = :dot, c = :gray, label = "saturation 1/h")
+plot!(N, a .* N ./ (1 .+ a*h .* N);       lw = 2.4, label = "Type II   aN/(1+ahN)")
+plot!(N, a .* N.^2 ./ (1 .+ a*h .* N.^2); lw = 2.4, ls = :dash, label = "Type III  aN²/(1+ahN²)")
+hline!([P]; ls = :dot, c = :gray, label = "max intake 1/h")
 ```
+
+(The pure-linear $g_{\mathrm{I}} = aN$ written above is the *mass-action* idealisation —
+unbounded, the form Lotka–Volterra uses; Holling's original Type I is that same line
+**up to satiation, then flat**, which is what we plot so all three share the $1/h$
+ceiling.)
 
 ### A compartmental model: SIR
 
@@ -283,8 +307,25 @@ $$h(t + \Delta t) \approx h(t) + \Delta t\, f_\theta(h(t), t).$$
 
 Identical. Stacking many such steps and taking $\Delta t \to 0$ as the depth $L \to \infty$ gives a
 **Neural ODE** ([Chen et al., 2018](../references/references.qmd#ref-chen2018){target="_blank"}): the network *is* a vector
-field, and the "forward pass" is an ODE solve from input
-$h(0) = \mathbf{x}$ to output $h(T) = \text{prediction}$.
+field $f_\theta$. The headline change is what happens to the **forward pass**. In an
+ordinary network it is a fixed stack of layer evaluations; in a Neural ODE that
+stack is **gone — the forward pass is now literally "solve an ODE"**: hand
+$\dot h = f_\theta(h, t)$ to an ODE solver and integrate from the input
+$h(0) = \mathbf{x}$ to the output $h(T) = \text{prediction}$. The depth — how many
+"layers" you take — is no longer fixed in the architecture; it is however many steps
+the *solver* decides to take.
+
+**Tapping out intermediate layers.** The loss need not live only at the output.
+In ordinary deep nets you can *tap out* hidden layers and attach a loss to them —
+**deep supervision** / **auxiliary heads** (the side-classifiers in
+GoogLeNet/Inception, or deeply-supervised nets), which inject gradient partway up
+the stack to steady very deep training. The continuous-depth version is the same
+idea: instead of scoring only the endpoint $h(T)$, compare the trajectory $h(t)$
+to data at *intermediate* times — a running loss along the path,
+$\int_0^T \ell\!\bigl(h(t), t\bigr)\,dt$ or a sum over observation times. That is
+exactly the **trajectory loss** used in §4.3 (data at many $t$, not just the end),
+and the basis of the multiple-shooting tricks for fitting a Neural ODE to a time
+series.
 
 ### Continuous-depth models in `Lux.jl` style
 
@@ -341,14 +382,18 @@ and no more accurate. Their real wins are the places where
   applications this workshop is about.
 
 **State of the art.** The active frontier is mostly about making the
-above *practical*: faster and more accurate adjoints (the JAX library
-[`diffrax`](https://docs.kidger.site/diffrax/){target="_blank"} is the
-modern reference), solvers that cope with **stiff** learned dynamics,
-and hybrids that splice Neural-ODE blocks into transformers and
-diffusion models. For this course the takeaway is narrower: a Neural
-ODE is the right tool when the data is a *trajectory* and the dynamics
-are unknown — exactly the capstone setting in
-[Unit 9](../unit_09/unit_09.qmd).
+above *practical*: faster and more accurate adjoints, solvers that cope
+with **stiff** learned dynamics, and hybrids that splice Neural-ODE
+blocks into transformers and diffusion models. The reference
+implementations live in Julia's **SciML** stack —
+[`SciMLSensitivity.jl`](https://docs.sciml.ai/SciMLSensitivity/stable/){target="_blank"}
+and [`DiffEqFlux.jl`](https://docs.sciml.ai/DiffEqFlux/stable/){target="_blank"},
+which pioneered differentiable solving at scale; on the Python side the
+modern counterpart is the JAX library
+[`diffrax`](https://docs.kidger.site/diffrax/){target="_blank"}. For this
+course the takeaway is narrower: a Neural ODE is the right tool when the
+data is a *trajectory* and the dynamics are unknown — exactly the
+capstone setting in [Unit 9](../unit_09/unit_09.qmd).
 
 ### Adjoint sensitivities (sketch)
 
@@ -375,20 +420,29 @@ sparse subset of states forward, then re-integrates between them
 on the backward pass — logarithmic-in-time memory at the cost of logarithmic-in-time
 extra compute.
 
-In Julia that machinery lives in `SciMLSensitivity.jl`. In Python
-the equivalents are `torchdiffeq` (Chen's reference
-implementation) and `diffrax` (the modern JAX-based version with
-exceptional adjoint support). `SciMLSensitivity.jl` is left out of
-the workshop default `Project.toml` to keep precompile light, but
-it's a one-line addition when you reach for it.
+In Julia that machinery lives in `SciMLSensitivity.jl` (the
+`sensealg = InterpolatingAdjoint()` you'll pass to `solve`); the Python
+equivalents are `torchdiffeq` (Chen's reference implementation) and the
+JAX library `diffrax`. One practical caveat for this workshop:
+**`SciMLSensitivity.jl` is *not* in the default `Project.toml`** — it is
+heavy to precompile, so we keep it out and the rendered site never
+executes the adjoint-based code below. It is a one-line
+`Pkg.add("SciMLSensitivity")` when you want to run the training script
+yourself. (The §4.3 UDE worked example deliberately avoids it — it
+backprops through a hand-written RK4 step with plain `Zygote` — so *that*
+one needs nothing beyond the course environment.)
 
 ### Training a Neural ODE — a complete run
 
 Not a sketch — the whole thing end to end: make data from a known system,
 let a small MLP *be* the vector field, train **through** the ODE solver with
 adjoint sensitivities, and check the fit. This is the full
-[`scripts/neural_ode_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/neural_ode_train.jl){target="_blank"}
-(needs `SciMLSensitivity` added to the environment; `ComponentArrays` is already in `@pinn`):
+[`scripts/neural_ode_train.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_04/scripts/neural_ode_train.jl){target="_blank"}.
+It is shown here but **not run by the site** — it is the one example that needs
+`SciMLSensitivity` (for `InterpolatingAdjoint`), which (as just noted) is *not* in
+the default `Project.toml`. To run it yourself, add that one package; everything
+else it uses — `ComponentArrays`, `Lux`, `OrdinaryDiffEq`, `Zygote` — is already in
+the course environment:
 
 ```{.julia filename="units/unit_04/scripts/neural_ode_train.jl"}
 using Lux, OrdinaryDiffEq, SciMLSensitivity, Zygote, Optimisers,
@@ -401,6 +455,7 @@ A_true = Float32[-0.1 2.0; -2.0 -0.1]
 u0, tspan = Float32[2.0, 0.0], (0.0f0, 6.0f0)
 ts   = range(tspan[1], tspan[2]; length = 40)
 data = Array(solve(ODEProblem((u,p,t) -> A_true*u, u0, tspan), Tsit5(); saveat = ts))
+data .+= 0.08f0 .* randn(rng, size(data))   # a bit of observation noise
 
 # the Neural ODE: a small MLP IS the vector field f_θ(u)
 fθ      = Lux.Chain(Lux.Dense(2 => 16, tanh), Lux.Dense(16 => 2))
@@ -421,6 +476,15 @@ end
 # `predict(ps)` now tracks the true damped spiral; the script saves the fit + loss curve.
 ```
 
+Trained on the noisy samples, the learned vector field's trajectory threads the
+data and recovers the underlying spiral:
+
+![A Neural ODE trained on 40 noisy samples of a damped spiral. The black dots are
+the noisy observations, the crimson curve is the trajectory of the *learned* field
+$f_\theta$ integrated from $\mathbf{x}_0 = (2, 0)$, and the dotted grey curve is the
+true spiral. The network never sees the equation — only the dots — yet its field
+reproduces the inward spiral.](figures/neural_ode_fit.png){#fig-neural-ode-fit width=70%}
+
 Three structural differences from the standard supervised-learning
 loop in [Unit 2 §2.8](../unit_02/unit_02.qmd):
 
@@ -430,10 +494,6 @@ loop in [Unit 2 §2.8](../unit_02/unit_02.qmd):
    single per-sample term.
 3. The **gradient** flows through the solver via `sensealg`. Pick
    the wrong one and training time blows up.
-
-We'll see this pattern again in [Unit 9](../unit_09/unit_09.qmd) —
-inverse problems with the column model use exactly the same loop,
-just with PDE residuals instead of trajectory data.
 
 ::: {#ex-4-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — train a tiny Neural ODE on a spiral
@@ -499,11 +559,12 @@ The Great Barrier Reef has lost roughly half its hard-coral cover since 1985,
 and the peer-reviewed AIMS attribution
 ([De'ath et al. 2012, *PNAS*](https://www.pnas.org/doi/10.1073/pnas.1208909109){target="_blank"})
 pins **~42% of that loss on Crown-of-Thorns starfish (COTS) predation** — second
-only to cyclones, and *the* biggest driver AIMS can actually act on. Reefs sit at
-1–10 adult COTS per hectare until an **outbreak** (>30/ha) strips the coral; AIMS
-monitors densities and targets culling accordingly. The hard part for a modeller
-is not the grazing — that part is textbook predator–prey — but *why COTS
-populations crash*: their **mortality**.
+only to cyclones, and one of the drivers reef managers attempt to address directly.
+Reefs sit at 1–10 adult COTS per hectare until an **outbreak** (>30/ha) strips the
+coral; densities are monitored and targeted culling is one management response. For
+a modeller, the grazing interaction is relatively well-understood textbook
+predator–prey; more uncertain is *why COTS populations crash* — their **mortality**,
+which is where we will place the learned term.
 
 The modelling question we'll borrow: **given monitored
 time-series of coral cover $C(t)$ and COTS density $S(t)$ on a
@@ -526,10 +587,16 @@ $$
 \end{aligned}
 $$
 
-with $r_C$ the coral intrinsic growth rate, $K$ the carrying
-capacity (% cover), $a$ the COTS attack rate, $h$ the handling
-time, $e$ the conversion efficiency, and $m(\cdot)$ the COTS
-mortality rate. The two structural terms — logistic coral growth
+with parameters (the values used in the simulation below):
+
+- $r_C = 0.30\;\text{yr}^{-1}$ — coral intrinsic growth rate,
+- $K = 80\%$ cover — carrying capacity,
+- $a = 0.005$ — COTS attack rate,
+- $h = 0.10$ — handling time,
+- $e = 0.40$ — conversion efficiency,
+- $m(\cdot) = 0.06$ — COTS mortality rate, held at this placeholder constant for now (it is the term the UDE will learn).
+
+The two structural terms — logistic coral growth
 and Holling type-II grazing — are well established. **The
 mortality $m(S, \ldots)$ is exactly where the modelling
 literature is honest about not knowing the right functional form**
@@ -560,7 +627,7 @@ t = sol.t;  C = [u[1] for u in sol.u];  S = [u[2] for u in sol.u]
 
 p1 = plot(t, C; lw = 2.4, c = :seagreen, label = "coral cover C (%)",
           xlabel = "time (years)", ylabel = "% cover  /  COTS per ha",
-          title = "COTS–coral skeleton (constant mortality)", legend = :right,
+          title = "COTS–coral skeleton (constant mortality)", legend = :topright,
           framestyle = :box)
 plot!(p1, t, S; lw = 2.4, c = :firebrick, label = "COTS density S (per ha)")
 hline!(p1, [30]; ls = :dash, c = :gray, label = "outbreak threshold")
