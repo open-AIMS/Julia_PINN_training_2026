@@ -5,19 +5,15 @@
   <text x="190" y="22" text-anchor="middle" fill="#222" font-size="13" font-weight="bold">Exact solution u(r,θ) = r³ sin(3θ)</text>
 
   <defs>
-    <!-- Diverging colour scale for three-lobed function -->
-    <radialGradient id="lobeFill" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#f4f4f4"/>
-      <stop offset="100%" stop-color="#f4f4f4"/>
+    <!-- Radial fade: magnitude of u = r³ sin(3θ) vanishes at the centre and
+         grows toward the rim, so wash the colour back to the disk background
+         near r = 0 and let it saturate at the boundary. -->
+    <radialGradient id="rFade" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#f7f7f9" stop-opacity="0.92"/>
+      <stop offset="30%"  stop-color="#f7f7f9" stop-opacity="0.55"/>
+      <stop offset="60%"  stop-color="#f7f7f9" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#f7f7f9" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="lobePos" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#c0392b"/>
-      <stop offset="100%" stop-color="#f4e0dc"/>
-    </linearGradient>
-    <linearGradient id="lobeNeg" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#2171b5"/>
-      <stop offset="100%" stop-color="#d6e4f1"/>
-    </linearGradient>
   </defs>
 
   <!-- Disk outline -->
@@ -45,9 +41,16 @@
     <path d="M 190 200 L 260 321.2 A 140 140 0 0 0 330 200 Z" fill="#2171b5" opacity="0.78"/>
   </g>
 
+  <!-- Radial fade: lighten the centre to show |u| ~ r³ growing toward the rim -->
+  <circle cx="190" cy="200" r="140" fill="url(#rFade)"/>
+
+  <!-- Sign markers: one positive (red) lobe, one negative (blue) lobe -->
+  <text x="277" y="156" text-anchor="middle" fill="#ffffff" font-size="16" font-weight="bold">+</text>
+  <text x="190" y="106" text-anchor="middle" fill="#ffffff" font-size="16" font-weight="bold">−</text>
+
   <!-- Centre disk (small radius cutoff used by the PINN) -->
   <circle cx="190" cy="200" r="14" fill="#f7f7f9" stroke="#222" stroke-dasharray="3 2" stroke-width="1"/>
-  <text x="190" y="204" text-anchor="middle" fill="#222" font-size="9">r = r_min</text>
+  <text x="190" y="203" text-anchor="middle" fill="#222" font-size="8">r_min</text>
 
   <!-- Disk outline (re-draw on top) -->
   <circle cx="190" cy="200" r="140" fill="none" stroke="#222" stroke-width="1.5"/>
@@ -62,7 +65,7 @@
   <text x="190" y="362" text-anchor="middle" fill="#666" font-size="11">Dirichlet BC: u(R, θ) = sin(3θ)</text>
 
   <!-- ============ Right panel: collocation point cloud + radial structure ============ -->
-  <text x="580" y="22" text-anchor="middle" fill="#222" font-size="13" font-weight="bold">Mesh-free collocation (~400 random points)</text>
+  <text x="580" y="22" text-anchor="middle" fill="#222" font-size="13" font-weight="bold">Mesh-free collocation cloud (schematic)</text>
 
   <!-- Reference disk -->
   <circle cx="580" cy="200" r="140" fill="#f7f7f9" stroke="#222" stroke-width="1.5"/>

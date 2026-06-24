@@ -129,6 +129,14 @@ prob = discretize(pde_system, discretization)
 res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
+Run it and the trained network reproduces the three-lobed harmonic
+to a relative $L^2$ error of about 2% after 3000 LBFGS iterations on
+a single CPU — the runnable version, which adds the grading and
+plotting calls, is
+[`scripts/laplace_disk_solve.jl`](scripts/laplace_disk_solve.jl).
+*Where* that error concentrates, and what the collocation cloud has
+to do with it, is the section exercise.
+
 ::: {#ex-7-1 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — grade the disk PINN against the exact harmonic
 
@@ -228,9 +236,10 @@ time-direction information flow is wrong — invisible to the loss
 but obvious in the predicted trajectory.
 
 [Wang et al. 2022](../references/references.qmd#ref-wang2022causal){target="_blank"}
-gave the clean diagnostic — residual histograms vs $t$ that don't
-decrease with training time — and the matching fix (causal
-training, §7.3). It's the failure mode that most often bites
+gave the clean diagnostic — tracking how the residual at each time
+$t$ falls *during training*, which for a causally-failing PINN
+happens out of order (late $t$ before early $t$) — and the matching
+fix (causal training, §7.3). It's the failure mode that most often bites
 real-world inverse problems, including the Unit 1 shallow-water
 source-recovery example.
 
@@ -252,11 +261,11 @@ concretely visible before we discuss fixes.
 
 A 1-D reduction of the linearised SWE
 ($\eta_t + H u_x = 0,\;u_t + g\eta_x = 0$ on $[0, 2]\times[0,
-0.05]$) trains in seconds and exhibits all three failure modes
+0.05]$) trains in seconds and runs straight into the failure modes
 above. The same example in 2-D has the same form, just
 slower:
 
-![What naïve PINN training on the 1-D linearised SWE looks like. **Left:** at the half-time snapshot, the FD reference shows two counter-propagating Gaussian bumps; the naïve PINN (red dashed) over-smooths into a single broad lump and drifts at the right boundary (BC misfit). **Right:** the residual-vs-time histogram doesn't decrease — late-time bins are *larger* than early-time ones, the textbook signature of causality violation. **Bottom:** the three failure modes diagnosed by §7.2 and the modern fixes from §7.3 that each one motivates.](figures/naive_swe_failure.svg){#fig-naive-swe width=92%}
+![Naïve PINN training on the 1-D linearised SWE, from an actual run (`scripts/naive_swe_failure_solve.jl`). **Left:** at the half-time snapshot the exact d'Alembert solution has split the initial pulse into two counter-propagating bumps (height ½ at $x \approx 0.75, 1.25$); the trained PINN over-smooths them into a single low lump — a relative $L^2$ error around 75%. **Right:** the binned PDE residual is largest at the sharp $t = 0$ pulse and small afterwards. Note the trap: the residual is small almost everywhere, yet the solution is badly wrong — driving the residual down is not the same as solving the problem. This run cleanly shows **loss imbalance** and **spectral bias**; **causal violation** is a training-dynamics effect taken up in §7.3.](figures/naive_swe_failure.png){#fig-naive-swe width=92%}
 
 ```{julia}
 #| eval: false
@@ -296,12 +305,19 @@ prob = discretize(pde_system, discretization)
 res = Optimization.solve(prob, LBFGS(); maxiters=3000)
 ```
 
-Train this and you'll see all three pathologies above: the BC at
-$x = 0, 2$ never tightens because $\mathcal{L}_{\text{PDE}}$
-dominates the loss budget; the initial Gaussian bump oversmooths
-because of spectral bias; the predicted $\eta(x, t)$ at late times
-doesn't propagate the IC correctly because of causal violation.
-This is the **target failure** that §7.3 dismantles.
+Train this and the run in @fig-naive-swe shows two of the failure
+modes plainly: the sharp initial bump oversmooths into a single low
+lump (**spectral bias**), and because $\mathcal{L}_{\text{PDE}}$
+dominates the loss budget the boundary and initial terms never
+tighten (**loss imbalance**) — the result is about 75% wrong. The
+PDE residual, meanwhile, is small everywhere except at the sharp
+initial pulse: a reminder that driving the residual down is not the
+same as solving the problem. The third failure mode, **causal
+violation**, is a property of the *training dynamics* — the optimiser
+reducing late-time residual before the early-time structure is
+resolved — and is best seen and cured through causal training (§7.3)
+rather than read off a static snapshot. Together these are the
+**target failure** that §7.3 dismantles.
 
 ::: {#ex-7-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — reproduce the failure, then prove it
@@ -309,24 +325,28 @@ This is the **target failure** that §7.3 dismantles.
 Run the 1-D linearised-SWE script above (it trains in seconds) and
 produce the two diagnostics from @fig-naive-swe yourself:
 
-1. The half-time snapshot of $\eta(x, t)$ against an FD reference —
-   a 20-line leapfrog solver of the same system is enough (or
-   d'Alembert: the IC splits into two half-height bumps moving at
-   $c = \sqrt{gH} \approx 9.9$ m/s).
+1. The half-time snapshot of $\eta(x, t)$ against the exact
+   reference — d'Alembert gives two half-height bumps moving at
+   $c = \sqrt{gH} \approx 9.9$ m/s (a 20-line leapfrog solver of the
+   same system works too). Measure the relative $L^2$ error.
 2. The residual-vs-time histogram: evaluate the PDE residual on a
    dense grid, bin by $t$ into 10 bins, and plot the mean per bin.
 
-State which of the three failure modes each diagnostic exposes.
-Then the cheap experiment: multiply the BC loss terms by 100 (crude
-manual loss-balancing) and report which symptom improves and which
-doesn't — evidence that the three failure modes really are
-*distinct* diseases.
+What each one tells you: the snapshot exposes **spectral bias** (one
+lump, not two) and **loss imbalance** (the boundary and initial
+terms left loose). The residual histogram makes a subtler point — it
+is small almost everywhere even though the snapshot is badly wrong,
+so a low residual does *not* certify a correct solution. Then the
+cheap experiment: multiply the BC loss terms by 100 (crude manual
+loss-balancing) and report which symptom improves and which doesn't
+— evidence that loss imbalance and spectral bias are *distinct*
+diseases, each needing its own §7.3 fix.
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
 
 ::: {.exercise-hint-text}
-The cheapest reference isn't FD at all — d'Alembert gives $\eta(x,t) = \tfrac12\eta_0(x-ct) + \tfrac12\eta_0(x+ct)$ with $c=\sqrt{gH} \approx 9.9$ m/s, so at the half-time snapshot the initial bump has split into two half-height copies. This is a two-network system, so `phi = discretization.phi` is a *vector* — use `ηf(x,t) = first(phi[1]([x,t], res.u))` and `uf(x,t) = first(phi[2]([x,t], res.u))`. The residual is first-order, so each term is a *single* `ForwardDiff.derivative` (not nested): `ForwardDiff.derivative(τ->ηf(x,τ), t) + 10*ForwardDiff.derivative(ξ->uf(ξ,t), x)`. Bin $t$ into ~10 ranges and plot the per-bin mean. The snapshot exposes spectral bias (one lump not two) + loss imbalance; the non-decreasing histogram exposes causal violation.
+The cheapest reference isn't FD at all — d'Alembert gives $\eta(x,t) = \tfrac12\eta_0(x-ct) + \tfrac12\eta_0(x+ct)$ with $c=\sqrt{gH} \approx 9.9$ m/s, so at the half-time snapshot the initial bump has split into two half-height copies. This is a two-network system, so `phi = discretization.phi` is a *vector*, and each network takes its OWN parameter slice — use `ηf(x,t) = first(phi[1]([x,t], res.u.depvar.η))` and `uf(x,t) = first(phi[2]([x,t], res.u.depvar.u_vel))`, not the full `res.u`. The residual is first-order, so each term is a *single* `ForwardDiff.derivative` (not nested): `ForwardDiff.derivative(τ->ηf(x,τ), t) + 10*ForwardDiff.derivative(ξ->uf(ξ,t), x)`. Bin $t$ into ~10 ranges and plot the per-bin mean. The snapshot exposes spectral bias (one lump not two) + loss imbalance; the residual histogram is small except at the sharp $t=0$ pulse — its lesson is that a small residual does not mean a correct solution.
 :::
 :::
 
@@ -359,8 +379,29 @@ $$\gamma(\mathbf{x}) = [\sin(B\mathbf{x}),\, \cos(B\mathbf{x})]$$
 with frequencies $B$ drawn from a distribution that includes the
 high frequencies you need ([Tancik et al., 2020](../references/references.qmd#ref-tancik2020){target="_blank"}). The network sees
 high-frequency content in its input directly, breaking spectral
-bias. A simple recipe: $B \sim \mathcal{N}(0, \sigma^2 I)$ with
-$\sigma$ tuned per problem.
+bias.
+
+**How it is done.** Choose a number of frequencies $m$ and sample a
+matrix $B \in \mathbb{R}^{m \times d}$ once, where $d$ is the input
+dimension ($d = 2$ for $(x, t)$); each row is one frequency vector.
+The transform turns the $d$-dimensional input into a $2m$-dimensional
+vector $\gamma(\mathbf{x})$, which is fed to the first dense layer —
+so the model is $u_\theta(\mathbf{x}) = N_\theta(\gamma(\mathbf{x}))$
+and the first layer has shape $2m \to \text{width}$. $B$ is drawn
+once and held fixed; it is *not* a trained parameter (a learnable
+$B$ is a known variant, but the fixed version is the standard
+recipe). A common choice is $B \sim \mathcal{N}(0, \sigma^2 I)$, and
+the scale $\sigma$ is the one knob that matters: too small and the
+embedding is still smooth, so spectral bias survives; too large and
+the network starts fitting high-frequency noise and the PDE residual
+becomes hard to drive down. Tune it by scanning a few values of
+$\sigma$ and watching the residual, starting near the highest
+frequency the true solution actually contains. When space and time
+have different scales, use a separate $\sigma$ for the spatial and
+temporal rows of $B$. The residual machinery is unchanged: autodiff
+differentiates straight through the $\sin / \cos$, so the rest of the
+training loop stays the same. The [§7.3 exercise](#ex-7-3) builds the
+whole thing in about twenty lines.
 
 ### Hard Boundary Condition Enforcement
 
@@ -427,8 +468,8 @@ The embedding is a fixed (untrained) layer: `Lux.WrappedFunction(x -> vcat(sin.(
 "A PINN" isn't a single recipe — it's a family of training
 configurations differentiated by *which loss terms are present*,
 *what the network represents*, and *what's known vs unknown going
-in*. The four workflows below account for almost everything in
-the published literature. Pick the one whose "Unknown" column
+in*. The four workflows below cover the great majority of PINN
+applications, as far as we know. Pick the one whose "Unknown" column
 matches what you don't know.
 
 ### Quick-reference: pick a workflow
