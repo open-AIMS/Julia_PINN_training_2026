@@ -149,7 +149,7 @@ Define `V(x, y) = δ*x - γ*log(x) + β*y - α*log(y)`, set `V0 = V(u0...)`, and
 :::
 :::
 
-### Logistic growth and functional responses
+### Logistic growth
 
 A population rarely grows without limit. The **logistic** model caps it with a
 carrying capacity $K$,
@@ -181,43 +181,6 @@ end
 hline!(plt, [100.0]; ls = :dash, c = :gray, label = "carrying capacity K")
 plt
 ```
-
-Couple a consumer to that resource and the key question is *how fast does it feed
-as resource density $N$ rises?* — the **functional response** $g(N)$. Holling's
-three canonical shapes (attack rate $a$, handling time $h$):
-
-$$
-\underbrace{g_{\mathrm{I}} = aN}_{\text{Type I (linear)}}
-\qquad
-\underbrace{g_{\mathrm{II}} = \frac{aN}{1 + a h N}}_{\text{Type II (saturating)}}
-\qquad
-\underbrace{g_{\mathrm{III}} = \frac{aN^2}{1 + a h N^2}}_{\text{Type III (sigmoid)}}
-$$
-
-All three level off at the **same** maximum intake $1/h$ (a satiated consumer) —
-they differ only in *how* they get there. Type I climbs linearly until satiated,
-then clips flat; Type II decelerates from the very first bite as handling time
-bottlenecks intake — this is the **grazing term used in §4.3**; Type III is
-**S-shaped**, with a low-density refuge (a predator that switches or learns prey)
-before it accelerates and then saturates.
-
-```{julia}
-using Plots
-a, h = 1.0, 0.3
-P    = 1/h                                   # the shared satiation ceiling
-N    = range(0, 18; length = 300)
-plot(N, min.(a .* N, P); lw = 2.4, label = "Type I   min(aN, 1/h)", ylims = (0, 1.2P),
-     xlabel = "resource density N", ylabel = "per-capita intake g(N)",
-     title = "Holling functional responses", legend = :right, framestyle = :box)
-plot!(N, a .* N ./ (1 .+ a*h .* N);       lw = 2.4, label = "Type II   aN/(1+ahN)")
-plot!(N, a .* N.^2 ./ (1 .+ a*h .* N.^2); lw = 2.4, ls = :dash, label = "Type III  aN²/(1+ahN²)")
-hline!([P]; ls = :dot, c = :gray, label = "max intake 1/h")
-```
-
-(The pure-linear $g_{\mathrm{I}} = aN$ written above is the *mass-action* idealisation —
-unbounded, the form Lotka–Volterra uses; Holling's original Type I is that same line
-**up to satiation, then flat**, which is what we plot so all three share the $1/h$
-ceiling.)
 
 ### A compartmental model: SIR
 
