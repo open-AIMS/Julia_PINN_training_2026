@@ -70,8 +70,8 @@ bcs = [
 @named pde_system = PDESystem(eq, bcs, domains, [x, t], [u(x, t)])
 
 chain = Lux.Chain(
-    Lux.Dense(2, 20, Lux.σ),
-    Lux.Dense(20, 20, Lux.σ),
+    Lux.Dense(2, 20, Lux.tanh),
+    Lux.Dense(20, 20, Lux.tanh),
     Lux.Dense(20, 1),
 )
 
@@ -168,7 +168,7 @@ references are
 ("Characterizing possible failure modes in PINNs"),
 [Wang et al. 2022](../references/references.qmd#ref-wang2022causal){target="_blank"}
 on causality, and the NTK-based diagnostics of
-[Wang et al. 2021](../references/references.qmd#ref-wang2021ntk){target="_blank"}.
+[Wang et al. 2022](../references/references.qmd#ref-wang2021ntk){target="_blank"}.
 They converge on three intertwined failure modes, covered below in
 order of how often they hit you in practice: **loss imbalance**,
 **spectral bias**, **causal violation**. The benchmark survey of
@@ -382,7 +382,7 @@ stay roughly balanced. Three families of approaches:
 
 - **Gradient-balancing** ([McClenny & Braga-Neto, 2022](../references/references.qmd#ref-mcclenny2022){target="_blank"}) — match the
   gradient norms of each term.
-- **NTK-based** ([Wang et al., 2021](../references/references.qmd#ref-wang2021ntk){target="_blank"}) — use the neural tangent kernel
+- **NTK-based** ([Wang et al., 2022](../references/references.qmd#ref-wang2021ntk){target="_blank"}) — use the neural tangent kernel
   to compute target weights.
 - **Annealing** — start with one term dominant, gradually shift
   weight to others.

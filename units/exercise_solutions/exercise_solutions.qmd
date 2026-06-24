@@ -1112,23 +1112,22 @@ plot!(truth[1, :], truth[2, :]; c = :black, lw = 2, label = "training orbit")
 
 ![Left: the UDE fits the noisy two-species trajectory and recovers the prey-loss
 scalar $\hat\beta = 1.004$ (true $1.0$). Right: the signed error
-$N_\theta(x,y) - \delta x y$. The near-zero (white) band hugs the **training orbit**;
-the error blooms both *inside* the loop and in the far corners — phase space the
+$N_\theta(x,y) - \delta x y$. The near-zero (white) band follows the **training orbit**;
+the error grows both *inside* the loop and in the far corners — regions the
 trajectory never visits.](figures/ude_lv_solution.png){#fig-sol-4-3 width=92%}
 
-Two readings, one figure. The scalar comes back essentially exact
-($\hat\beta = 1.004$) because it sits in the trusted prey equation the data pins
-directly. The **function** is recovered only where the data lives: along the orbit
-ring the signed error is near zero — $N_\theta$ reproduces $\delta x y$ to a few
-percent *without ever being told the term was bilinear* — while inside the loop and
-in the corners the orbit never enters, the error grows without bound, because the
-loss never constrained those inputs and the network freelances.
+Two things to read off this figure. The scalar comes back essentially exact
+($\hat\beta = 1.004$) because it sits in the trusted prey equation, which the data
+constrains directly. The **function** is recovered only where the data lives: along
+the orbit the signed error is near zero — $N_\theta$ reproduces $\delta x y$ to a few
+percent without being told the term was bilinear — while inside the loop and in the
+corners, where the orbit never goes, the error grows without bound, because the loss
+never constrained those inputs.
 
-That contrast — **faithful interpolation, unconstrained extrapolation** — is the
-honest summary of every UDE result you will ever publish, and exactly the picture
-to reproduce, in grown-up form, for the capstone's learned wind-stress envelope:
-report the recovered function *together with* the region where the data actually
-constrains it.
+This is the general pattern for a UDE: the closure is reliable where the data goes
+and unconstrained elsewhere. The capstone's learned wind-stress term is the same
+situation — report the recovered function *together with* the region where the data
+actually constrains it.
 
 ::: {.callout-note}
 ## "Can't we just regularize the corners away?"
