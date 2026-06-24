@@ -104,7 +104,7 @@ vis = (Sg .>= Smin) .& (Sg .<= Smax)
 fit = predict(ps)
 p1 = plot(tfull, fit[1, :]; lw = 2.4, c = :seagreen, label = "UDE coral C",
           xlabel = "time (years)", ylabel = "% cover  /  COTS per ha",
-          title = "trajectory fit", framestyle = :box, legend = :right, gridalpha = 0.25)
+          title = "trajectory fit", framestyle = :box, legend = :topright, gridalpha = 0.25)
 plot!(p1, tfull, fit[2, :]; lw = 2.4, c = :firebrick, label = "UDE COTS S")
 scatter!(p1, tobs, data[1, :]; ms = 3.2, c = :seagreen,  msw = 0, label = "coral data")
 scatter!(p1, tobs, data[2, :]; ms = 3.2, c = :firebrick, msw = 0, label = "COTS data")
