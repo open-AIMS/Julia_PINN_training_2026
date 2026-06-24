@@ -756,23 +756,39 @@ it is the same caution you'll apply to the learned closures in the
 Nothing forces the known scalars $(r_C, K, a, h, e)$ to stay fixed. In practice you
 rarely know them exactly — and the *same* trajectory loss can estimate them
 **jointly with the closure**: just put them in the parameter vector. With
-`ComponentArrays` that is essentially a one-line change — pack a `phys` block
-alongside the network weights:
+`ComponentArrays` the packing is one line — a `phys` block alongside the network
+weights — and the rest is a handful of mechanical edits to the code above: the
+constants stop being globals and get read from `p.phys`, while the closure reads
+its weights from `p.net`.
 
 ```julia
+# (1) pack physics + weights together — replaces `ps = ComponentArray{Float64}(p0)`
 ps = ComponentArray(phys = (r_C = 0.30, K = 80.0, a = 0.005, h = 0.10, e = 0.40),
                     net  = ComponentArray{Float64}(p0))
+ps.net.layer_3.bias .= -2.95                 # NN init now lives under .net
+
+# (2) graze and the closure take their constants/weights from the parameter vector
+graze(C, S, a, h) = a*S*C / (1 + a*h*C)
+mθ(S, p)          = log1p(exp(first(net([S], p.net, stt))[1]))   # weights ← p.net
+
+# (3) ude_field reads every known constant from p.phys instead of the globals
+function ude_field(u, p)
+    C, S = u;  ph = p.phys
+    g = graze(C, S, ph.a, ph.h)
+    [ph.r_C * C * (1 - C/ph.K) - g,  ph.e * g - mθ(S, p) * S]
+end
 ```
 
-Read `p.phys.r_C`, `p.phys.K`, … inside `ude_field` instead of the global constants,
-and the loss gradient now flows to **both** the handful of mechanistic constants and
-the neural closure; Adam → L-BFGS optimises them together. Two cautions: the scalars
-and the network weights live on very different scales, so standardise them or give
-the physical block its own learning rate; and watch **identifiability** — fit too
-many free constants against too little data and the parameters and the closure
-trade off against one another. This *grey-box* estimation — a few interpretable
-numbers **and** an unknown function from a single trajectory loss — is exactly the
-capstone setting in [Units 8–10](../unit_08/unit_08.qmd).
+Everything downstream — `predict`, `loss`, and the Adam → L-BFGS loop — is
+*unchanged*: it only ever calls `ude_field(u, p)`. The loss gradient now flows to
+**both** the handful of mechanistic constants and the neural closure, and the two
+optimisers fit them together. Two cautions: the scalars and the network weights
+live on very different scales, so standardise them or give the physical block its
+own learning rate; and watch **identifiability** — fit too many free constants
+against too little data and the parameters and the closure trade off against one
+another. This *grey-box* estimation — a few interpretable numbers **and** an
+unknown function from a single trajectory loss — is exactly the capstone setting in
+[Units 8–10](../unit_08/unit_08.qmd).
 
 ::: {#ex-4-3 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the functional inverse, in miniature
