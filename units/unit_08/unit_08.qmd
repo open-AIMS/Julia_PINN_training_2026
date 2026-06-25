@@ -248,9 +248,19 @@ note appears in Unit 9 — keep the two conventions aligned.
 :::
 
 For the capstone, $w(z, t)$ is *given* (computed offline from the
-shallow-water model in [Unit 9](../unit_09/unit_09.qmd)). You don't
-need to know where it comes from physically to solve the column — but
-if you're curious:
+shallow-water model in [Unit 9](../unit_09/unit_09.qmd)). What *isn't*
+given — the one thing the capstone recovers — is the **wind-stress
+envelope** $\tau(t)$: the strength over time of the storm's wind drag on
+the sea surface. A real wind stress acts on the column several ways at
+once — it pumps water up (the upwelling $w$, via *Ekman pumping*), stirs
+the surface layer (raising $\kappa$), and brings cloud that dims the
+sunlight ($Q_{\text{SW}}$). The capstone keeps the inverse tractable by
+collapsing those into a *single* forcing envelope $\tau(t)$ that it
+recovers as a heating source — a deliberate simplification, not the full
+three-way coupling (the framing is spelled out in
+[Unit 9 §9.1](../unit_09/unit_09.qmd#sec-mechanism)). You don't need to
+know where $w$ comes from physically to solve the column — but if you're
+curious:
 
 ::: {.callout-note collapse="true"}
 ## Deeper dive (optional) — what drives $w$ on the reef
@@ -259,8 +269,9 @@ The vertical velocity has three contributions, on three timescales:
 
 - **Tides** — a regular ~12.4-hour sloshing. The capstone folds the
   tidal part into the *known* prescribed $w(z, t)$.
-- **Storm-driven upwelling** — the days-long pulse the capstone
-  treats as the *unknown* it recovers.
+- **Storm-driven upwelling** — the days-long pulse the storm's wind
+  stress $\tau(t)$ produces; its time envelope is what the capstone
+  recovers.
 - **Mean shelf circulation** — a slow near-constant background.
 
 Real operational systems "de-tide" the data before inversion, so the
@@ -744,7 +755,7 @@ or word in the capstone spec is unfamiliar, it's here.
 | **Deep reservoir $T_{\text{deep}}$** | The fixed cold temperature the bottom of the column is pinned to (§8.5). |
 | **Péclet number $\mathrm{Pe} = wH/\kappa$** | Advection-vs-diffusion ratio. $\gg 1$ advective, $\ll 1$ diffusive, $\sim 1$ balanced — the three capstone sites span this range (§8.3, §8.6). |
 | **Diffusive time $T_\kappa = H^2/\kappa$** | How long diffusion takes to mix the whole column (§8.6). |
-| **Wind-stress envelope $\tau(t)$** | The storm's strength over time — the *unknown* the capstone inverse problem recovers. Drives upwelling, mixing, and cloud cover together (Unit 9 §9.1). |
-| **Ekman pumping** | Wind-driven vertical motion: how a storm's wind stress $\tau$ produces upwelling $w$ (§8.3 optional box). |
+| **Wind-stress envelope $\tau(t)$** | The storm's strength over time — the *unknown* the capstone inverse problem recovers. Physically the storm's wind stress drives upwelling, mixing, and cloud cover together; the capstone collapses these into one forcing it recovers as a heating source (§8.3, Unit 9 §9.1). |
+| **Ekman pumping** | Wind-driven vertical motion: how a storm's wind stress $\tau$ produces upwelling $w$ (§8.3). |
 | **Shallow-water driver** | A separate, cheap 2-D model that supplies the column's $w(z, t)$ from horizontal currents (§8.2, Unit 9 §9.2). |
 | **Forward vs inverse problem** | *Forward*: given the forcings, predict $T(z, t)$. *Inverse*: given the measured $T$, recover an unknown forcing ($\tau(t)$) (Unit 9 §9.7–§9.9). |

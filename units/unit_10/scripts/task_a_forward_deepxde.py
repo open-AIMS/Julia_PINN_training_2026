@@ -1,5 +1,5 @@
 # ===========================================================================
-# Task A forward column problem (Cleveland Bay, H = 15 m, fixed tau) as a
+# Task A forward column problem (Davies Reef, H = 60 m, fixed tau) as a
 # DeepXDE sketch — the Python parallel to the Julia NeuralPDE.jl version.
 # Same architecture (4 x 32 tanh MLP), same hard-BC ansatz at the deep
 # reservoir, same Adam -> L-BFGS schedule.  See unit_10 §10.4.
@@ -14,10 +14,10 @@
 import numpy as np
 import deepxde as dde
 
-H = 15.0;  Tf = 30.0 * 86400.0
+H = 60.0;  Tf = 30.0 * 86400.0
 T_deep = 22.0
-def kappa_z(z):  return 1e-3 * np.exp(z / 5.0) + 1e-5     # mixed-layer profile
-def w_z(z, t):   return 0.0                              # forward problem: no wind
+def kappa_z(z):  return 1e-3 * np.exp(z / 20.0) + 1e-5    # mixed-layer profile (Site B)
+def w_z(z, t):   return 5e-5 * np.sin(np.pi * (z + H) / H)  # upwelling profile (Site B), m/s
 def Q_np(t):     return -120.0                           # net cooling (W/m^2)
 def S_z(z, t):   return 400.0 / 4.0e6 / 8.0 * np.exp(z / 8.0)  # body source S = Q_SW/(rho0*cp*zeta)*e^(z/zeta), zeta=8 m
 
@@ -49,8 +49,8 @@ bc_surface = dde.icbc.OperatorBC(
     lambda zt, on_boundary: on_boundary and np.isclose(zt[0], 0.0),
 )
 
-# IC: initial thermocline tanh profile
-def T0(z): return 25.0 + 3.0 * np.tanh((z + 5.0) / 2.0)
+# IC: initial thermocline tanh profile (Site B: thermocline at z = -30 m)
+def T0(z): return 25.0 + 3.0 * np.tanh((z + 30.0) / 5.0)
 ic = dde.icbc.IC(geomtime, lambda zt: T0(zt[:, 0:1]),
                  lambda _, on_initial: on_initial)
 

@@ -246,12 +246,12 @@ Part 1: steady + no advection + no source + constant κ means $\partial_z(\kappa
   <div class="solution-gate-body">
 ```
 
-*Spec: [Unit 9 §9.9](../unit_09/unit_09.qmd#sec-task-a). Site A (Cleveland
-Bay, $H = 15$ m), one driver to recover.*
+*Spec: [Unit 9 §9.9](../unit_09/unit_09.qmd#sec-task-a). Site B (Davies
+Reef, $H = 60$ m, advection + diffusion), one driver to recover.*
 
 The solution is a single script,
 [`task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"}
-(~220 lines, on the [Unit 5 §5.3](../unit_05/unit_05.qmd) Lux + Zygote +
+(~230 lines, on the [Unit 5 §5.3](../unit_05/unit_05.qmd) Lux + Zygote +
 Optimisers skeleton). It synthesises the mooring data from a
 finite-difference reference solve of the column PDE with a *known* storm
 $\tau^*(t)$, samples five sensor depths hourly and adds noise, then trains a
@@ -266,17 +266,19 @@ $\tau(t)$. Non-dimensionalising the column ($\theta = (T-T_\text{deep})/\Delta
 T$, $\zeta = (z+H)/H$, $\tau_t = t/T_f$) gives
 
 $$
-\partial_{\tau}\theta = \mathrm{Pe}\,\partial_{\zeta\zeta}\theta + S(\zeta)\,\tau(t),
-\quad \theta(0,\tau)=0,\ \ \partial_\zeta\theta(1,\tau)=0,\ \ \theta(\zeta,0)=0.
+\partial_{\tau}\theta = -W_\text{adv}\,w(\zeta)\,\partial_\zeta\theta + \mathrm{Pe}\,\partial_{\zeta\zeta}\theta + S(\zeta)\,\tau(t),
+\quad \theta(0,\tau)=0,\ \ \partial_\zeta\theta(1,\tau)=0,\ \ \theta(\zeta,0)=0,
 $$
 
-The unknown is the scalar-in-time forcing $\tau(t)$ (one storm bump);
-$S(\zeta)$, Pe and the BCs are given. This **source-recovery** form is the
-most *identifiable* inverse: the source over-determines $\tau(t)$ across all
-depths at each instant, and a $\tau\equiv0$ field cannot fit source-driven
-data — so the network can't hide the forcing inside the temperature field
-(the failure mode a *mixing-* or *coefficient*-recovery setup hits when
-Pe ≪ 1 and the column sits near steady state). Two networks:
+with the upwelling shape $w(\zeta)=\zeta$ (zero at depth, maximal at the
+surface). The unknown is the scalar-in-time forcing $\tau(t)$ (one storm
+bump); $S(\zeta)$, Pe, $W_\text{adv}$ and the BCs are given. This
+**source-recovery** form is the most *identifiable* inverse: the source
+over-determines $\tau(t)$ across all depths at each instant, and a
+$\tau\equiv0$ field cannot fit source-driven data — so the network can't
+hide the forcing inside the temperature field (the failure mode a
+*mixing-* or *coefficient*-recovery setup hits when the column sits near
+steady state). Two networks:
 
 - $T_\theta(\zeta,\tau)$ — the temperature field, with the hard IC and deep
   BC baked into the ansatz $\theta = \zeta\,\tau\,N_\theta(\zeta,\tau)$, so
@@ -286,8 +288,9 @@ Pe ≪ 1 and the column sits near steady state). Two networks:
 - $\tau_\phi(\tau)$ — a small MLP for the storm envelope (signed).
 
 Derivatives use the finite-difference-in-input stencil (no nested AD,
-[Unit 5 §5.3](../unit_05/unit_05.qmd)), so a single reverse-mode pass runs
-cleanly on the GPU.
+[Unit 5 §5.3](../unit_05/unit_05.qmd)), so a single reverse-mode pass
+keeps each training step cheap — cheap enough that the whole inverse
+trains on a CPU.
 
 ### Step 2 — The loss, and the lesson it teaches
 
@@ -300,50 +303,53 @@ $$
 $$
 
 The recovered forcing $\tau_\phi$ enters **only** the PDE residual, so it
-regresses to $(\partial_\tau\theta - \mathrm{Pe}\,\partial_{\zeta\zeta}\theta)/S$
-— it is driven by the *time-derivative* of the temperature field. Here is the
-trap: the column low-pass-filters $\tau$ (diffusion time ≈ storm width), so a
+regresses to $(\partial_\tau\theta + W_\text{adv}\,w\,\partial_\zeta\theta - \mathrm{Pe}\,\partial_{\zeta\zeta}\theta)/S$
+— it is driven by *derivatives* of the temperature field. Here is the
+trap: the column low-pass-filters $\tau$ (response time ≈ storm width), so a
 network can match the noisy data *in value* with a too-smooth $\theta$ whose
-time-derivative — and hence the recovered storm peak — collapses to ~20% of
+derivatives — and hence the recovered storm peak — collapse well below
 truth. **The cure is not fancier collocation; it is the loss weights.** A
 large data weight $\lambda_d$ forces $\theta$ to honour the sharp data, which
-keeps its time-derivative sharp and lifts the recovered peak; the tiny $H^1$
+keeps its derivatives sharp and lifts the recovered peak; the tiny $H^1$
 weight $\lambda_\text{reg}$ only removes single-hour-sample ringing. A weight
-sweep on the GPU hub makes the effect concrete:
+sweep makes the effect concrete:
 
 | $\lambda_d$ | $\lambda_\text{reg}$ | Recovered peak | Comment |
 |---|---|---|---|
-| 100 | $10^{-2}$ | 19% of truth (81% err) | too-smooth $\theta$; storm collapses |
-| 500 | $10^{-4}$ | 48% | sharper, but data weight still too low |
-| 2000 | $3\times10^{-5}$ | 72% | approaching the floor |
-| **6000** | $10^{-5}$ | **85% (≈15% err)** | the chosen operating point |
+| 100 | $10^{-2}$ | 8% of truth (92% err) | too-smooth $\theta$; storm collapses |
+| 500 | $10^{-4}$ | 56% | sharper, but data weight still too low |
+| 2000 | $3\times10^{-5}$ | 78% | approaching the floor |
+| **6000** | $10^{-5}$ | **90% (9.6% err)** | the chosen operating point |
 
-At this sensor noise (storm SNR ≈ 24), ~14% peak error is close to the
+At this sensor noise (storm SNR ≈ 29), ~10% peak error is close to the
 *deconvolution floor*: pushing $\lambda_d$ harder buys little and starts
-re-introducing ringing. The thin margin to the 15% bar is the
-inverse-problem reality, not a tuning failure.
+re-introducing ringing. The remaining gap to truth is the inverse-problem
+reality at this noise level, not a tuning failure.
 
-### Step 3 — Results, and why it needs the GPU
+### Step 3 — Results
 
-The operating point trains a wide field network (48 wide × 6 deep) for
-~28 000 Adam steps. The recovery:
+The operating point trains a 32-wide × 4-deep field network for 12 000
+Adam steps — **about four minutes on a CPU**. Measured recovery:
 
-- **Peak-amplitude error ≈ 15%** — at the
-  [§9.9.3 criterion](../unit_09/unit_09.qmd#sec-task-a) of $\leq 15\%$, and
-  robust across random seeds (13.7–14.8%).
+- **Peak-amplitude error 9.6%** — comfortably inside the
+  [§9.9.3 criterion](../unit_09/unit_09.qmd#sec-task-a) of $\leq 15\%$.
 - **Storm-day timing exact** (well under the 2-hour bar).
 - **Forward field** $\|T_\theta - T_\text{FD}\|_{L^2} = 0.002\,°\text{C}$,
   far below the $0.05\,°\text{C}$ noise scale.
-- **Rising edge slightly smoothed, tail over-relaxed by ~5%** — the classic
+- **Whole-envelope relative $L^2$ ≈ 0.09**, with the rising edge slightly
+  smoothed and the tail over-relaxed by a few percent — the classic
   Tikhonov pull toward zero, the cost of the $H^1$ regulariser.
 
-The script runs a **CPU sub-scale demo** first (small 4×24 net, 2 500 steps):
-it shows the method working, but only recovers the peak to ~31% — it *misses*
-the $\leq15\%$ bar. Clearing the criterion needs the wide net and ~28 k steps,
-which is **~10 minutes on the course GPU but ~1–2 hours on a CPU**.
-That gap — same method, just scale — is why Task A ships a GPU run. (This is a
-shift from Task A's original CPU-only framing: the physics is unchanged, but
-at this noise level the $\leq15\%$ target is GPU-scale.)
+Site B clears the bar on a CPU because its 60 m column with upwelling
+carries a sharp, depth-structured storm fingerprint (the sensor fits
+below): the surface sensor swings ~0.15 nondim while the deep sensors lag
+and damp, so a single mooring already over-determines $\tau(t)$. The
+shallower diffusion-only site washes that structure out — which is exactly
+why it is the *harder*, less informative inverse, and is kept only as the
+"easy site" contrast in the Task B joint study (§10.3). No GPU is
+needed for Task A; a GPU only lets you widen the network or iterate faster.
+
+![Recovered storm forcing $\hat\tau(t)$ vs truth (left) and the five-sensor temperature fits over the noisy data (right), from `task_a_inverse_pinn.jl` on Site B. Peak error 9.6%, storm day exact, forward field within 0.002 °C of the FD reference — all on a CPU in about four minutes.](output/task_a_inverse.png)
 
 ### Forward sanity check (shipped)
 
@@ -366,18 +372,18 @@ good exercises — they don't ship here:
 
 - **Mechanism partition (the §9.1 question).** The recovered $\hat\tau(t)$
   gives the storm's strength and timing, not *which* physical mechanism
-  dominated the cooling. Re-running a forward solver with $\hat\tau$ and
+  dominated the cooling. Re-running the forward solver with $\hat\tau$ and
   accumulating the advection / mixing / surface-flux contributions to
-  $\Delta T(z=-10\,\text{m})$ would attribute it — but that needs the richer
-  advection + wind-mixing column of Task B (§10.3), not this
-  diffusion-only source model.
+  $\Delta T(z=-30\,\text{m})$ would partition this site's response — but the
+  *interesting* result is the contrast across regimes, which needs Task B's
+  three sites (§10.3), not one column.
 - **Diagnostics.** Residual-vs-time histograms (a causality check,
   [Unit 7 §7.5](../unit_07/unit_07.qmd)), heat-budget closure at each sensor
   depth, and cross-validation on a held-out 24-hour window.
 
 ### Files
 
-- [`scripts/task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"} — source-recovery inverse PINN: FD reference solve, synthetic mooring data, joint $T_\theta + \tau_\phi$ training, CPU sub-scale + GPU full-scale.
+- [`scripts/task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"} — source-recovery inverse PINN: FD reference solve, synthetic mooring data, joint $T_\theta + \tau_\phi$ training; clears the §9.9.3 targets on a CPU in about four minutes.
 - [`scripts/column_pinn_gpu.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_pinn_gpu.jl){target="_blank"} — forward sanity check: pure-diffusion forward PINN scored against the closed-form solution, CPU sub-scale + A10G full-scale.
 - [`scripts/column_fd.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_fd.jl){target="_blank"} — the finite-difference column solver used as the forward reference.
 
@@ -635,7 +641,7 @@ group with three real moorings can re-run this on overnight GPU time.
 `DeepXDE` is the Python equivalent of `NeuralPDE.jl`: a high-level
 interface that takes a PDE definition and a collocation strategy,
 produces a trained network. Here's the Task A forward column
-problem (Cleveland Bay, $H = 15$ m, fixed $\tau$) as a DeepXDE
+problem (Davies Reef, $H = 60$ m, fixed $\tau$) as a DeepXDE
 sketch — same architecture (4 × 32 tanh MLP), same hard-BC
 ansatz at the deep reservoir, same Adam → L-BFGS schedule:
 
@@ -644,10 +650,10 @@ ansatz at the deep reservoir, same Adam → L-BFGS schedule:
 import numpy as np
 import deepxde as dde
 
-H = 15.0;  Tf = 30.0 * 86400.0
+H = 60.0;  Tf = 30.0 * 86400.0
 T_deep = 22.0
-def kappa_z(z):  return 1e-3 * np.exp(z / 5.0) + 1e-5     # mixed-layer profile
-def w_z(z, t):   return 0.0                              # forward problem: no wind
+def kappa_z(z):  return 1e-3 * np.exp(z / 20.0) + 1e-5    # mixed-layer profile (Site B)
+def w_z(z, t):   return 5e-5 * np.sin(np.pi * (z + H) / H)  # upwelling profile (Site B), m/s
 def Q_np(t):     return -120.0                           # net cooling (W/m^2)
 def S_z(z, t):   return 400.0 / 4.0e6 / 8.0 * np.exp(z / 8.0)  # body source S = Q_SW/(ρ₀cₚζ)·e^(z/ζ), ζ=8 m
 
@@ -679,8 +685,8 @@ bc_surface = dde.icbc.OperatorBC(
     lambda zt, on_boundary: on_boundary and np.isclose(zt[0], 0.0),
 )
 
-# IC: initial thermocline tanh profile
-def T0(z): return 25.0 + 3.0 * np.tanh((z + 5.0) / 2.0)
+# IC: initial thermocline tanh profile (Site B: thermocline at z = -30 m)
+def T0(z): return 25.0 + 3.0 * np.tanh((z + 30.0) / 5.0)
 ic = dde.icbc.IC(geomtime, lambda zt: T0(zt[:, 0:1]),
                  lambda _, on_initial: on_initial)
 

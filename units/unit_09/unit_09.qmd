@@ -58,14 +58,19 @@ times, once per site, with each site giving a qualitatively
 different fingerprint of the same event.
 
 ::: {.callout-important}
-## How the inverse answers the mechanism question
+## How the inverse answers the mechanism question {#sec-mechanism}
 
 Tasks A and B don't recover three separate drivers — they recover
-**one** scalar wind-stress envelope $\tau(t)$ that *implicitly
-couples* all three mechanisms through the column model: Ekman
-pumping sets $w(z, t; \tau)$, the wind-mixing closure modulates
-$\kappa_m(t; \tau)$, and the cloud-cover correlation reduces
-$Q_{\text{SW}}^{\max}(t; \tau)$ during the storm.
+**one** scalar storm-forcing envelope $\tau(t)$. Physically that
+envelope is the storm's **wind stress**, which acts on the column
+several ways at once: it pumps water up (Ekman-driven upwelling $w$),
+stirs the surface layer (mixing $\kappa_m$), and dims the sunlight
+(cloud cover, $Q_{\text{SW}}$). The capstone's toy column collapses
+those into a *single* forcing that enters as a heating source
+$S(\zeta)\,\tau(t)$ — a deliberate simplification that keeps the
+inverse well-posed. So what the inverse recovers is the storm's
+*strength over time*, not the separate upwelling / mixing / cloud
+responses.
 
 So the recovered $\hat\tau(t)$ doesn't *by itself* answer "which
 hypothesis dominated". The mechanism-discrimination step is the
@@ -90,10 +95,10 @@ turns "we recovered $\tau$" into a statement like "the storm cooling here
 was mostly upwelling, with a smaller mixing contribution and little change
 in surface heating" — see [Unit 10 §10.3](../unit_10/unit_10.qmd#sec-mechanism-partition)
 for the partitions the worked solution actually recovers. **Task A
-stops at recovering $\hat\tau$** (its timing and amplitude): its
-diffusion-only source column has no advection term to attribute, so the
-partition becomes meaningful only in Task B's advection + wind-mixing
-column across the three sites.
+stops at recovering $\hat\tau$** (its timing and amplitude): a single
+mooring shows one column's mechanism mix, but the §9.1 question is
+really about the *contrast* across regimes, which only Task B's
+three-site study resolves.
 
 If you want a *direct* mechanism-discrimination inverse instead
 (recover $\tau_w, \tau_\kappa, \tau_Q$ separately), that's a
@@ -141,7 +146,7 @@ look-before-you-leap pass every inverse problem deserves:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Load with `df = CSV.read("../unit_10/data/mooring_A.csv", DataFrame)`; column 1 is `time_hours`, the rest are the five sensor depths (`names(df)[2:end]`). Convert to days with `df.time_hours ./ 24` and `vline!([10])` to mark the storm. Read the regimes against the §9.1 table: Site A moves together (well-mixed), Site B shows thermocline separation with a deep-sensor lag, Site C has an untouched surface and deep-first cooling. For the noise floor, pick a calm window (days 1–5: `mask = df.time_hours .< 120`) and take `std(diff(df[mask, col]))`. For white noise $\mathrm{Var}(X_{t+1}-X_t) = 2\sigma^2$, so divide by $\sqrt2$ to recover σ ≈ 0.05 °C — it over-estimates on the top sensor (its diurnal cycle moves within the hour), so trust the deep sensors.
+Load with `df = CSV.read("../unit_10/data/mooring_B.csv", DataFrame)` (the site Task A uses); column 1 is `time_hours`, the rest are the five sensor depths (`names(df)[2:end]`). Convert to days with `df.time_hours ./ 24` and `vline!([10])` to mark the storm. Read the regimes against the §9.1 table: Site A moves together (well-mixed), Site B shows thermocline separation with a deep-sensor lag, Site C has an untouched surface and deep-first cooling. For the noise floor, pick a calm window (days 1–5: `mask = df.time_hours .< 120`) and take `std(diff(df[mask, col]))`. For white noise $\mathrm{Var}(X_{t+1}-X_t) = 2\sigma^2$, so divide by $\sqrt2$ to recover σ ≈ 0.05 °C — it over-estimates on the top sensor (its diurnal cycle moves within the hour), so trust the deep sensors.
 :::
 :::
 
@@ -173,9 +178,8 @@ by itself.
 The linearised shallow water equations on a 2D domain produce
 horizontal velocity $\mathbf{u}_h(x, y, t)$ in response to a
 wind-stress forcing. We use these as the **driver** of the
-column's upwelling, not as a coupled-PDE PINN problem (that's the
-path [de Wolff et al. (2021)](../references/references.qmd#ref-dewolff2021){target="_blank"} found brittle). The SWE solve is offline; its
-output is a time series at the mooring location.
+column's upwelling, not as a coupled-PDE PINN problem. The SWE solve
+is offline; its output is a time series at the mooring location.
 
 ### Coupling: vertical velocity from horizontal divergence
 
@@ -521,8 +525,7 @@ I(z, t) \;=\; Q_{\text{SW}}(t)\,e^{z/\zeta},
 \;=\; \frac{Q_{\text{SW}}(t)}{\rho_0\, c_p\, \zeta}\,e^{z/\zeta}.
 $$
 
-Yes — that last step is an explicit expression, and it is the one the
-code uses. The only $z$-dependence is the exponential, so
+The only $z$-dependence is the exponential, so
 differentiating it simply brings down a factor $1/\zeta$. The heating
 $\mathcal{S}$ is therefore largest right at the surface ($z = 0$) and
 decays with the same e-folding scale $\zeta$, depositing heat
@@ -708,16 +711,14 @@ The capstone has **one required task and one optional extension**:
 ::: {.callout-tip}
 ## A GPU is optional, not required
 
-**Task A is designed for a CPU** — you can do the whole task,
-see the whole pipeline, and learn everything it teaches without a
-GPU. The course GPU hub *is* available to you, though, and a GPU
-simply makes Task A faster and lets you reach the tightest accuracy
-target ([§9.9.3](#sec-task-a)) more comfortably (see
-[Unit 10 §10.2](../unit_10/unit_10.qmd) for the CPU-vs-GPU detail).
-So: **use the GPU if you have it and want the speed; don't worry if
-you don't.** Task B, by contrast, really does want a GPU for its
-*full* three-site run — but even there the sub-scale prototypes run
-on CPU.
+**Task A runs end-to-end on a CPU in a few minutes** and clears every
+[§9.9.3](#sec-task-a) accuracy target there — you see the whole
+pipeline and learn everything it teaches without a GPU. The course GPU
+hub *is* available if you want to widen the network or iterate faster,
+but nothing in Task A needs it (see
+[Unit 10 §10.2](../unit_10/unit_10.qmd) for the measured CPU run). Task
+B, by contrast, really does want a GPU for its *full* three-site run —
+though even there the sub-scale prototypes run on CPU.
 :::
 
 Pick by your hardware, time budget, and goals:
@@ -725,9 +726,9 @@ Pick by your hardware, time budget, and goals:
 | | **Task A** ([§9.9](#sec-task-a)) — *required* | **Task B** ([§9.10](#sec-task-b)) — *optional / advanced* |
 |---|---|---|
 | **Audience** | every participant; self-paced learner, one-day workshop | research project, advanced student, industrial prototyping |
-| **Hardware** | CPU; GPU on the hub is faster | CPU for the sub-scale prototypes; NVIDIA GPU for the full three-site run |
-| **Time budget** | minutes on GPU; longer on CPU | ~30 min on GPU per run; hours on CPU |
-| **Geometry** | one site (Cleveland Bay, $H = 15$ m) | three sites jointly (Cleveland Bay + Davies Reef + Myrmidon Reef, $H$ up to 100 m) |
+| **Hardware** | CPU (a few minutes); GPU optional | CPU for the sub-scale prototypes; NVIDIA GPU for the full three-site run |
+| **Time budget** | ~4 min on a CPU | ~30 min on GPU per run; hours on CPU |
+| **Geometry** | one site (Davies Reef, $H = 60$ m) | three sites jointly (Cleveland Bay + Davies Reef + Myrmidon Reef, $H$ up to 100 m) |
 | **PINN toolkit** | small MLP, static hand-tuned weights | + Fourier features, adaptive weights, causal training |
 | **Parameter count** | ~5 000 | ~200 000 |
 | **What it demonstrates** | the full forward-PINN + inverse-PINN pipeline | operational engineering — joint inversion, modern fixes, GPU scaling |
@@ -740,32 +741,32 @@ task's full spec.
 
 > **The required capstone.** Recover the storm wind-stress
 > envelope $\tau(t)$ from a *single* mooring's data using a small
-> PINN that trains in 10–30 minutes on a CPU — faster still if
-> you use the course GPU.
+> PINN that trains in a few minutes on a CPU.
 
 The goal is to see the full forward-PINN + inverse-PINN pipeline
-end-to-end. Everything is kept small enough that an L-BFGS run
+end-to-end. Everything is kept small enough that the training run
 finishes in coffee-break time on a CPU; the same code runs
 unchanged (and faster) on the course GPU hub if you have access —
 **a GPU is optional here, not required**.
 
 ### 9.9.1 Spec
 
-- **Site.** **Site A** (Cleveland Bay) only — $H = 15$ m,
-  $\mathrm{Pe} \ll 1$, diffusion-dominated; the shallowest and
-  simplest of the three §9.1 sites. 5 sensors at
-  $z = -1, -4, -8, -12, -14$ m.
-- **Data.** `data/mooring_A.csv` (synthetic, $\sigma = 0.05\,°\text{C}$
+- **Site.** **Site B** (Davies Reef) — $H = 60$ m,
+  $\mathrm{Pe} \sim 1$: a 60 m column with vertical advection
+  (upwelling) on top of diffusion, the classical thermocline of the
+  three §9.1 sites, where the storm leaves a sharp, depth-structured
+  fingerprint. 5 sensors at $z = -2, -10, -25, -45, -58$ m.
+- **Data.** `data/mooring_B.csv` (synthetic, $\sigma = 0.05\,°\text{C}$
   Gaussian noise on hourly samples for 30 days = 5 × 720 = 3 600 data points).
 - **Unknown.** A single scalar function $\tau(t)$ — the local
   wind-stress envelope — over the 30-day window.
-- **Given.** $\kappa(z)$ (profile closure), $Q_{\text{np}}(t)$,
-  $Q_{\text{SW}}(t)$, $T_0(z)$, $T_{\text{deep}}$, all of the
-  reference parameter values from §9.6.
+- **Given.** $\kappa(z)$ (profile closure), the upwelling profile
+  $w(z)$, $Q_{\text{np}}(t)$, $Q_{\text{SW}}(t)$, $T_0(z)$,
+  $T_{\text{deep}}$, all of the reference parameter values from §9.6.
 - **Networks.** $T_\theta(z, t)$ as a 4-layer 32-neuron MLP
-  ($\tanh$); $\tau_\phi(t)$ as a 2-layer 16-neuron MLP. ~5 000
+  ($\tanh$); $\tau_\phi(t)$ as a 32-neuron MLP. ~5 000
   parameters total.
-- **Collocation.** $N_r = 2000$ residual points, $N_b = 200$ BC
+- **Collocation.** $N_r = 4000$ residual points, $N_b = 800$ BC
   points, $N_d = 5 \text{ sensors} \times 720 \text{ samples} = 3600$ data points.
 
 ### 9.9.2 Workflow
@@ -774,15 +775,16 @@ Follow these seven steps in order. Each maps directly onto a block of
 the starter skeleton below.
 
 1. **Get hold of the data.** The synthetic mooring record is already
-   in the repo — `data/mooring_A.csv` (5 sensors × 720 hourly
+   in the repo — `data/mooring_B.csv` (5 sensors × 720 hourly
    samples); just load it. Plot all five depths first
    ([§9.1 exercise](#ex-9-1)) so you know what the storm looks like
    before you model it. (It was produced once by
-   `scripts/generate_mooring_csvs.jl --site A`; you don't need to
+   `scripts/generate_mooring_csvs.jl --site B`; you don't need to
    regenerate it.)
 2. **Build the column constants and forcings** from §9.5–§9.6: the
-   diffusivity $\kappa(z)$, the Beer–Lambert source shape, the
-   initial profile $T_0(z)$, and the deep reservoir $T_{\text{deep}}$.
+   diffusivity $\kappa(z)$, the upwelling profile $w(z)$, the
+   Beer–Lambert source shape, the initial profile $T_0(z)$, and the
+   deep reservoir $T_{\text{deep}}$.
 3. **Define the two networks.** $T_\theta(z, t)$ recovers the
    temperature field; $\tau_\phi(t)$ recovers the unknown storm
    envelope. Bake the **hard deep BC** ($T = T_{\text{deep}}$ at
@@ -806,8 +808,8 @@ the starter skeleton below.
    collapsing; see the weight-sweep table in
    [Unit 10 §10.2](../unit_10/unit_10.qmd).
 6. **Train the inverse PINN.** A few thousand steps already show the
-   method working; more steps (and/or the GPU) tighten the recovered
-   peak toward the §9.9.3 target.
+   method working; ~12 000 Adam steps reach the §9.9.3 target (about
+   four minutes on a CPU).
 7. **Diagnose and report** — overlay $\hat\tau(t)$ on the truth and
    write the honest assessment of where the recovery fails. Optionally
    add the residual histogram vs $t$
@@ -828,12 +830,14 @@ for reading, not running.
 using Lux, Optimisers, Zygote, Random, Statistics
 
 # ── physics (non-dimensional column; see §9.3–§9.6 and Unit 10 §10.2) ──
-const Pe = 1.5f0                       # diffusion number for Site A
-S_shape(ζ) = exp.((ζ .- 1f0) ./ 0.20f0)  # known Beer–Lambert heating shape S(ζ)
-# TODO: load mooring_A.csv → (ζ_obs, τ_obs, T_obs)  [non-dimensionalise z,t,T]
+const Pe   = 1.0f0                      # diffusion number for Site B
+const Wadv = 1.2f0                      # advection number (upwelling) → Péclet ~ 1
+S_shape(ζ) = exp.((ζ .- 1f0) ./ 0.25f0)  # known Beer–Lambert heating shape S(ζ)
+w_shape(ζ) = ζ                            # upwelling: 0 at depth, max at surface
+# TODO: load mooring_B.csv → (ζ_obs, τ_obs, T_obs)  [non-dimensionalise z,t,T]
 
 # ── two networks ──────────────────────────────────────────────────────
-T_net = Chain(Dense(2=>48, tanh), Dense(48=>48, tanh), Dense(48=>1))  # field T_θ(ζ,t)
+T_net = Chain(Dense(2=>32, tanh), Dense(32=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # field T_θ(ζ,t)
 τ_net = Chain(Dense(1=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # storm τ_φ(t)
 
 # Hard IC (t=0 ⇒ 0) and hard deep BC (ζ=0 ⇒ 0) baked into the ansatz:
@@ -843,12 +847,14 @@ T_net = Chain(Dense(2=>48, tanh), Dense(48=>48, tanh), Dense(48=>1))  # field T_
 # Derivatives by finite-difference-in-input (no nested AD; Unit 5 §5.3):
 h = 2f-3
 ∂t(p,ζ,t)  = (θ(p,ζ,t.+h) .- θ(p,ζ,t.-h)) ./ (2h)
+∂ζ(p,ζ,t)  = (θ(p,ζ.+h,t) .- θ(p,ζ.-h,t)) ./ (2h)
 ∂ζζ(p,ζ,t) = (θ(p,ζ.+h,t) .- 2 .* θ(p,ζ,t) .+ θ(p,ζ.-h,t)) ./ h^2
 
 # ── loss: the WEIGHTS are the lesson (large λ_d, tiny λ_reg) ───────────
 λ_d, λ_b, λ_reg = 6000f0, 10f0, 1f-5
 function loss(pT, pτ)
-    L_pde  = mean(abs2, ∂t(pT,ζc,tc) .- Pe .* ∂ζζ(pT,ζc,tc) .- S_shape(ζc) .* τφ(pτ,tc))
+    L_pde  = mean(abs2, ∂t(pT,ζc,tc) .+ Wadv .* w_shape(ζc) .* ∂ζ(pT,ζc,tc)
+                        .- Pe .* ∂ζζ(pT,ζc,tc) .- S_shape(ζc) .* τφ(pτ,tc))
     L_data = mean(abs2, θ(pT, ζ_obs, τ_obs) .- T_obs)
     L_bc   = mean(abs2, ( θ(pT,ζ1,tb) .- θ(pT,ζ1 .- h,tb) ) ./ h)  # surface ∂ζθ(1,·)=0
     L_reg  = mean(abs2, (τφ(pτ,tg.+h) .- τφ(pτ,tg.-h)) ./ (2h))     # H¹ smoothness on τ
@@ -890,12 +896,13 @@ end
 
 | Stage | Wall-clock (CPU) |
 |---|---|
-| MethodOfLines FD reference (1 site, 30 days) | ~5 s |
-| Forward PINN training (Adam 2 000 + L-BFGS 500) | ~3 min |
-| Inverse PINN training (Adam 5 000 + L-BFGS 1 000) | ~15 min |
+| Finite-difference reference solve (1 site, 30 days) | ~1 s |
+| Forward PINN sanity check (Adam) | ~2 min |
+| Inverse PINN training (Adam, 12 000 steps) | ~4 min |
 
-Total: under 30 minutes from a cold cache. Re-running to retune
-$\lambda_r / \lambda_d$ adds ~10 minutes per pass.
+Total: under 10 minutes from a cold cache (measured on a CPU — the
+inverse run lands the recovered storm peak at ~10% error). Re-running
+to retune $\lambda_d / \lambda_\text{reg}$ adds a few minutes per pass.
 
 ### 9.9.5 Deliverables
 
@@ -915,10 +922,10 @@ Optional extras (good practice, not needed to clear the task):
 The **mechanism partition** — decomposing the cooling into advection,
 mixing, and source contributions to answer the §9.1 "which hypothesis
 dominated" question — is **deferred to Task B**
-([§9.10.5](#sec-task-b)). Task A's diffusion-only source column has no
-advection term to attribute, so the partition is degenerate here; Task
-B's advection + wind-mixing columns at the three sites are where it
-becomes meaningful (see
+([§9.10.5](#sec-task-b)). A single site gives you only one column's
+breakdown; the story the §9.1 question really asks for is the
+*contrast* — how the advection share climbs across the three regimes —
+which only the three-site study resolves (see
 [Unit 10 §10.3](../unit_10/unit_10.qmd#sec-mechanism-partition)).
 
 ### 9.9.6 What you don't do here
@@ -980,14 +987,15 @@ single coherent storm signal explains all three.
 
 ### 9.10.2 Workflow
 
-1. **Generate the three sites' synthetic data** with
-   `scripts/generate_mooring_csvs.jl` (all three).
-2. **Sub-scale prototype on Task A's column.** Run Task B's
+1. **Get hold of the three sites' synthetic data** — the committed
+   `data/mooring_{A,B,C}.csv` (produced once by
+   `scripts/generate_mooring_csvs.jl`); just load them.
+2. **Sub-scale prototype on a single column.** Run Task B's
    architecture (Fourier features, hard BC, adaptive weights) on
-   the single 15 m column with $N_r = 5\,000$. ~30 min on CPU.
-   Sanity check: should match Task A's accuracy at ~1.5× the
-   training cost (the modern fixes shouldn't *hurt* on easy
-   problems).
+   one site alone with $N_r = 5\,000$. ~30 min on CPU.
+   Sanity check: should match Task A's single-site accuracy at
+   ~1.5× the training cost (the modern fixes shouldn't *hurt* on
+   easy problems).
 3. **Two-site joint inverse on A + B at $H = 60$ m.** Medium
    architecture (4-layer × 64-neuron), $N_r = 10\,000$ per site.
    ~2 h on CPU. Lets you see the joint-vs-decoupled improvement
