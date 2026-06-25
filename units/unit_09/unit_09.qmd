@@ -1044,14 +1044,17 @@ the deep upwelling pulse, and Davies Reef sits between, anchoring the
 - **Networks.** $T^{(i)}_\theta(z, t)$ as a 6-layer 64-neuron
   MLP per site (~17 k parameters each); $\tau_\phi(t)$ as a 3-layer
   48-neuron MLP. ~53 000 parameters total.
-- **Modern PINN toolkit ([Unit 7 §7.3](../unit_07/unit_07.qmd)).**
-  Fourier-feature embedding $\gamma(z, t) = [\sin(B(z,t)), \cos(B(z,t))]$
-  for the diurnal cycle; hard BC at $z = -H$ and at the IC;
-  adaptive loss weighting (gradient-balancing) for the
-  per-site residual and BC losses; causal time training.
-- **Collocation.** $N_r = 50\,000$ per site, $N_d = 3\,600$ per
-  site (5 sensors × 720 hourly samples); 10 800 data points across
-  the three sites combined.
+- **Modern PINN toolkit ([Unit 7 §7.3](../unit_07/unit_07.qmd)) —
+  *optional scale-up*.** Fourier-feature embedding, gradient-balanced
+  adaptive loss weighting, and causal time training are the menu for
+  pushing to the deep $H = 100$ m column. The **shipped** 3-site run
+  (`task_b_joint_inverse.jl`) does **not** use them — it clears the bar
+  with the static Task-A recipe (see §10.3 Step 6 and the tips below).
+  The hard BC at $z = -H$ and at the IC are always on.
+- **Collocation.** The shipped run uses $N_r = 4\,000$ per site;
+  scaling to the deep column wants up to $N_r = 50\,000$. Data: $N_d =
+  3\,600$ per site (5 sensors × 720 hourly samples), 10 800 across the
+  three sites.
 
 ### 9.10.2 Workflow
 
@@ -1062,15 +1065,14 @@ the deep upwelling pulse, and Davies Reef sits between, anchoring the
    the arrays you actually invert are ones you generate yourself in
    the prototype below, from a single **known** shared $\tau^\star$, so
    the joint recovery scores against a known truth (twin experiment, §9.7).
-2. **Sub-scale prototype on a single column.** Run Task B's
-   architecture (Fourier features, hard BC, adaptive weights) on
-   one site alone with $N_r = 5\,000$. ~30 min on CPU.
-   Sanity check: should match Task A's single-site accuracy at
-   ~1.5× the training cost (the modern fixes shouldn't *hurt* on
-   easy problems).
-3. **Two-site joint inverse on A + B at $H = 60$ m.** Medium
-   architecture (4-layer × 64-neuron), $N_r = 10\,000$ per site.
-   ~2 h on CPU. Lets you see the joint-vs-decoupled improvement
+2. **Sub-scale prototype on a single column.** Run the static
+   Task-A recipe (hard BC, static weights) on one site alone with
+   $N_r \approx 4\,000$. A few minutes on CPU. Sanity check: it should
+   match Task A's single-site accuracy — the *joint* machinery is what
+   earns its keep here, not any per-site fix.
+3. **Two-site joint inverse on A + B** (`task_b_subscale_prototype.jl`).
+   32 × 4 networks, $N_r = 4\,000$ per site, static weights. ~7 min on
+   CPU. Lets you see the joint-vs-decoupled improvement
    and tune cross-site loss weights.
 4. **GPU-launch checklist.** Document the changes needed for the
    full 3-site run:
@@ -1161,9 +1163,9 @@ solution's measured times are in [Unit 10 §10.3](../unit_10/unit_10.qmd).
 
 | Stage | CPU | GPU (A10G) |
 |---|---|---|
-| Sub-scale prototype (Task A column, Task B architecture) | ~30 min | ~2 min |
-| Two-site joint inverse (A + B) | ~7 min | ~2 min |
-| Forward PINN, joint 3-site, full scale | ~2 h | ~3 min |
+| Single-column sub-scale prototype | ~5 min | ~1 min |
+| Two-site joint inverse (A + B, `task_b_subscale_prototype.jl`) | ~7 min | ~2 min |
+| Three-site joint inverse (`task_b_joint_inverse.jl`) | ~2 h | ~5 min |
 | Inverse PINN, joint 3-site, full scale | hours | ~10 min |
 
 The CPU full-scale column is not a typo: technically possible but
