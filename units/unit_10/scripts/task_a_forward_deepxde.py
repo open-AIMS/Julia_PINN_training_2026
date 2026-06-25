@@ -17,7 +17,7 @@ import deepxde as dde
 H = 60.0;  Tf = 30.0 * 86400.0
 T_deep = 22.0
 def kappa_z(z):  return 1e-3 * np.exp(z / 20.0) + 1e-5    # mixed-layer profile (Site B)
-def w_z(z, t):   return 5e-5 * np.sin(np.pi * (z + H) / H)  # upwelling profile (Site B), m/s
+def w_z(z, t):   return 5e-5 * (z + H) / H               # upwelling profile (Site B): linear in z (SWE), m/s
 def Q_np(t):     return -120.0                           # net cooling (W/m^2)
 def S_z(z, t):   return 400.0 / 4.0e6 / 8.0 * np.exp(z / 8.0)  # body source S = Q_SW/(rho0*cp*zeta)*e^(z/zeta), zeta=8 m
 

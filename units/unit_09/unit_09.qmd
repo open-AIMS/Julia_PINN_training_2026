@@ -866,8 +866,9 @@ the starter skeleton below.
 
 A scaffold for steps 3–6, distilled from the shipped solution
 [`task_a_inverse_pinn.jl`](../unit_10/unit_10.qmd). Fill in the
-`# TODO` (load and non-dimensionalise the mooring data) from the
-equations in §9.3–§9.6; the full worked version — FD reference,
+`# TODO` (forward-solve a **known** storm to make your data, then
+non-dimensionalise — the twin experiment of §9.7, *not* a load of the
+committed CSV) from the equations in §9.3–§9.6; the full worked version — FD reference,
 metrics, and the validated weights — is in
 [Unit 10 §10.2](../unit_10/unit_10.qmd) behind the solution gate. It is
 for reading, not running.
@@ -880,7 +881,8 @@ const Pe   = 1.0f0                      # diffusion number for Site B
 const Wadv = 1.2f0                      # advection number (upwelling) → Péclet ~ 1
 S_shape(ζ) = exp.((ζ .- 1f0) ./ 0.25f0)  # known Beer–Lambert heating shape S(ζ)
 w_shape(ζ) = ζ                            # upwelling: 0 at depth, max at surface
-# TODO: load mooring_B.csv → (ζ_obs, τ_obs, T_obs)  [non-dimensionalise z,t,T]
+# TODO: forward-solve a known τ★ (FD reference, §9.7) → sample 5 depths + noise
+#       → (ζ_obs, τ_obs, T_obs)  [non-dimensionalise z,t,T]. Twin experiment, not a CSV load.
 
 # ── two networks ──────────────────────────────────────────────────────
 T_net = Chain(Dense(2=>32, tanh), Dense(32=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # field T_θ(ζ,t)
