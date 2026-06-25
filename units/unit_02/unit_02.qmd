@@ -814,6 +814,71 @@ The payoff of the Lux convention is uniformity: the `model(x, ps, st)` /
 `Zygote.gradient` / `Optimisers.update` loop above is *byte-for-byte* the
 shape of every training run in this course, plain classifier or PINN alike.
 
+### Saving and loading a trained model
+
+Because the parameters live *outside* the model, saving a Lux model means
+saving **`ps`** (and `st`) — plain `NamedTuple`s of arrays — while the
+architecture stays in your code. You reload by rebuilding the same `Chain` and
+reading the arrays back in. A few options, simplest first:
+
+- **[`Serialization`](https://docs.julialang.org/en/v1/stdlib/Serialization/){target="_blank"}**
+  (Julia standard library, nothing to install) — one call each way. Convenient,
+  but the format is tied to your exact Julia/package versions: fine for a scratch
+  checkpoint, not for long-term archival or sharing.
+- **[`JLD2.jl`](https://github.com/JuliaIO/JLD2.jl){target="_blank"}** — an
+  HDF5-style container, robust across versions; the option the Lux docs
+  recommend, and what the example below uses.
+- **[`BSON.jl`](https://github.com/JuliaIO/BSON.jl){target="_blank"}** — binary
+  JSON, the long-standing choice in the Flux world.
+- **Cross-language / archival** — export the raw weight arrays with
+  [`HDF5.jl`](https://github.com/JuliaIO/HDF5.jl){target="_blank"} or
+  [`NPZ.jl`](https://github.com/fhs/NPZ.jl){target="_blank"} (e.g. to read them
+  back from Python/NumPy).
+
+A complete round-trip on a baby model — build it, *pretend* to train, save, and
+load. (`JLD2.jl` and `BSON.jl` are not in `@pinn` by default; `Pkg.add` them
+once. `Serialization` is always available.)
+
+```{.julia}
+using Lux, Random, JLD2
+
+# build a baby MLP (1 → 8 → 1) and initialise its parameters
+model  = Lux.Chain(Lux.Dense(1 => 8, tanh), Lux.Dense(8 => 1))
+rng    = Random.MersenneTwister(0)
+ps, st = Lux.setup(rng, model)
+# ... you would train here (the loop above), updating ps; we skip it ...
+
+# SAVE — store the parameters and state, not the model object
+jldsave("baby_model.jld2"; ps, st)
+
+# LOAD — rebuild the IDENTICAL architecture in code, then read the params back
+model_loaded = Lux.Chain(Lux.Dense(1 => 8, tanh), Lux.Dense(8 => 1))
+saved        = JLD2.load("baby_model.jld2")
+ps2, st2     = saved["ps"], saved["st"]
+
+# confirm it round-trips: same input → same output
+x = randn(rng, Float32, 1, 4)
+@assert model(x, ps, st)[1] ≈ model_loaded(x, ps2, st2)[1]
+```
+
+The same shape with the two alternatives:
+
+```{.julia}
+# standard library — zero dependencies
+using Serialization
+serialize("baby_model.jls", (ps, st))
+ps3, st3 = deserialize("baby_model.jls")
+
+# BSON.jl — the Flux-ecosystem choice
+using BSON
+BSON.@save "baby_model.bson" ps st
+BSON.@load "baby_model.bson" ps st
+```
+
+Rule of thumb: **save `ps`/`st` (the arrays), keep the model as code.** Don't
+rely on serialising the model *object* across Julia or package versions —
+rebuilding the `Chain` and loading the parameters into it is what stays portable.
+
 ## 2.6 Optimisation {#sec-optimisation}
 
 Training a neural network — or fitting a PINN — comes down to
