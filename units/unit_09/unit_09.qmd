@@ -181,7 +181,7 @@ wind-stress forcing. We use these as the **driver** of the
 column's upwelling, not as a coupled-PDE PINN problem. The SWE solve
 is offline; its output is a time series at the mooring location.
 
-### Coupling: vertical velocity from horizontal divergence
+### Coupling: vertical velocity from horizontal divergence {#sec-w-coupling}
 
 First, a reminder of what we are after. $w(z, t)$ is the **vertical
 velocity** of the seawater — how fast it moves up or down, in m/s — at
@@ -541,14 +541,26 @@ as heat in the water.
 
 ### Vertical velocity (upwelling)
 
-Prescribe a simple profile pinned to zero at top and bottom:
+The column inherits $w$ from the shallow-water driver, so its shape is
+fixed by the §9.2 derivation, not chosen freely. With a depth-uniform
+horizontal flow, mass conservation makes $w$ **linear in depth** — pinned
+to zero at the seafloor and largest at the surface
+([§9.2](#sec-w-coupling)):
 
 $$
-w(z) \;=\; w_0\, \sin\!\bigl(\pi\,(z+H)/H\bigr),
+w(z, t) \;=\; w_0(t)\,\frac{z + H}{H},
+\qquad w_0(t) = -H\,\nabla_h\cdot\mathbf{u}_h(t),
 $$
 
-with $w_0 > 0$ giving upward motion. A typical magnitude is
-$w_0 \sim 10^{-5}\,\text{m/s}$, i.e. about 1 m/day.
+so $w_0(t)$ is the surface vertical velocity, set by the horizontal
+divergence the 2-D model reports at the mooring.
+
+**Why it is positive (upwelling).** During the storm the surface current
+*converges* toward the mooring, $\nabla_h\cdot\mathbf{u}_h(t) < 0$; with
+the seafloor blocking any escape downward, the water has nowhere to go but
+up, so $w_0(t) = -H\,\nabla_h\cdot\mathbf{u}_h(t) > 0$ and the whole column
+lifts — drawing cold deep water past the sensors. A typical storm
+magnitude is $w_0 \sim 10^{-5}\,\text{m/s}$, about 1 m/day.
 
 ### Eddy diffusivity
 
@@ -571,21 +583,21 @@ Three closures in increasing realism (pick one per experiment):
 One figure, four panels, using the reference values of §9.6: (a)
 $Q_{\text{SW}}(t)$ over 3 days; (b) the Beer–Lambert source
 $\rho_0 c_p\,\mathcal{S}(z)$ at noon with $\zeta = 10$ m; (c) the
-$w(z)$ sine profile; (d) all three $\kappa$ closures overlaid
+$w(z)$ linear profile; (d) all three $\kappa$ closures overlaid
 (use $\mathrm{Ri}$ from the §9.4 initial profile and
 $\partial_z U = 0.01\,\text{s}^{-1}$ for closure 3). Then read
 three numbers off your own figure: the depth at which the noon
 body source has dropped to 10% of its surface value, $w$ at the
-Site B thermocline ($z = -30$ m of $H = 60$... careful — the sine
-profile depends on the site's $H$), and the factor between
-closure 2's $\kappa$ at the surface and at $-60$ m. Any surprises
-versus what you assumed while reading?
+Site B thermocline ($z = -30$ m of $H = 60$ — note $w$ grows
+straight from zero at the floor to its surface peak), and the
+factor between closure 2's $\kappa$ at the surface and at $-60$ m.
+Any surprises versus what you assumed while reading?
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
 
 ::: {.exercise-hint-text}
-Assemble with `plot(p1, p2, p3, p4, layout = (2,2))`, pulling every number from the §9.6 table. (a) `Qsw(t) = 800*max(0, cos(2π*t/86400))` over 3 days; (b) the Beer–Lambert source `S(z) = (800/(ρ₀cp))*(1/10)*exp(z/10)` (with ρ₀cp = 1025·3990) vs $z$; (c) `w(z) = 1e-5*sin(π*(z+H)/H)` — **trap: use the site's own $H$** (60 for Site B), in m/day; (d) all three κ closures, with `xscale = :log10` or the curves collapse. Closure 3 needs the Ri formula from the §9.4 profile (Solution 8.5 has the sech² derivative). Read-offs: 10% source depth is $-\zeta\ln10 \approx -23$ m; at Site B's thermocline $z=-30$ is exact mid-column so the sine *peaks* — $w = w_0$ (the surprise); closure-2's surface-to-($-60$ m) ratio comes out ~17, not 100, because the exponential never reaches its floor in 60 m.
+Assemble with `plot(p1, p2, p3, p4, layout = (2,2))`, pulling every number from the §9.6 table. (a) `Qsw(t) = 800*max(0, cos(2π*t/86400))` over 3 days; (b) the Beer–Lambert source `S(z) = (800/(ρ₀cp))*(1/10)*exp(z/10)` (with ρ₀cp = 1025·3990) vs $z$; (c) `w(z) = 1e-5*(z+H)/H` — **trap: use the site's own $H$** (60 for Site B), in m/day; (d) all three κ closures, with `xscale = :log10` or the curves collapse. Closure 3 needs the Ri formula from the §9.4 profile (Solution 8.5 has the sech² derivative). Read-offs: 10% source depth is $-\zeta\ln10 \approx -23$ m; at Site B's thermocline $z=-30$ is mid-column, so the linear profile gives $w = w_0/2$ — half the surface value (the surprise: the upwelling is strongest at the *surface*, not at the thermocline); closure-2's surface-to-($-60$ m) ratio comes out ~17, not 100, because the exponential never reaches its floor in 60 m.
 :::
 :::
 
@@ -684,13 +696,44 @@ solved two ways:
    the noise scale — so we know it reproduces the FD reference before
    any inverse is stacked on top.
 
+**The forward solver makes the data; the inverse recovers the storm.**
+This is the relationship to hold onto for Task A. The `MethodOfLines.jl`
+reference (`column_fd.jl`) is the **forward** solver: give it the drivers
+— including a chosen storm $\tau(t)$ — and it produces the temperature
+field $T(z,t)$. Sample that field at the five sensor depths and add a
+little noise, and you have a synthetic mooring record. The inverse PINN
+then runs the arrow backwards: from the sampled temperatures alone,
+recover the $\tau(t)$ that produced them.
+
 **Where the outputs and data live.** The forward-solve figures are in
-[Unit 10 §10.1](../unit_10/unit_10.qmd); the synthetic mooring records
-the solve produces — the very CSVs the inverse tasks read back in — are
-`units/unit_10/data/mooring_{A,B,C}.csv`, generated once by
-`units/unit_10/scripts/generate_mooring_csvs.jl` (which calls
-`column_fd.jl`) and already committed to the repo, so you simply load
-them. [Exercise 9.1](#ex-9-1) walks you through reading those CSVs.
+[Unit 10 §10.1](../unit_10/unit_10.qmd). One forward-solve instance — the
+three sites under a common storm — is committed as
+`units/unit_10/data/mooring_{A,B,C}.csv` (generated once by
+`units/unit_10/scripts/generate_mooring_csvs.jl`, which calls
+`column_fd.jl`); [Exercise 9.1](#ex-9-1) walks you through reading them to
+see the three regimes. Task A then runs its **own** forward solve with a
+*known* $\tau^\star(t)$, so the recovered $\hat\tau$ can be scored against
+the planted truth — a **twin experiment** (§9.9). So the committed CSVs
+are for *looking at* realistic data; the array you actually invert is one
+you generate yourself, where the answer is known.
+
+::: {.callout-note}
+## `MethodOfLines.jl` in a nutshell
+
+"Method of lines" splits the PDE in two: **discretise space, keep time
+continuous.** On the depth grid $z_1,\dots,z_N$ it replaces every
+$z$-derivative (the $\partial_z(\kappa\,\partial_z T)$ diffusion, the
+$w\,\partial_z T$ advection) with a finite-difference stencil — which
+turns the one PDE into a *system of $N$ coupled ODEs*, one
+$\mathrm{d}T_i/\mathrm{d}t$ per grid point, each depending on its
+neighbours. That ODE system goes to a standard adaptive time-stepper. In
+Julia the three pieces are: **ModelingToolkit** writes the PDE
+symbolically, **`MethodOfLines.jl`** does the space discretisation
+(`MOLFiniteDifference` + `discretize`), and **`OrdinaryDiffEq`**
+integrates in time. The output is the trusted reference $T(z,t)$ — the
+synthetic mooring data, and the ground truth the forward PINN is checked
+against.
+:::
 
 The toy-task ladder of §9.11 builds up to the forward problem in five
 stages. Both the Task A and Task B inverse problems start from this
@@ -774,13 +817,14 @@ unchanged (and faster) on the course GPU hub if you have access —
 Follow these seven steps in order. Each maps directly onto a block of
 the starter skeleton below.
 
-1. **Get hold of the data.** The synthetic mooring record is already
-   in the repo — `data/mooring_B.csv` (5 sensors × 720 hourly
-   samples); just load it. Plot all five depths first
-   ([§9.1 exercise](#ex-9-1)) so you know what the storm looks like
-   before you model it. (It was produced once by
-   `scripts/generate_mooring_csvs.jl --site B`; you don't need to
-   regenerate it.)
+1. **Look at the data first.** Read `data/mooring_B.csv` (5 sensors ×
+   720 hourly samples) and plot all five depths
+   ([§9.1 exercise](#ex-9-1)) to see the storm's fingerprint at this
+   site. Treat this as *orientation*: the array you actually invert is
+   one you generate yourself in step 4 from a **known** storm, so the
+   recovery can be scored against the truth (a twin experiment, §9.7).
+   (The CSV was produced once by
+   `scripts/generate_mooring_csvs.jl --site B`.)
 2. **Build the column constants and forcings** from §9.5–§9.6: the
    diffusivity $\kappa(z)$, the upwelling profile $w(z)$, the
    Beer–Lambert source shape, the initial profile $T_0(z)$, and the
@@ -791,14 +835,16 @@ the starter skeleton below.
    $z = -H$) and the **hard IC** into the field ansatz so those two
    constraints hold *for free* and only the surface flux BC stays a
    soft penalty ([Unit 7 §7.3](../unit_07/unit_07.qmd)).
-4. **Get the forward solve working before the inverse.** Recovering an
-   *unknown* $\tau$ is hard to debug, so first check the machinery on a
-   *known* one: pick a known storm $\tau$, produce the temperature
-   field with the trusted `MethodOfLines.jl` finite-difference solver
-   (§9.7), and train the field network $T_\theta$ to reproduce it. Only
-   once that forward fit lands within the noise floor (target
-   $L^2 < 0.05\,°\text{C}$ against the FD reference) should you stack an
-   inverse on top.
+4. **Run the forward solver to make your data — and get it working
+   before the inverse.** Pick a **known** storm $\tau^\star$ and run the
+   forward solver (the trusted `MethodOfLines.jl` reference, §9.7) to
+   produce $T(z,t)$; sampling its five sensor depths and adding noise
+   gives the synthetic mooring you will invert. Train the field network
+   $T_\theta$ to reproduce that field first — only once the forward fit
+   lands within the noise floor (target $L^2 < 0.05\,°\text{C}$ against
+   the FD reference) should you stack the inverse on top. Because you
+   planted $\tau^\star$, the recovered $\hat\tau$ scores against a known
+   truth.
 5. **Assemble the joint inverse loss**
    $\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_d \mathcal{L}_{\text{data}} + \lambda_b \mathcal{L}_{\text{surf-BC}} + \lambda_{\text{reg}} \int |\tau_\phi'|^2\,dt$
    (the hard IC + deep BC mean no separate $\mathcal{L}_{\text{IC}}$
@@ -1146,11 +1192,11 @@ report on if they get GPU time:
 
 ## 9.11 Toy-task ladder (shared) {#sec-toy-tasks}
 
-Build up to the forward problem in stages. Each step isolates one
-mechanism, so when the full storm scenario lands you can read
-each contribution off the trace. Plots and code for these
-scenarios live in [Unit 10](../unit_10/unit_10.qmd). Task A and
-Task B both start from these.
+Build up to the forward problem in five scenarios, each isolating one
+mechanism, so when the full storm lands you can read each contribution
+off the trace. These are exactly the five scenarios worked and plotted in
+[Unit 10 §10.1](../unit_10/unit_10.qmd#sec-shared) — the numbering matches
+one-to-one. Task A and Task B both start from these.
 
 1. **Pure diffusion, steady forcing.** Set $w = 0$, $\mathcal{S} = 0$,
    $\kappa$ constant, $Q_{\text{np}}$ constant. Solve to steady
@@ -1167,20 +1213,23 @@ Task B both start from these.
 3. **Add upwelling.** Turn on $w(z)$ with
    $w_0 = 10^{-5}\,\text{m/s}$. *Expected:* cold water from depth
    invades the bulk; SST drops slowly over weeks. The diurnal warm
-   layer survives but sits on top of cooler water.
+   layer survives but sits on top of cooler water. (At the same time,
+   switch $\kappa$ from constant to the §9.5 profile closure with
+   mixed-layer scale $h_m$ — a deeper mixed layer gives a thicker,
+   cooler warm layer; this depth-varying $\kappa$ is used from here on.)
 
-4. **Vary mixing.** Switch $\kappa$ from constant to the profile
-   closure with mixed-layer scale $h_m$. Try $h_m = 5, 20, 50$ m.
-   *Expected:* deeper mixed layer $\Rightarrow$ thicker but cooler
-   warm layer at the surface, smoother thermocline.
+4. **Storm fingerprint (prescribed gust).** A Gaussian gust on day 10
+   (~3 days wide) modulating the upwelling $w$ (×5 at peak) and
+   $Q_{\text{SW}}$ (cloud cover, ×0.5 at peak) with *prescribed*
+   envelopes. *Expected:* deeper sensors cool first (upwelling
+   fingerprint), surface stays close to baseline as cloud and stress
+   partly cancel. **This is the storm the capstone inverts.**
 
-5. **The synthetic scenario, forward.** Run a *single* wind event in the 2D
-   shallow-water model — a Gaussian gust passing over the mooring
-   on day 10, lasting 3 days. Read off the time series $w(t)$,
-   $|\boldsymbol{\tau}|(t)$, and $Q_{\text{SW}}^{\max}(t)$ (cloud
-   cover tied to the gust) at the mooring location, and feed them
-   into the 1D column. Plot temperature traces at the five mooring
-   depths. *Expected:* deeper sensors cool first (upwelling
-   fingerprint), surface stays close to baseline because cloud and
-   stress cancel. Compare to "decoupled" runs that perturb only one
-   driver at a time.
+5. **The synthetic scenario from the SWE driver.** Replace the
+   prescribed envelopes of scenario 4 with a genuine 2-D
+   shallow-water solve: a Gaussian wind gust over the mooring produces
+   $\mathbf{u}_h(t)$, hence $w(t)$ (via §9.2) and $Q_{\text{SW}}(t)$,
+   fed into the column. This is the physically self-consistent storm —
+   the headline extension, designed in
+   [Unit 10 §10.1](../unit_10/unit_10.qmd#sec-shared), not shipped with
+   the solution.

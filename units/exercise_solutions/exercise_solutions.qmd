@@ -2638,10 +2638,11 @@ end
 
 ### Solution 9.4 — what does the bottom BC actually cost? {#sol-9-4}
 
-1. **Dirichlet:** steady state exists — the linear profile of
-   Solution 10.1, with the deep reservoir silently *supplying* the
-   200 W/m² that the surface extracts (heat conducts up the
-   gradient from the fixed-temperature bottom). **Zero-flux:** no
+1. **Dirichlet:** steady state exists — a linear steady profile
+   $T(z) = T_{\text{deep}} + \tfrac{Q_{\text{np}}}{\rho_0 c_p \kappa}(z+H)$,
+   with the deep reservoir silently *supplying* the 200 W/m² that the
+   surface extracts (heat conducts up the gradient from the
+   fixed-temperature bottom). **Zero-flux:** no
    steady state. Integrate the PDE over the column: the
    total heat content obeys
    $\frac{d}{dt}\int T\,dz = \text{(flux in at top)} +
@@ -2679,7 +2680,7 @@ let
 ρcp = 1025 * 3990
 Qsw(t) = 800 * max(0, cos(2π * t / 86400))         # t in seconds
 S(z)   = (800 / ρcp) * (1 / 10) * exp(z / 10)      # noon, ζ = 10 m  → K/s
-w_site(z, H) = 1e-5 * sin(π * (z + H) / H)
+w_site(z, H) = 1e-5 * (z + H) / H
 dTdz(z) = (10 / (2 * 5)) * sech((z + 30) / 5)^2    # §9.4 IC gradient
 Ri(z)   = 2e-4 * 9.81 * dTdz(z) / 0.01^2
 κ1(z)   = 1e-3
@@ -2707,12 +2708,13 @@ The three read-off numbers:
 - **10% source depth:** $e^{z/\zeta} = 0.1$ at
   $z = -\zeta\ln 10 \approx -23$ m.
 - **$w$ at Site B's thermocline:** with $H = 60$,
-  $z = -30$ is the exact **mid-column**, so
-  $\sin(\pi(z+H)/H) = \sin(\pi/2) = 1$ — the sine profile *peaks*
-  there: $w = w_0$, ~1 m/day. This is the surprise worth noticing:
-  the prescribed upwelling is strongest precisely at Site B's
-  thermocline, which is part of why Davies Reef gives the cleanest
-  storm fingerprint of the three sites.
+  $z = -30$ is the **mid-column**, so $(z+H)/H = 1/2$ — the linear
+  profile gives $w = w_0/2$, about 0.5 m/day. The surprise worth
+  noticing: the upwelling is strongest at the *surface* and falls
+  straight to zero at the floor, so the thermocline feels only half
+  the surface value. Davies Reef still gives the cleanest storm
+  fingerprint of the three sites — but that is its depth and
+  $\mathrm{Pe}\approx1$, not the local $w$, doing the work.
 - **Closure 2, surface vs $-60$ m:**
   $\kappa(0) \approx 10^{-3}$ vs
   $\kappa(-60) = 10^{-5} + 9.9\times10^{-4}e^{-3}
@@ -2756,107 +2758,4 @@ rather than a glance at SST.
 
 ::: {.exercise-solution-link}
 [← Back to Unit 9 §9.6](../unit_09/unit_09.qmd#ex-9-6)
-:::
-
-## Unit 10 — Project Solution
-
-### Solution 10.1 — predict scenario 1's steady state exactly {#sol-10-1}
-
-1. At steady state with no advection and no source,
-   $\partial_z(\kappa\,\partial_z T) = 0$ with constant $\kappa$
-   means $\partial_z T$ is constant — a straight line. The surface
-   Neumann condition fixes the slope:
-   $\partial_z T = Q_{\text{np}}/(\rho_0 c_p \kappa)$; the bottom
-   Dirichlet condition fixes the intercept:
-   $$T(z) = T_{\text{deep}} +
-     \frac{Q_{\text{np}}}{\rho_0\,c_p\,\kappa}\,(z + H).$$
-   With $Q_{\text{np}} = -200$ W/m²:
-   slope $= -200/(1025 \times 3990 \times 10^{-3}) \approx
-   -0.0489$ K/m, so
-   $T(0) = 18 - 0.0489 \times 100 \approx \mathbf{13.1\,°C}$ —
-   nearly 5 K *colder* than the deep reservoir. Why that's right
-   and not a sign error: the surface continuously loses 200 W/m²,
-   and at steady state that heat must be resupplied by upward
-   diffusion from the fixed-temperature bottom. Diffusion only
-   moves heat *down* a gradient, so the column must tilt cold-side-up.
-   (Physically this is a winter-cooling profile; the full model's
-   daytime shortwave is what keeps real reef columns warm on top.)
-2. $T_\kappa = H^2/\kappa = 10^4/10^{-3}\,\text{s} \approx
-   116$ days. A 365-day run is ~3 diffusive time constants —
-   the transient decays like $e^{-t/T_\kappa}$ to within a few
-   percent, hence the caption's "near-steady state after ~365
-   days". Running the FD solver for only 30 days (the capstone
-   window) leaves the column far from this steady state — which is
-   fine, because the capstone never claims otherwise.
-3. `scenario_1()` should land on your line to
-   $\approx 4\times10^{-3}$ °C, per the §10.1 caption — if you get
-   agreement at the surface but a kink near the bottom, your ghost
-   cell for the Neumann BC is at the wrong end.
-
-::: {.exercise-solution-link}
-[← Back to Unit 10 §10.1](../unit_10/unit_10.qmd#ex-10-1)
-:::
-
-### Solution 10.2 — make the DeepXDE column feel the sun {#sol-10-2}
-
-The diff, conceptually three lines — and each hides a trap:
-
-```python
-import deepxde as dde
-from deepxde.backend import torch as bkd   # backend tensor ops
-
-tau_d  = 86400.0
-Q_max  = 800.0
-rho_cp = 1025.0 * 3990.0
-zeta   = 10.0
-
-def Q_sw(t):
-    # half-cosine in backend ops — np.maximum would break the graph
-    return Q_max * bkd.clamp(bkd.cos(2 * 3.141592653589793 * t / tau_d),
-                             min=0.0)
-
-def pde(zt, T):
-    z, t = zt[:, 0:1], zt[:, 1:2]
-    dT_dt   = dde.grad.jacobian(T, zt, j=1)
-    dT_dz   = dde.grad.jacobian(T, zt, j=0)
-    d2T_dz2 = dde.grad.hessian(T, zt, component=0, i=0, j=0)
-    S = Q_sw(t) / rho_cp / zeta * bkd.exp(z / zeta)   # body source, K/s
-    return dT_dt - kappa_z(z) * d2T_dz2 - S
-    # Q_np stays at -200 W/m² in the (unchanged) surface OperatorBC
-
-```
-
-Trap (a), as predicted: the original `S_z` used `np.exp` on what
-was effectively a constant — once the source depends on `t`, every
-op inside `pde` must be a backend tensor op (`torch.clamp`,
-`torch.cos`, `torch.exp` via `dde.backend`), or autograd silently
-detaches and the residual trains against a frozen source.
-(`kappa_z` gets the same treatment if it wasn't already
-tensor-safe.)
-
-Trap (b): the domain is $2.6\times10^6$ s long and the forcing
-period is $8.6\times10^4$ s — thirty oscillations across the time
-axis. The plain 4×32 tanh MLP, fed raw $t$, fits the slow trend
-and **flattens most of the diurnal wiggle** (compare the trained
-surface trace $T(0, t)$ over days 5–8 against an FD reference, or
-just FFT it: the 1 cpd line is far too weak). This is spectral
-bias at capstone scale, and the fix is the Task B Fourier-feature
-bank with a $\sim 1/\tau_d$ frequency component — DeepXDE supports
-it via a feature transform: `net.apply_feature_transform(...)`.
-Rescaling $t$ to $[0, 1]$ helps optimisation but does *not* fix
-the frequency-content problem.
-
-Porting to `NeuralPDE.jl`: the source edit is a one-line change in
-the *symbolic* equation —
-`eq = Dₜ(T(z,t)) ~ κ(z)*Dzz(T(z,t)) + Q_sw(t)/ρcp/ζ*exp(z/ζ)` with
-`Q_sw(t) = Q_max * max(0, cos(2π*t/τ_d))` registered symbolically —
-and the symbolic layer differentiates it for you; there is no trap
-(a) at all, because there's no backend-tensor boundary to fall
-over. Trap (b) is ecosystem-independent: spectral bias doesn't
-care which language you suffer in. Fair scorecard: the *edit* is
-easier in `NeuralPDE.jl`; the *training pathology* is identical;
-the Fourier-feature remedy is a few lines in either.
-
-::: {.exercise-solution-link}
-[← Back to Unit 10 §10.4](../unit_10/unit_10.qmd#ex-10-2)
 :::

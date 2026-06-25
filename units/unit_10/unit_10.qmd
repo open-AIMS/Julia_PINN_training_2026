@@ -97,17 +97,21 @@ want) without spoiling the other. We strongly recommend you
 **attempt each task yourself first** — the learning is in working
 through the inverse problem, not in reading our answer.
 
-## 10.1 Shared infrastructure
+## 10.1 Shared infrastructure: the forward solver and scenarios {#sec-shared}
 
-The finite-difference reference solver, the four toy scenarios from
-[Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks), and the SWE driver — all
-are needed regardless of whether you're solving Task A or Task B.
+Before either solution, here are the building blocks both tasks rely on:
+the finite-difference **forward solver** (the ground-truth $T(z,t)$ the
+PINNs are scored against — and the thing that generates the mooring data),
+the five **toy scenarios** of
+[Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks), and the SWE driver.
 
-The four scenarios below follow the §9.11 ladder's steps 1–3 directly; the
-ladder's step 4 ("vary mixing") is folded into the depth-varying $\kappa$
-closure used throughout, and its step 5 (the synthetic scenario) is built here
-in two stages — scenario 4 with prescribed storm envelopes, then scenario 5
-with the full SWE driver.
+This section is deliberately **not** behind a solution gate like §10.2–§10.3:
+it is shared setup you need to *start* either task, not the answer to one.
+The gated sections below are the actual inverse solutions.
+
+The five scenarios match the §9.11 ladder one-to-one: scenarios 1–4 ship
+with worked figures below; scenario 5 (the full SWE driver) is the design
+for the headline extension (§10.5), not shipped with the solution.
 
 ### Finite-difference reference solver
 
@@ -116,8 +120,9 @@ ground truth we compare PINN predictions against. Uses
 `MethodOfLines.jl` with adaptive time-stepping; second-order
 central differences in $z$, with the surface Neumann condition
 imposed via a ghost cell. The full source listing is in §10.6;
-below we work through the four scenarios from
-[Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks) of increasing complexity.
+below we work through scenarios 1–4 of the
+[Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks) ladder (scenario 5,
+the SWE driver, follows as the design).
 
 These four scenario plots all run on the **generic reference column**
 (the §9.6 reference parameters, $H = 100$ m) so each mechanism shows
@@ -131,7 +136,7 @@ through the scenario-4 storm per site).
 $w = 0$, $\mathcal{S} = 0$, $\kappa$ constant, $Q_{\text{np}}$
 constant. After ~365 days the column reaches a near-steady state.
 
-![Scenario 1 — pure diffusion to a (near-)steady state, from `scenario_1()` in `scripts/column_fd.jl`. The grey **IC** is the initial $\tanh$ thermocline: a warm (~28 °C) mixed layer over an 18 °C deep reservoir, with the sharp transition near $z=-30$ m. With no advection, no source, and a constant surface cooling $Q_{\text{np}}=-200$ W/m², diffusion erases that thermocline and the column relaxes toward the **straight-line** steady profile — heat conducts up the gradient from the fixed deep reservoir to be lost at the surface, so the surface ends up *colder* (~13 °C) than the deep (18 °C). The blue **MOL final** curve is the finite-difference solution after ~365 days; the dashed black **analytic** line $T(z)=T_{\text{deep}}-\tfrac{Q_{\text{cool}}}{\kappa_m \rho_0 c_p}(z+H)$ is drawn on top of it. The two are indistinguishable — they agree to $\approx 4\times10^{-3}$ °C, so the dashes ride directly along the blue line, and *that overlap is the validation* of the solver. (Derived by hand in [§10.1 exercise](#ex-10-1).)](output/scn1_steady.png)
+![Scenario 1 — pure diffusion to a (near-)steady state, from `scenario_1()` in `scripts/column_fd.jl`. The grey **IC** is the initial $\tanh$ thermocline: a warm (~28 °C) mixed layer over an 18 °C deep reservoir, with the sharp transition near $z=-30$ m. With no advection, no source, and a constant surface cooling $Q_{\text{np}}=-200$ W/m², diffusion erases that thermocline and the column relaxes toward the **straight-line** steady profile — heat conducts up the gradient from the fixed deep reservoir to be lost at the surface, so the surface ends up *colder* (~13 °C) than the deep (18 °C). The blue **MOL final** curve is the finite-difference solution after ~365 days; the dashed black **analytic** line $T(z)=T_{\text{deep}}-\tfrac{Q_{\text{cool}}}{\kappa_m \rho_0 c_p}(z+H)$ is drawn on top of it. The two are indistinguishable — they agree to $\approx 4\times10^{-3}$ °C, so the dashes ride directly along the blue line, and *that overlap is the validation* of the solver. The analytic line is $T(z)=T_{\text{deep}}+\tfrac{Q_{\text{np}}}{\rho_0 c_p\kappa_m}(z+H)$ — steady, no advection or source, so $\partial_z(\kappa\partial_z T)=0$ gives a straight line whose slope the surface flux sets and whose intercept the deep reservoir pins.](output/scn1_steady.png)
 
 #### Scenario 2 — diurnal cycle
 
@@ -142,8 +147,11 @@ Beer–Lambert body source $\mathcal{S}$.
 
 #### Scenario 3 — upwelling
 
-Adds the $w(z) = w_0 \sin(\pi(z+H)/H)$ profile with
-$w_0 = 10^{-5}\,\text{m/s}$.
+Adds an upwelling profile $w(z) = w_0 \sin(\pi(z+H)/H)$ with
+$w_0 = 10^{-5}\,\text{m/s}$. (This toy scenario uses a $\sin$ shape to
+show the mechanism cleanly on the generic column; the capstone's own $w$
+is the linear-in-$z$ profile derived in
+[Unit 9 §9.2](../unit_09/unit_09.qmd#sec-w-coupling).)
 
 ![Scenario 3 output — five-mooring traces (top) and full $(z, t)$ heatmap (bottom). SST drops 28 → 22 °C; mid-column warms via diffusion (Pe ≈ 1).](output/upwelling_mooring.png)
 
@@ -198,43 +206,6 @@ linearised shallow-water machinery is already worked end-to-end in
 [Unit 1](../unit_01/unit_01.qmd), which is the cleanest starting
 point if you build it.
 
-::: {#ex-10-1 .callout-note .section-exercise icon="false" collapse="true"}
-## ✏️ Section exercise — predict scenario 1's steady state exactly
-
-Scenario 1 has an analytic answer; derive it before peeking at the
-plot. With $w = 0$, $\mathcal{S} = 0$, constant $\kappa$, constant
-$Q_{\text{np}} = -Q_{\text{cool}}$, and the two BCs
-($\kappa\,\partial_z T|_0 = Q_{\text{np}}/(\rho_0 c_p)$,
-$T(-H) = T_{\text{deep}}$):
-
-1. Show the steady solution is the straight line
-   $T(z) = T_{\text{deep}} + \frac{Q_{\text{np}}}{\rho_0\, c_p\, \kappa}\,(z + H)$,
-   and compute the surface temperature for $H = 100$ m,
-   $\kappa = 10^{-3}\,\text{m}^2/\text{s}$,
-   $Q_{\text{cool}} = 200\,\text{W/m}^2$,
-   $T_{\text{deep}} = 18\,°\mathrm{C}$. (You should get a surface
-   *colder* than the deep reservoir — make sure you can explain
-   why steady cooling does that.)
-2. Estimate how long the column takes to *reach* that steady state
-   ($T_\kappa = H^2/\kappa$) and reconcile it with the "~365 days"
-   in the scenario-1 caption.
-3. If you have the repo cloned, run `scenario_1()` from
-   `units/unit_10/scripts/column_fd.jl` and check the FD endpoint
-   against your line.
-
-::: {.exercise-hint tabindex="0"}
-💡 Hint
-
-::: {.exercise-hint-text}
-Part 1: steady + no advection + no source + constant κ means $\partial_z(\kappa\,\partial_z T) = 0$, so $T(z)$ is a straight line. The surface Neumann BC hands you the slope ($\partial_z T = Q_{np}/(\rho_0 c_p \kappa)$); the deep Dirichlet BC $T(-H)=T_{deep}$ pins the intercept. Plug in $Q_{np} = -200$, $\rho_0=1025$, $c_p=3990$, $\kappa=10^{-3}$: slope ≈ $-0.049$ K/m, so $T(0) \approx 13$ °C — *colder* than the 18 °C deep (a cooling surface pulls heat up from the fixed bottom; if yours comes out warmer, recheck the sign of $Q_{np}$). Part 2: $T_\kappa = H^2/\kappa = 10^4/10^{-3}$ s ≈ 116 days, so "~365 days" is ~3 time constants. Part 3: `r = run_scenario(scenario_1())` in `scripts/column_fd.jl` should match your line to ≈ $4\times10^{-3}$ °C (the §10.1 caption); a kink at the bottom means your Neumann ghost cell is at the wrong end.
-:::
-:::
-
-::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-10-1)
-:::
-:::
-
 ## 10.2 Solution to Task A
 
 ```{=html}
@@ -257,6 +228,14 @@ finite-difference reference solve of the column PDE with a *known* storm
 $\tau^*(t)$, samples five sensor depths hourly and adds noise, then trains a
 PINN to recover $\tau(t)$ from those noisy traces — so the recovery error
 $\hat\tau$ vs $\tau^*$ is a real number we can score.
+
+This is a self-contained **twin experiment**: the script does *not* read
+the committed `mooring_*.csv` (those are the "look at realistic data"
+artifact of [§9.1](../unit_09/unit_09.qmd)) — it plants its own
+$\tau^\star$ and recovers it, so the truth is known. For self-containment
+it hand-codes the finite-difference forward solve rather than calling
+`MethodOfLines.jl`; the column model (same $w(z)$, $\kappa$, $S$) is the
+one the inverse uses, so forward and inverse stay consistent.
 
 ### Step 1 — The problem: source recovery
 
@@ -728,38 +707,6 @@ Strengths and weaknesses, honestly:
 
 Neither is strictly better. Pick by who's using it and what they
 already know.
-
-::: {#ex-10-2 .callout-note .section-exercise icon="false" collapse="true"}
-## ✏️ Section exercise — make the DeepXDE column feel the sun
-
-The DeepXDE sketch above runs with a *constant* net cooling and no
-wind. Bring it one step closer to the real spec: replace
-`Q_np(t)` with the diurnal model from
-[Unit 9 §9.5](../unit_09/unit_09.qmd)
-($Q_{\text{SW}}$ half-cosine entering through the body source
-`S_z`, $Q_{\text{cool}} = 200\,\text{W/m}^2$ steady) and retrain.
-Two implementation traps to find and report: (a) the body source
-must now depend on $t$, which changes the `pde` closure — make
-sure the half-cosine is written with backend-friendly ops; (b) the
-time scale of the diurnal forcing vs the 30-day domain creates
-exactly the multi-scale problem Fourier features exist for —
-compare the trained network's surface trace against the expected
-daily wiggle and say whether the plain MLP caught it. Then port
-the same change to the `NeuralPDE.jl` version and note which
-framework made the edit easier and why.
-
-::: {.exercise-hint tabindex="0"}
-💡 Hint
-
-::: {.exercise-hint-text}
-Start from the §10.4 sketch and change one thing: replace the constant $Q_{np}(t)$ with a $t$-dependent body source — a ~3-line diff adding a $Q_{SW}(t)$ half-cosine and an $S = Q_{SW}(t)/(\rho_0 c_p\,\zeta)\,e^{z/\zeta}$ term inside `pde()`, keeping the steady $-200$ W/m² as the surface $Q_{np}$. Trap (a): once the source depends on $t$, every op inside `pde()` must be a backend tensor op — write the half-cosine as `bkd.clamp(bkd.cos(2π*t/τ_d), min=0.0)` via `deepxde.backend.torch`, never `np.maximum`/`np.exp`, or autograd detaches and you train against a frozen source. Trap (b): the domain is $2.6\times10^6$ s and the forcing period is $8.6\times10^4$ s — ~30 oscillations, which a plain 4×32 tanh MLP flattens (spectral bias); diagnose by FFT-ing the surface trace at 1 cpd, fix with the Task B Fourier bank via `net.apply_feature_transform` (rescaling $t$ helps optimisation but not the frequency content). In `NeuralPDE.jl` the same edit is a one-line symbolic change in `eq` (no backend boundary, so trap (a) vanishes; trap (b) is language-independent).
-:::
-:::
-
-::: {.exercise-solution-link}
-[Go to solution →](../exercise_solutions/exercise_solutions.qmd#sol-10-2)
-:::
-:::
 
 ## 10.5 Where to go from here {#sec-where-to-go}
 
