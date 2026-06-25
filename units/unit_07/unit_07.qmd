@@ -163,6 +163,57 @@ error — a first taste of the frequency story §7.2 tells.
 :::
 :::
 
+### Warm-starting a neighbour: the disk PINN as a pre-trained init
+
+A solved PINN is a *reusable asset*. Because the trial network is just
+$N(x, y)$, a problem on a nearby geometry can start from the trained
+weights instead of random noise — transfer learning, exactly as in
+vision. Take the disk solution above and reuse it for a **very mild
+ellipse** (semi-axes $1.05 \times 0.95$): same Laplace equation, same
+$\sin 3\theta$ boundary data, same network — only the collocation and
+boundary points move from the circle onto the ellipse.
+
+```{julia}
+#| eval: false
+
+using Lux, Random, Zygote, Optimisers, Statistics
+
+net = Lux.Chain(Lux.Dense(2 => 32, tanh), Lux.Dense(32 => 32, tanh),
+                Lux.Dense(32 => 32, tanh), Lux.Dense(32 => 1))
+N(ps, X) = first(Lux.apply(net, X, ps, st))      # u(x, y); st carries no trainable state
+
+# Laplacian uₓₓ + u_yy by the finite-difference-in-input stencil (Zygote-safe, §5.3):
+h = 1f-2;  ex = Float32[h, 0];  ey = Float32[0, h]
+lap(ps, X) = (N(ps, X .+ ex) .+ N(ps, X .- ex) .+ N(ps, X .+ ey) .+ N(ps, X .- ey)
+              .- 4f0 .* N(ps, X)) ./ h^2
+loss(ps, XY, XYb, gb) = mean(abs2, lap(ps, XY)) + 50f0 * mean(abs2, N(ps, XYb) .- gb)
+
+# 1. disk — interior + boundary points on the unit circle, BC u = sin(3θ):
+ps_disk = train(random_init(), disk_points()...)            # from scratch
+
+# 2. ellipse (a, b) = (1.05, 0.95) — SAME net, points stretched onto the ellipse.
+#    The geometry enters ONLY through where the point clouds sit:
+ps_ellipse = train(deepcopy(ps_disk), ellipse_points(1.05f0, 0.95f0)...)   # ← warm start
+```
+
+The disk network drops in unchanged as the initial guess. On a
+hand-rolled Lux + Zygote PINN
+(`scripts/ellipse_warmstart_solve.jl`, the §5.3
+finite-difference-in-input pattern, runnable end to end), the payoff is
+large:
+
+{{< include output/ellipse_warmstart.md >}}
+
+The warm start begins *already inside the basin* — its loss after 200
+Adam steps is below the tolerance the cold start needs ~3500 steps to
+reach — so it converges about **10× sooner**. The lesson generalises:
+when you must solve a *family* of related PDEs — a parameter sweep, a
+shape-optimisation loop, a slowly moving domain — solve one and
+warm-start its neighbours. The caveat is the §7.2 flip side: transfer
+only helps when the neighbour is genuinely close. Stretch the ellipse
+hard, or change the boundary data, and the disk init is no better than
+random — the optimiser still has to cross the whole landscape.
+
 ## 7.2 Why Naïve PINNs Fail
 
 "Vanilla" PINN training — one global loss weight, smooth-MLP
@@ -740,6 +791,84 @@ For inverse problems of Workflow 2 or 3 type:
    from a known ψ; recover it; ensure the recovered shape and
    amplitude are within tolerance. Only then turn it loose on
    real data.
+
+### The two-network source-recovery paradigm
+
+Workflow 3 has a recurring shape, independent of the physics — worth
+seeing once in the abstract, because every source-recovery PINN (the
+Unit 1 river-mouth $\psi(t)$, the capstone storm envelope, a spatial
+source $g(\mathbf{x})$, a closure law) is an instance of it. Write the
+forward problem so the unknown enters linearly through a *known* shape,
+
+$$\partial_t u = \mathcal{L}u + s(\mathbf{x})\,f(t),$$
+
+with $\mathcal{L}$ the known spatial operator, $s$ a known source
+*shape*, and $f$ the unknown *driver* you want back. Three structural
+choices define the paradigm:
+
+- **Two networks, trained jointly.** A field network
+  $u_\theta(\mathbf{x}, t)$ and a *small* auxiliary network $f_\phi$ for
+  the unknown function — optimised together in one loss, not in two
+  stages.
+- **Hard-wire the IC and BCs into the field ansatz** (§7.3), so the only
+  soft terms left are the residual and the data misfit (plus any flux
+  BC). Fewer terms is fewer ways for the optimiser to cheat.
+- **The driver enters *only* the residual.** Rearranged, the residual
+  pins $f_\phi \approx (\partial_t u_\theta - \mathcal{L}u_\theta)/s$:
+  the recovered driver is read off *derivatives of the field network*.
+  Source recovery is deconvolution wearing a PINN costume.
+
+That last fact is the whole difficulty, and the sharpest amendment the
+recipe needs. The forward operator *smooths* the driver (diffusion is a
+low-pass filter), so a field that matches the data *in value* can have
+derivatives — and therefore a recovered peak — that collapse far below
+the truth. **The cure is not finer collocation; it is the loss
+weights.** Make the data term dominate at the operating point
+($\lambda_d \gg \lambda_r$, reached by ramping up from the gentle start
+of step 3 above): forcing $u_\theta$ to honour sharp data keeps its
+derivatives sharp and lifts the recovered peak. Add only a *whisper* of
+smoothness on the driver, $\lambda_\text{reg}\int|f_\phi'|^2$ — enough to
+kill sample-to-sample ringing, far too small to flatten the signal. Too
+gentle a data weight is the single most common way a W3 PINN silently
+under-recovers.
+
+```julia
+# Schematic W3 source recovery for a generic ∂t u = κ ∂xx u + s(x) f(t):
+# known κ and source shape s(x); unknown driver f(t). The concrete
+# capstone instance (real column operator, validated weights) is
+# Unit 10 §10.2 — the paradigm, not the physics, is the point here.
+u_net = Chain(Dense(2=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # field u_θ(x,t)
+f_net = Chain(Dense(1=>16, tanh), Dense(16=>1))                       # driver f_φ(t)
+
+# hard IC + Dirichlet BC baked into the ansatz (§7.3) — no IC/BC loss terms:
+u(p, x, t) = (x .* (1 .- x)) .* t .* first(u_net(vcat(x, t), p, stu))  # u(0,·)=u(1,·)=u(·,0)=0
+f(q, t)    = first(f_net(t, q, stf))
+
+# input derivatives by central differences, so Zygote trains through them (§5.3):
+h = 1f-3
+∂t(p,x,t)  = (u(p,x,t.+h) .- u(p,x,t.-h)) ./ (2h)
+∂xx(p,x,t) = (u(p,x.+h,t) .- 2 .* u(p,x,t) .+ u(p,x.-h,t)) ./ h^2
+
+λ_d, λ_reg = 1f3, 1f-5            # ← the lesson lives here: data dominates, smoothing is a whisper
+function loss(p, q)
+    L_pde  = mean(abs2, ∂t(p,xc,tc) .- κ .* ∂xx(p,xc,tc) .- s.(xc) .* f(q,tc))
+    L_data = mean(abs2, u(p, x_obs, t_obs) .- u_obs)            # noisy sensor traces
+    L_reg  = mean(abs2, (f(q,tg.+h) .- f(q,tg.-h)) ./ (2h))     # H¹ prior on the driver
+    L_pde + λ_d*L_data + λ_reg*L_reg
+end
+# train p (field) and q (driver) JOINTLY — one Adam state each, both updated every step.
+```
+
+Two guard-rails keep this honest. Run it as a **twin experiment** first
+(step 5): plant a known $f^\star$, forward-solve, sample with noise, and
+recover — only a known truth lets you quote a recovery error. And expect
+a **deconvolution floor**: at finite sensor noise the peak lands a few
+percent short no matter how you tune, because deconvolution amplifies
+noise — that residual gap is the inverse problem's physics, not a bug to
+optimise away. The capstone walks this paradigm end-to-end on a real
+mooring geometry, weight-sweep table and all
+([Unit 9 §9.9](../unit_09/unit_09.qmd#sec-task-a) →
+[Unit 10 §10.2](../unit_10/unit_10.qmd)).
 
 The next three sections (§§7.6–7.8) zoom out to the practical
 ecosystem around all of this: the software you'd build a PINN with

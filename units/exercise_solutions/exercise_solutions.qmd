@@ -1785,7 +1785,10 @@ to about **80%, roughly 45× worse** than the $\sin 3\theta$ case.
 Six lobes double the angular frequency the network must represent,
 and $r^6$ concentrates the action even harder against the rim. Same
 architecture, same optimiser, harder spectrum — the §7.2 spectral
-bias story arriving on schedule.
+bias story arriving on schedule. (The `solve_disk(6)` branch of
+`scripts/laplace_disk_solve.jl` prints this $n=6$-vs-$n=3$ ratio; the
+committed `laplace_disk_error.md` table tabulates only the $n=3$
+case.)
 
 ::: {.exercise-solution-link}
 [← Back to Unit 7 §7.1](../unit_07/unit_07.qmd#ex-7-1)
@@ -1824,6 +1827,13 @@ tc = (tbins[1:end-1] .+ tbins[2:end]) ./ 2     # bin centres
 bar(tc, means, xlabel = "t bin",
     ylabel = "mean residual", legend = false)
 ```
+
+(Using `ForwardDiff` through the trained network is safe *here*: this
+is a post-training diagnostic, so no parameter gradient flows through
+the derivative. That is exactly the case Solution 7.5 must avoid —
+there the same `ForwardDiff.derivative` sits *inside* a
+Zygote-differentiated training loss, where the parameter contribution
+is silently dropped, §5.3.)
 
 What each diagnostic exposes:
 
