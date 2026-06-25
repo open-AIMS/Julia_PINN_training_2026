@@ -1015,14 +1015,14 @@ Task B is an **advanced extension for those who want the
 operational-scale problem**. You do not need it to complete the
 capstone — Task A ([§9.9](#sec-task-a)) is the required piece. Take
 Task B on if you have GPU access (the course hub) and want to see
-joint multi-site inversion and the modern-PINN toolkit at full
-scale. The sub-scale prototype steps below still run on a CPU.
+joint multi-site inversion at full scale (the modern-PINN toolkit is
+an optional scale-up, not needed to clear the bar). The sub-scale
+prototype steps below still run on a CPU.
 :::
 
 > **The advanced capstone.** Recover a *single* shared wind-stress
-> envelope $\tau(t)$ from all three moorings *jointly*, with the
-> full modern-PINN toolkit, on the full $H = 100$ m / 30-day
-> domain. CPU runtime is hours; GPU runtime is minutes. We
+> envelope $\tau(t)$ from all three moorings *jointly*, on the full
+> $H = 100$ m / 30-day domain. CPU runtime is hours; GPU runtime is minutes. We
 > develop the CPU sub-scale prototypes here and write the
 > GPU-launch checklist.
 
@@ -1078,11 +1078,12 @@ the deep upwelling pulse, and Davies Reef sits between, anchoring the
    32 × 4 networks, $N_r = 4\,000$ per site, static weights. ~7 min on
    CPU. Lets you see the joint-vs-decoupled improvement
    and tune cross-site loss weights.
-4. **GPU-launch checklist.** Document the changes needed for the
-   full 3-site run:
+4. **GPU-launch checklist.** The shipped 3-site run is essentially a
+   device swap from the CPU prototype:
    - wrap `ps`, inputs, and data in `Lux.gpu_device()`,
-   - `Reactant.@compile` the training step,
-   - keep the same Adam → L-BFGS schedule,
+   - keep the same Adam-only schedule and static weights,
+   - *(optional scale-up only)* Fourier features, adaptive weights, or
+     an L-BFGS polish if you deepen all three columns to $H = 100$ m,
    - JAX equivalents (`jinns` / `Equinox`) if your team prefers
      the JAX stack ([Unit 7 §7.6](../unit_07/unit_07.qmd)).
 5. **Queue the full run on a GPU** when available — the code
@@ -1094,7 +1095,7 @@ Task B reuses Task A's column, loss, and training loop almost
 verbatim — the one structural change is that **all sites share a
 single $\tau$-network** while each keeps its own temperature network.
 The scaffold below shows that extension; the worked two-site
-prototype is [`task_b_subscale_prototype.jl`](../unit_10/unit_10.qmd)
+prototype is [`task_b_subscale_prototype.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_b_subscale_prototype.jl){target="_blank"}
 and the full three-site trainer is `task_b_joint_inverse.jl` (both in
 [Unit 10 §10.3](../unit_10/unit_10.qmd), behind the solution gate).
 Start from the Task A skeleton ([§9.9.2](#sec-task-a-skeleton)) and
@@ -1170,7 +1171,7 @@ solution's measured times are in [Unit 10 §10.3](../unit_10/unit_10.qmd).
 | Single-column sub-scale prototype | ~5 min | ~1 min |
 | Two-site joint inverse (A + B, `task_b_subscale_prototype.jl`) | ~7 min | ~2 min |
 | Three-site joint inverse (`task_b_joint_inverse.jl`) | ~2 h | ~5 min |
-| Inverse PINN, joint 3-site, full scale | hours | ~10 min |
+| Optional production scale-up (128×6, $N_r$ 50k) | — | ~1 h |
 
 The CPU full-scale column is not a typo: technically possible but
 the iteration loop kills the development cycle. **Prototype on
@@ -1183,7 +1184,7 @@ CPU at reduced scale, then deploy on GPU at full scale.**
 2. Two-site joint-inverse $\hat\tau(t)$ overlaid on the synthetic
    truth, with the per-site decoupled inverses on the same axes
    for comparison.
-3. **Mechanism partition plots at all three sites** ($z = -10\,\text{m}$
+3. **Mechanism partition at all three sites** (table or plots; $z = -10\,\text{m}$
    for Site A, $z = -30\,\text{m}$ for Site B, $z = -50\,\text{m}$
    for Site C — each one near or just below the local thermocline).
    The partition should show qualitatively different mechanism
@@ -1204,8 +1205,9 @@ report on if they get GPU time:
 - Will causality violation re-appear at Myrmidon Reef
   (advection-dominated, $\mathrm{Pe} \gg 1$)? Possibly need a
   per-site causal scheduler.
-- Will gradient-balancing converge on a stable weight ratio?
-  Empirically yes on the sub-scale; theoretically not guaranteed.
+- Will gradient-balancing converge on a stable weight ratio? The
+  static recipe is stable at sub-scale; gradient-balancing itself is
+  untested here (§10.3 notes a naive adaptive scheme can run away).
 - How well does the recovered $\tau(t)$ correlate with the
   independent SWE-driver $w(t)$ inferred from local wind
   observations? This is the validation step that turns the

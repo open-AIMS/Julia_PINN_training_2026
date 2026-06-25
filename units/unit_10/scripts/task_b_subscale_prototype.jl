@@ -14,8 +14,9 @@
 # hard IC + hard deep BC baked into T̃ = ζ·τ·N, FD-in-input derivative stencil
 # (Unit 5 §5.3) — extended minimally to two sites that share ONE τ-network.
 # The "modern toolkit" (Fourier features, adaptive weighting, causal training)
-# is for the GPU full-scale 3-site launch; at this CPU sub-scale the simpler
-# static recipe is what converges cleanly, so that is what we run and report.
+# is an OPTIONAL scale-up for a deeper H=100 m production run; the shipped GPU
+# 3-site run (task_b_joint_inverse.jl) uses this SAME static recipe and clears
+# the bar, so that is what we run and report.
 #
 # Run:  julia --project=@pinn units/unit_10/scripts/task_b_subscale_prototype.jl
 # (CPU-only is fine; ~minutes. eval:false in the .qmd.)

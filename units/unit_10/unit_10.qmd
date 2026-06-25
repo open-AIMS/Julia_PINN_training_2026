@@ -420,8 +420,8 @@ good exercises — they don't ship here:
 ```
 
 *Spec: [Unit 9 §9.10](../unit_09/unit_09.qmd#sec-task-b). Three moorings
-jointly, $H = 100$ m, modern PINN toolkit, GPU at full scale.
-Here we develop on CPU and queue the GPU launch.*
+jointly, $H = 100$ m, GPU at full scale (the modern-PINN toolkit is an
+optional scale-up). Here we develop on CPU and queue the GPU launch.*
 
 The Task A recipe — a single small MLP with hand-tuned weights —
 breaks at Task B's scale for three concrete reasons:
@@ -628,12 +628,14 @@ group with three real moorings can re-run this on overnight GPU time.
 ### Open questions for the full run
 
 - *Will causality violation re-appear at Myrmidon Reef
-  (advection-dominated, $\mathrm{Pe} \gg 1$)?* The two-site
-  prototype excluded Myrmidon precisely because its longer
-  characteristic timescale stresses the causal-training weights.
-  Possibly need a per-site causal scheduler.
-- *Will gradient-balancing converge on a stable weight ratio?*
-  Empirically yes on the sub-scale; theoretically not guaranteed.
+  (advection-dominated, $\mathrm{Pe} \gg 1$)?* The CPU prototype is kept
+  to two sites just to stay small and fast; the shipped 3-site run
+  includes Myrmidon and clears the bar with static weights. Its longer
+  characteristic timescale is the open *risk* a per-site causal
+  scheduler would address in a deeper scale-up.
+- *Will gradient-balancing converge on a stable weight ratio?* The
+  static recipe is stable at sub-scale; gradient-balancing itself is
+  untested here (Step 2 notes a naive adaptive scheme can run away).
 - *How well does the recovered $\tau(t)$ correlate with the
   independent SWE-driver $w(t)$ inferred from local wind
   observations?* This is the validation step that turns the
