@@ -233,6 +233,20 @@ $u_t + cu_x = 0$ in [Unit 6](../unit_06/unit_06.qmd). In ocean terms:
 **downwelling** ($w < 0$) brings warm surface water down. The parcel
 doesn't change temperature on the way — advection just relocates it.
 
+::: {.callout-note}
+## Sign convention for $w$
+
+$w = \mathrm{d}z/\mathrm{d}t$. With $z$ measured *upward* from the
+surface (so $z < 0$ inside the ocean), $w > 0$ is upward motion of
+water. *Upwelling* — cold deep water rising — therefore corresponds to
+$w > 0$. Written as a contribution to $\partial_t T$ the advection term
+is $-w\,\partial_z T$ (as in @eq-column above); moved to the other side
+of the equation it becomes $+w\,\partial_z T$, the form
+[Unit 9 §9.3](../unit_09/unit_09.qmd) uses. Either way the physical
+sign is the same: upwelling cools a stably stratified column. This same
+note appears in Unit 9 — keep the two conventions aligned.
+:::
+
 For the capstone, $w(z, t)$ is *given* (computed offline from the
 shallow-water model in [Unit 9](../unit_09/unit_09.qmd)). You don't
 need to know where it comes from physically to solve the column — but
@@ -603,7 +617,7 @@ deeper. A few entry points, grouped by what they justify:
   [Kunze 1985](https://journals.ametsoc.org/view/journals/phoc/15/5/1520-0485_1985_015_0544_nirfia_2_0_co_2.xml){target="_blank"}
   is the classic single-mooring inverse problem; modern variational
   data assimilation (ROMS 4D-Var) does the same thing at far greater
-  cost than a laptop-scale PINN.
+  cost than a CPU-scale PINN.
 - **PINNs for ocean columns specifically** —
   [Bolton & Zanna 2019](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2018MS001472){target="_blank"}
   is an early subgrid-closure precursor; the CSIRO AI4DA initiative

@@ -2193,7 +2193,7 @@ multiphysics column.)
    Dividing by $\rho_0 c_p$
    ($\text{kg m}^{-3} \cdot \text{J kg}^{-1}\text{K}^{-1}
    = \text{J m}^{-3}\text{K}^{-1}$) gives
-   $\text{K·m/s}$ — a *flux* of temperature. The Beer–Lambert
+   $\text{K}\cdot\text{m/s}$ — a *flux* of temperature. The Beer–Lambert
    factor $k\,e^{kz}$ carries units $\text{m}^{-1}$, turning the
    flux into the volumetric heating rate K/s. Watts in, kelvin per
    second out, with $\rho_0 c_p \approx 4.09 \times 10^6\,
@@ -2203,7 +2203,7 @@ multiphysics column.)
    = \text{W/m}^2$, right side $\text{W/m}^2$ ✓ — both a *heat flux*.
    Dividing through by $\rho_0 c_p$ turns it into the temperature-flux
    form $\kappa\,\partial_z T = Q_{\text{np}}/(\rho_0 c_p)$, both sides
-   $\text{K·m/s}$. Equilibrium gradient:
+   $\text{K}\cdot\text{m/s}$. Equilibrium gradient:
    $$\partial_z T = \frac{Q_{\text{np}}}{\rho_0 c_p \kappa}
      = \frac{-200}{1025 \times 3990 \times 10^{-3}}
      \approx -0.049\ \text{K/m}.$$
@@ -2392,7 +2392,7 @@ advection's doing almost by default.
 4. **Recovering an unknown driver from one mooring** → Kunze 1985
    (the classic single-mooring inverse) and, at modern scale,
    coastal 4D-Var. Shortcoming addressed: variational assimilation
-   at GCM cost vs a laptop-scale PINN.
+   at GCM cost vs a CPU-scale PINN.
 5. **Closest method** → the PINN-flavoured mixed-layer line
    (Bolton & Zanna 2019 onward, and the CSIRO AI4DA work). What
    the capstone simplifies away relative to it: prescribed (not
@@ -2475,17 +2475,62 @@ end
    untouched; the deep sensors (40–95 m) cool first and most, with
    the slowest recovery (its $T_\kappa \gg$ window — Solution
    8.6's arithmetic in the flesh).
-3. One-hour increments of a slowly-varying signal are dominated by
-   noise: $\mathrm{Var}(\Delta X) = 2\sigma^2 +
-   (\text{signal increment})^2$, so
-   $\hat\sigma \approx \mathrm{SD}(\Delta X)/\sqrt{2}$, *minus*
-   whatever real signal moves within an hour. In the calm window
-   the deep sensors give $\hat\sigma \approx 0.05\,°$C cleanly;
-   the top sensor over-estimates because the diurnal cycle
-   contributes genuine hourly increments — divide by $\sqrt 2$ and
-   you'll still sit slightly high there. (This "difference twice,
-   divide by $\sqrt2$" trick is worth keeping: it estimates sensor
-   noise without de-trending.)
+3. **Estimating the noise floor without de-trending.** Model each
+   trace as signal plus measurement noise,
+   $X_t = s_t + \varepsilon_t$, where $s_t$ is the slowly-varying
+   true temperature and the $\varepsilon_t$ are independent ("white")
+   draws with mean zero and variance $\sigma^2$. The one-hour
+   increment splits into a signal part and a noise part,
+
+   $$
+   \Delta X_t \;=\; X_{t+1} - X_t
+   \;=\; \underbrace{(s_{t+1}-s_t)}_{\Delta s_t \text{ (signal)}}
+       \;+\; \underbrace{(\varepsilon_{t+1}-\varepsilon_t)}_{\text{differenced noise}}.
+   $$
+
+   Signal and noise are independent, so their variances add; and
+   because $\varepsilon_{t+1}$ and $\varepsilon_t$ are themselves
+   independent, the noise part has variance $\sigma^2 + \sigma^2 =
+   2\sigma^2$ (the cross term $-2\,\mathrm{Cov}(\varepsilon_{t+1},
+   \varepsilon_t)$ is zero). Hence, across the window,
+
+   $$
+   \mathrm{Var}(\Delta X) \;=\; 2\sigma^2 \;+\; \mathrm{Var}(\Delta s).
+   $$
+
+   The differenced variance is the noise floor $2\sigma^2$ *plus*
+   whatever the real signal does in an hour — it can sit **above**
+   $2\sigma^2$ but never below. Rearranging gives the estimator
+
+   $$
+   \hat\sigma \;=\; \frac{\mathrm{SD}(\Delta X)}{\sqrt 2},
+   $$
+
+   which is therefore an **upper bound** on the true $\sigma$,
+   tight exactly where the signal is flat ($\Delta s \approx 0$).
+   The point of differencing is that it is a high-pass filter: a
+   slow trend makes tiny hourly steps and is suppressed, while the
+   broadband noise passes through untouched — so you read off
+   $\sigma$ *without* fitting and subtracting the signal first. The
+   $\sqrt2$ is simply the price of differencing two independent
+   draws (variance doubles).
+
+   In the calm window (days 1–5, $\sim$120 hourly increments per
+   sensor) the **deep** sensors are nearly flat, so
+   $\Delta s \approx 0$ and $\hat\sigma \approx 0.05\,°$C drops out
+   cleanly. The **top** sensor still swings with the diurnal cycle
+   within the hour, so $\mathrm{Var}(\Delta s) > 0$ and $\hat\sigma$
+   sits slightly high even after dividing by $\sqrt2$ — exactly the
+   over-estimate the bound predicts. Two caveats keep the number
+   honest: the $\sqrt2$ assumes the noise is white, so if it carries
+   lag-1 correlation $\rho$ the differenced variance is
+   $2\sigma^2(1-\rho)$ and the estimate runs *low* by a factor
+   $\sqrt{1-\rho}$; and with only $N\approx120$ increments the
+   estimate has its own sampling spread of order $1/\sqrt{2N}\approx
+   6\%$, so treat it as "$\approx 0.05\,°$C", not an exact figure.
+   (This "difference once, divide by $\sqrt2$" move — the simplest
+   member of the successive-difference family that includes the
+   Allan variance — is worth keeping for any noisy timeseries.)
 
 ::: {.exercise-solution-link}
 [← Back to Unit 9 §9.1](../unit_09/unit_09.qmd#ex-9-1)
@@ -2509,22 +2554,33 @@ plot!(plt, td, [w(-90, t) * 86400 for t in td], label = "z = -90 m")
 end
 ```
 
-- $w(-H, t) = -((-H) + H)\cdot(\ldots) = 0$ ✓ for all $t$ — the
-  rigid bottom can't pump water through itself.
-- **Sign:** the trace is a negative divergence — *convergence*.
-  Continuity says $\partial_z w = -\nabla_h\cdot \mathbf{u}_h > 0$;
-  integrating up from $w(-H) = 0$ makes $w > 0$ everywhere above
-  the bottom: horizontally converging water has nowhere to go but
-  **up**. So this storm trace drives upwelling — peak
-  $w(-10) = 90 \times 2\times10^{-7} = 1.8\times10^{-5}$ m/s
-  ≈ **1.6 m/day** near the surface, ~0.9 m/day at mid-column —
-  right on the reference $w_0 \sim 1$ m/day scale.
-- **What linear-in-$z$ assumes:** that
-  $\nabla_h\cdot \mathbf{u}_h$ is independent of depth, i.e. the
-  horizontal flow is **barotropic** (depth-uniform) — which is what
-  a shallow-water model produces by construction. A real stratified
-  shelf has baroclinic structure and $w(z)$ bends accordingly;
-  that's a known modelling debt the capstone carries knowingly.
+The plot shows three pulses all peaking on day 10, with the amplitude
+growing the higher above the bottom you look. Reading off the three
+checks:
+
+1. **Bottom boundary.** $w(-H, t) = -((-H) + H)\cdot(\ldots) = 0$ for
+   all $t$ — the $(z + H)$ factor vanishes at the seafloor, so the
+   rigid bottom can't pump water through itself, exactly as a no-flow
+   boundary demands.
+2. **Sign.** The trace is a *negative* divergence — horizontal
+   **convergence**. Continuity gives
+   $\partial_z w = -\nabla_h\cdot \mathbf{u}_h > 0$, and integrating up
+   from $w(-H) = 0$ makes $w > 0$ everywhere above the bottom:
+   converging water has nowhere to go but **up**. So this storm trace
+   drives **upwelling** — cold water rising past the sensors, the §9.1
+   hypothesis-1 mechanism.
+3. **Magnitude and shape.** The peak sits near the surface:
+   $w(-10) = 90 \times 2\times10^{-7} = 1.8\times10^{-5}$ m/s
+   ≈ **1.6 m/day**, falling to ~0.9 m/day at mid-column ($z = -50$) and
+   ~0.17 m/day near the bottom ($z = -90$) — right on the reference
+   $w_0 \sim 1$ m/day of §9.6. The profile is a *straight line* in $z$
+   for a concrete reason: $\partial_z w = -\nabla_h\cdot \mathbf{u}_h$
+   is **constant in depth**, because a barotropic (depth-uniform)
+   horizontal current — what a shallow-water model produces by
+   construction — has a depth-independent divergence, and the vertical
+   integral of a constant grows linearly. A real stratified shelf has
+   baroclinic structure and $w(z)$ bends accordingly; that's a known
+   modelling debt the capstone carries knowingly.
 
 ::: {.exercise-solution-link}
 [← Back to Unit 9 §9.2](../unit_09/unit_09.qmd#ex-9-2)

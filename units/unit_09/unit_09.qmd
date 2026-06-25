@@ -69,10 +69,10 @@ $Q_{\text{SW}}^{\max}(t; \tau)$ during the storm.
 
 So the recovered $\hat\tau(t)$ doesn't *by itself* answer "which
 hypothesis dominated". The mechanism-discrimination step is the
-**partition deliverable** in §9.9.5 / §9.10.5: run the calibrated
-forward model with $\hat\tau$, decompose the cooling at a
-diagnostic depth (default: $z = -30\,\text{m}$, near the
-thermocline) into the three terms
+**partition deliverable of Task B** ([§9.10.5](#sec-task-b)): run the
+calibrated forward model with $\hat\tau$, then decompose the cooling at
+each site's diagnostic depth (near its local thermocline) into the
+three terms
 
 $$
 \underbrace{\Delta T_{\text{adv}}(t)}_{\int -w\,\partial_z T\, dt}
@@ -89,7 +89,11 @@ window. The single-driver inversion plus the partition plot is what
 turns "we recovered $\tau$" into a statement like "the storm cooling here
 was mostly upwelling, with a smaller mixing contribution and little change
 in surface heating" — see [Unit 10 §10.3](../unit_10/unit_10.qmd#sec-mechanism-partition)
-for the partitions the worked solution actually recovers.
+for the partitions the worked solution actually recovers. **Task A
+stops at recovering $\hat\tau$** (its timing and amplitude): its
+diffusion-only source column has no advection term to attribute, so the
+partition becomes meaningful only in Task B's advection + wind-mixing
+column across the three sites.
 
 If you want a *direct* mechanism-discrimination inverse instead
 (recover $\tau_w, \tau_\kappa, \tau_Q$ separately), that's a
@@ -175,29 +179,94 @@ output is a time series at the mooring location.
 
 ### Coupling: vertical velocity from horizontal divergence
 
-By incompressibility, $\partial_z w = -\nabla_h\cdot \mathbf{u}_h$.
-With $w(-H) = 0$ and the SWE flow uniform in depth,
+First, a reminder of what we are after. $w(z, t)$ is the **vertical
+velocity** of the seawater — how fast it moves up or down, in m/s — at
+depth $z$ and time $t$. It is the one quantity through which the
+horizontal ocean reaches the 1-D column: it *is* the advection term (b),
+$w\,\partial_z T$, in the column equation of §9.3, and $w > 0$
+(upwelling) drags cold deep water up past the sensors.
+
+Here is the catch, and the thing worth seeing clearly: **a 2-D
+shallow-water model never solves for $w$.** Its unknowns are the
+*horizontal* current $\mathbf{u}_h = (u, v)$, taken depth-uniform
+(barotropic). We *recover* $w$ from **mass conservation**. Seawater is
+effectively incompressible, so the three velocity components cannot let
+fluid accumulate anywhere:
+
+$$
+\partial_x u + \partial_y v + \partial_z w = 0
+\qquad\Longleftrightarrow\qquad
+\partial_z w = -\,\nabla_h\cdot \mathbf{u}_h .
+$$
+
+The physical reading is the whole idea in one line: where the
+horizontal flow **converges** ($\nabla_h\cdot \mathbf{u}_h < 0$), the
+water has nowhere to go but up — that vertical escape *is* the
+upwelling $w$.
+
+To get the profile, integrate that relation upward from the seafloor,
+where the solid bottom forces $w(-H) = 0$. Because the SWE flow is
+depth-uniform, $\nabla_h\cdot \mathbf{u}_h$ does not depend on $z$ and
+the integral is immediate:
 
 $$w(z, t) = -(z + H)\,\nabla_h\cdot \mathbf{u}_h(t).$$
 
-A simple linear-in-$z$ vertical velocity profile, computed offline
-from the SWE run and fed as a time series into the column model.
+So $w$ is **linear in $z$**: zero at the bottom, growing in a straight
+line to its largest value at the surface, and rescaled at every instant
+by the single number $\nabla_h\cdot \mathbf{u}_h(t)$ the 2-D model
+reports at the mooring. The full chain is therefore: wind stress → 2-D
+SWE → horizontal current $\mathbf{u}_h(t)$ at the mooring → take its
+divergence → $w(z, t)$ fed into the column. You build exactly this
+formula, by hand, in the [exercise below](#ex-9-2).
+
+::: {.callout-note}
+## Where this lives in code (you do not need to run it)
+
+The shipped capstone does **not** make you run a shallow-water solve.
+The column scripts take $w$ as a *prescribed* storm envelope (toy
+scenario 4 of §9.11); replacing it with a genuine SWE-derived
+$w(z, t)$ through the formula above is the scenario-5 design written up
+in [Unit 10 §10.1](../unit_10/unit_10.qmd). The synthetic mooring
+**data you actually invert** —
+`units/unit_10/data/mooring_{A,B,C}.csv` — is generated once for you by
+`units/unit_10/scripts/generate_mooring_csvs.jl` (which calls the
+finite-difference column solver
+`units/unit_10/scripts/column_fd.jl`). Those CSVs are already in the
+repo, so for the capstone you simply load them — no SWE run, no data
+generation, required.
+:::
 
 ::: {#ex-9-2 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — build $w(z,t)$ from a divergence trace
 
-Implement the coupling formula. Take a synthetic divergence
-time series mimicking a storm response,
-$\nabla_h\cdot \mathbf{u}_h(t) = -2\times10^{-7}\,
-\exp[-((t - 10\,\text{d})/1\,\text{d})^2]\;\text{s}^{-1}$, over 30
-days, and compute $w(z, t) = -(z + H)\,\nabla_h\cdot \mathbf{u}_h(t)$
-for the $H = 100$ m column. Plot $w$ at $z = -10, -50, -90$ m.
-Check three things: $w(-H, t) = 0$ always; the sign during the
-storm (negative divergence = convergence... or is it? — work out
-whether this trace gives upwelling or downwelling); and the peak
-$|w|$ in m/day at mid-column. How does that peak compare with the
-reference $w_0 \sim 1$ m/day, and what does the *linear-in-$z$*
-shape assume physically about the horizontal flow?
+This is the bridge step from the box above: turn what a 2-D model
+reports at the mooring — one horizontal-divergence number at each time
+— into the full vertical-velocity profile $w(z, t)$ the column needs.
+We skip the shallow-water solve and hand you a synthetic divergence
+trace standing in for its output at the mooring, a storm pulse peaking
+on day 10:
+
+$$
+\nabla_h\cdot \mathbf{u}_h(t) = -2\times10^{-7}\,
+\exp\!\bigl[-((t - 10\,\text{d})/1\,\text{d})^2\bigr]\;\text{s}^{-1},
+\qquad 0 \le t \le 30\,\text{d}.
+$$
+
+Apply the coupling formula $w(z, t) = -(z + H)\,\nabla_h\cdot
+\mathbf{u}_h(t)$ for the $H = 100$ m column and plot $w$ (in m/day) at
+$z = -10, -50, -90$ m. Then read three things off your result:
+
+1. **Bottom boundary.** Confirm $w(-H, t) = 0$ at all times — the
+   formula has the no-flow-through-the-seafloor condition built in.
+2. **Sign.** During the storm the divergence is *negative*. Does that
+   give upwelling ($w > 0$) or downwelling? Don't guess — get it from
+   the formula and the convergence picture in the box above.
+3. **Magnitude and shape.** Find the peak $|w|$ in m/day (largest near
+   the surface). How does it compare with the reference
+   $w_0 \sim 1$ m/day of §9.6? And what does the *linear-in-$z$*
+   profile assume physically — i.e. why does a barotropic
+   (depth-uniform) horizontal current force $w$ to be a straight line
+   in $z$?
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
@@ -236,8 +305,11 @@ them down.
 $w = \mathrm{d}z/\mathrm{d}t$. With $z$ measured *upward* from the
 surface (so $z < 0$ inside the ocean), $w > 0$ is upward motion of
 water. *Upwelling* — cold deep water rising — therefore
-corresponds to $w > 0$. The advection term $w \, \partial_z T$ then
-has the right physical sign.
+corresponds to $w > 0$. The advection term $w \, \partial_z T$ (on the
+left of the column equation above) then has the right physical sign;
+moved to the right it reads $-w\,\partial_z T$, the form
+[Unit 8 §8.3](../unit_08/unit_08.qmd) uses. The same note appears in
+Unit 8 — keep the two conventions aligned.
 :::
 
 ::: {#ex-9-3 .callout-note .section-exercise icon="false" collapse="true"}
@@ -248,17 +320,24 @@ student column models. Settle yours with a two-minute argument and
 a five-minute check:
 
 1. **Argument.** In a stably stratified column ($\partial_z T > 0$:
-   warmer above), upwelling is $w > 0$. Show from the equation
-   (term (b) moved to the right-hand side:
-   $\partial_t T = -w\,\partial_z T + \ldots$) that this *cools*
-   every fixed depth — as cold deep water should.
+   warmer above), upwelling is $w > 0$ (the sign-convention note
+   above). Show from the equation — term (b) moved to the
+   right-hand side, $\partial_t T = -w\,\partial_z T + \ldots$ —
+   that this *cools* every fixed depth, as cold deep water rising
+   past the sensor should.
 2. **Check.** Solve the pure-advection column
    $\partial_t T = -w_0\,\partial_z T$ with a first-order upwind
-   scheme, $w_0 = 10^{-4}$ m/s (exaggerated for visibility),
-   the §9.4 tanh initial profile, for 2 days. Confirm the
-   thermocline translates *upward* and every sensor depth cools.
-   Then flip the sign of $w_0$ and confirm downwelling warms the
-   interior instead.
+   scheme, $w_0 = 10^{-4}$ m/s (exaggerated for visibility), the
+   §9.4 tanh initial profile (the solution uses an $H = 60$ m
+   column), for 2 days. For $w_0 > 0$ the water arrives from
+   *below*, so the upwind derivative reads from below too,
+   $(T_i - T_{i-1})/\Delta z$; confirm the thermocline translates
+   *upward* and the interior cools. Then the real sign lesson:
+   switch to downwelling $w_0 < 0$. You must **also** flip the
+   upwind stencil to $(T_{i+1} - T_i)/\Delta z$ — information now
+   arrives from *above* — and then the interior warms. Flip $w_0$
+   alone and leave the old stencil, and the scheme blows up; that
+   instability *is* the sign bug this exercise inoculates against.
 
 ::: {.exercise-hint tabindex="0"}
 💡 Hint
@@ -282,7 +361,9 @@ $$
 \;=\; \frac{Q_{\text{np}}(t)}{\rho_0\, c_p}.
 $$
 
-The downward diffusive heat flux *into* the ocean from the air–sea
+This is a **Neumann** (prescribed-flux) condition: it fixes the
+temperature *gradient* at the surface, not the temperature itself. The
+downward diffusive heat flux *into* the ocean from the air–sea
 interface equals the *non-penetrating* part of the surface heat
 budget, divided by the volumetric heat capacity of seawater (so
 units come out as K·m/s, matching $\kappa\, \partial_z T$). With
@@ -295,7 +376,7 @@ temperature up.
   surface. Sum of: longwave radiation, sensible heat, latent heat
   (evaporation). Units: W/m². Positive means heat *into* the ocean.
 - **$\rho_0$** — reference seawater density, $\approx 1025\,\text{kg/m}^3$.
-- **$c_p$** — specific heat of seawater, $\approx 3990\,\text{J/(kg·K)}$.
+- **$c_p$** — specific heat of seawater, $\approx 3990\,\text{J/(kg}\cdot\text{K)}$.
 
 The penetrating shortwave $Q_{\text{SW}}$ is *not* in this BC — it
 lives inside $\mathcal{S}(z, t)$ as a body source instead.
@@ -306,9 +387,11 @@ $$
 T(-H, t) \;=\; T_{\text{deep}}.
 $$
 
-A fixed-temperature reservoir, as motivated in
-[Unit 8](../unit_08/unit_08.qmd) §8.5. Alternative: zero-flux,
-$\partial_z T |_{-H} = 0$, if you prefer an insulating floor.
+This is a **Dirichlet** (prescribed-value) condition — a
+fixed-temperature reservoir, as motivated in
+[Unit 8](../unit_08/unit_08.qmd) §8.5. The alternative, a zero-flux
+$\partial_z T |_{-H} = 0$ (itself a **Neumann** condition), gives an
+insulating floor instead.
 
 ### Initial condition
 
@@ -320,8 +403,34 @@ T_0(z) = \tfrac12 (T_{\text{surface}} + T_{\text{deep}})
          \tanh\!\bigl((z - z_t)/\delta_t\bigr),
 $$
 
-with $z_t \approx -30\,\text{m}$ sitting the thermocline at 30 m
-depth and $\delta_t \approx 5\,\text{m}$ setting its sharpness.
+The column starts out **stratified**, the way a real reef shelf does:
+a warm surface mixed layer at $T_{\text{surface}}$ resting on cold deep
+water at $T_{\text{deep}}$, joined by a smooth transition — the
+**thermocline** ([Unit 8 §8.5](../unit_08/unit_08.qmd)). The $\tanh$ is
+simply the cleanest smooth step that does this. Reading the formula
+piece by piece:
+
+- $\tanh$ runs from $-1$ far below to $+1$ far above, so the profile
+  swings from $T_{\text{deep}}$ at depth ($z \ll z_t$, $\tanh \to -1$)
+  up to $T_{\text{surface}}$ near the surface ($z \gg z_t$,
+  $\tanh \to +1$).
+- The two prefactors turn that $[-1, 1]$ swing into temperatures:
+  $\tfrac12(T_{\text{surface}} + T_{\text{deep}})$ is the **mean**
+  temperature the profile is centred on, and
+  $\tfrac12(T_{\text{surface}} - T_{\text{deep}})$ is how far it
+  reaches **above and below** that mean.
+- $z_t$ is the **thermocline depth**: at $z = z_t$ the argument is
+  zero and $\tanh(0) = 0$, so $T_0(z_t)$ is exactly the midpoint
+  temperature.
+- $\delta_t$ is the **thermocline thickness**: essentially all of the
+  warm-to-cold change happens within a few $\delta_t$ of $z_t$ — a
+  small $\delta_t$ is a sharp thermocline, a large one a gradual one.
+
+On the "$\approx$" question: $z_t$ and $\delta_t$ are values **we set**,
+not approximations of anything measured. For the synthetic scenario we
+fix $z_t = -30\,\text{m}$ and $\delta_t = 5\,\text{m}$ — a thermocline
+centred 30 m down and about 5 m thick, representative of the GBR shelf
+(all reference values are tabulated in §9.6).
 
 ::: {#ex-9-4 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — what does the bottom BC actually cost?
@@ -375,6 +484,32 @@ $$
 - **$Q_{\text{cool}}$** — steady net cooling from longwave +
   evaporation (e.g. $200\,\text{W/m}^2$).
 
+**How to read the $Q_{\text{SW}}$ term.** The factor
+$\cos(2\pi t/\tau_d)$ is the daily cycle: the $2\pi$ turns elapsed time
+into an angle, and dividing by $\tau_d$ (one day) makes the period
+exactly one day, so the argument advances by $2\pi$ — one full
+revolution — every 24 h. The $\max(0,\,\cdot)$ clips the negative half
+of the cosine to zero — the sun is simply *off* at night. Because the
+cosine peaks when its argument is $0$, **the model takes $t = 0$ to be
+local solar noon**: $Q_{\text{SW}}$ is at its peak $Q_{\text{SW}}^{\max}$
+there, falls to zero at $t = \tau_d/4$ (6 h later — "sunset"), stays
+zero through the night, and returns to its peak at $t = \tau_d$ (next
+noon). It is therefore a deliberately crude 12 h-day / 12 h-night
+cycle, symmetric about noon, with no seasonal change in day length.
+
+If your time axis is referenced to **midnight** instead (the usual
+convention for real forcing records), shift the phase: replace
+$\cos(2\pi t/\tau_d)$ with $\cos\bigl(2\pi(t - \tau_d/2)/\tau_d\bigr)$,
+which moves the noon peak to $t = \tau_d/2 = 12$ h and keeps it dark at
+$t = 0$. More generally $\cos\bigl(2\pi(t - t_{\text{noon}})/\tau_d\bigr)$
+puts solar noon at any chosen $t_{\text{noon}}$; the synthetic capstone
+data use the simplest choice, $t_{\text{noon}} = 0$.
+
+$Q_{\text{np}}$, by contrast, carries no diurnal structure here — it is
+a constant net cooling $-Q_{\text{cool}}$ (negative = heat leaving the
+ocean), a minimal stand-in for the longwave + evaporative loss that in
+reality also varies through the day.
+
 ### Penetrating shortwave (the body source)
 
 Sunlight is absorbed exponentially with depth (Beer–Lambert):
@@ -382,8 +517,20 @@ Sunlight is absorbed exponentially with depth (Beer–Lambert):
 $$
 I(z, t) \;=\; Q_{\text{SW}}(t)\,e^{z/\zeta},
 \qquad
-\mathcal{S}(z, t) \;=\; \frac{1}{\rho_0\, c_p}\,\frac{\partial I}{\partial z}.
+\mathcal{S}(z, t) \;=\; \frac{1}{\rho_0\, c_p}\,\frac{\partial I}{\partial z}
+\;=\; \frac{Q_{\text{SW}}(t)}{\rho_0\, c_p\, \zeta}\,e^{z/\zeta}.
 $$
+
+Yes — that last step is an explicit expression, and it is the one the
+code uses. The only $z$-dependence is the exponential, so
+differentiating it simply brings down a factor $1/\zeta$. The heating
+$\mathcal{S}$ is therefore largest right at the surface ($z = 0$) and
+decays with the same e-folding scale $\zeta$, depositing heat
+*throughout* the column rather than only at its top — which is exactly
+what makes penetrating sunlight a **body source** and not a surface
+flux. Integrated over a deep column it returns
+$Q_{\text{SW}}(t)/(\rho_0 c_p)$: all of the penetrating sunlight ends up
+as heat in the water.
 
 - **$\zeta$** — light penetration scale (e.g. $\zeta \approx 10\,\text{m}$
   for a single-band model; refined two-band Paulson–Simpson splits
@@ -510,24 +657,48 @@ No numerics for the integral: the positive half of a cosine over a day integrate
 > $Q_{\text{SW}}$) as time series, predict $T(z, t)$ on the
 > 30-day window.
 
-Solved two ways, both in [Unit 10](../unit_10/unit_10.qmd):
+This forward problem is well-posed and **solved** — the worked code
+and its outputs are in [Unit 10 §10.1](../unit_10/unit_10.qmd). It is
+solved two ways:
 
-1. A `MethodOfLines.jl` finite-difference reference (ground truth).
-2. A forward PINN trained against the column equation residual,
-   the surface-flux BC, the bottom Dirichlet BC, and the IC — with
-   the modern fixes from [Unit 7](../unit_07/unit_07.qmd) (hard BC,
-   causal training, Fourier features).
+1. **A `MethodOfLines.jl` finite-difference reference** (the ground
+   truth) — `units/unit_10/scripts/column_fd.jl`. This is the concrete
+   full-driver solution; [Unit 10 §10.1](../unit_10/unit_10.qmd) runs
+   it through the toy-task ladder (§9.11) and shows its four output
+   figures: the steady profile (scenario 1, matching the analytic
+   straight line to $4\times10^{-3}\,°$C), the diurnal warm layer
+   (scenario 2), the upwelling response (scenario 3), and the storm
+   fingerprint (scenario 4).
+2. **A forward PINN** trained against the column-equation residual, the
+   surface-flux BC, the bottom Dirichlet BC, and the IC. Task A bakes
+   in the hard deep BC + hard IC and keeps the static-weight recipe;
+   the modern fixes from [Unit 7 §7.3](../unit_07/unit_07.qmd) (Fourier
+   features, causal training, adaptive weights) are the Task B layer
+   for the deep $H = 100$ m column. The forward PINN is **certified**
+   against a closed-form pure-diffusion solution in
+   [Unit 10 §10.2](../unit_10/unit_10.qmd) — measured
+   $\lVert T_\theta - T^\star\rVert_{L^2} \sim 10^{-3}\,°$C, far inside
+   the noise scale — so we know it reproduces the FD reference before
+   any inverse is stacked on top.
 
-The toy-task ladder of §9.11 builds up to the forward problem in
-five stages. Both Task A and Task B inverse problems start from
-this same forward solver.
+**Where the outputs and data live.** The forward-solve figures are in
+[Unit 10 §10.1](../unit_10/unit_10.qmd); the synthetic mooring records
+the solve produces — the very CSVs the inverse tasks read back in — are
+`units/unit_10/data/mooring_{A,B,C}.csv`, generated once by
+`units/unit_10/scripts/generate_mooring_csvs.jl` (which calls
+`column_fd.jl`) and already committed to the repo, so you simply load
+them. [Exercise 9.1](#ex-9-1) walks you through reading those CSVs.
+
+The toy-task ladder of §9.11 builds up to the forward problem in five
+stages. Both the Task A and Task B inverse problems start from this
+same forward solver.
 
 ## 9.8 Which task is for which audience? {#sec-which-task}
 
 The capstone has **one required task and one optional extension**:
 
 - **Task A** ([§9.9](#sec-task-a)) is **the capstone everyone does**.
-  It runs end-to-end on a laptop CPU and shows the full forward-PINN +
+  It runs end-to-end on a CPU and shows the full forward-PINN +
   inverse-PINN pipeline on a single site.
 - **Task B** ([§9.10](#sec-task-b)) is an **optional, advanced
   extension** for those who want the operational-scale version —
@@ -537,7 +708,7 @@ The capstone has **one required task and one optional extension**:
 ::: {.callout-tip}
 ## A GPU is optional, not required
 
-**Task A is designed for a laptop CPU** — you can do the whole task,
+**Task A is designed for a CPU** — you can do the whole task,
 see the whole pipeline, and learn everything it teaches without a
 GPU. The course GPU hub *is* available to you, though, and a GPU
 simply makes Task A faster and lets you reach the tightest accuracy
@@ -553,11 +724,11 @@ Pick by your hardware, time budget, and goals:
 
 | | **Task A** ([§9.9](#sec-task-a)) — *required* | **Task B** ([§9.10](#sec-task-b)) — *optional / advanced* |
 |---|---|---|
-| **Audience** | every participant; self-paced learner, one-day workshop | research project, semester-long student, industrial prototyping |
-| **Hardware** | laptop CPU (any modern M-series or recent x86); **GPU optional** — available on the hub, just faster | CPU for the sub-scale prototypes; NVIDIA GPU for the full three-site run |
-| **Time budget** | ~30 min on CPU once data is generated; minutes on GPU | ~30 min on GPU per run; hours on CPU |
+| **Audience** | every participant; self-paced learner, one-day workshop | research project, advanced student, industrial prototyping |
+| **Hardware** | CPU; GPU on the hub is faster | CPU for the sub-scale prototypes; NVIDIA GPU for the full three-site run |
+| **Time budget** | minutes on GPU; longer on CPU | ~30 min on GPU per run; hours on CPU |
 | **Geometry** | one site (Cleveland Bay, $H = 15$ m) | three sites jointly (Cleveland Bay + Davies Reef + Myrmidon Reef, $H$ up to 100 m) |
-| **PINN toolkit** | small MLP, soft BCs, hand-tuned weights | Fourier features + hard BC + adaptive weights + causal training |
+| **PINN toolkit** | small MLP, static hand-tuned weights | + Fourier features, adaptive weights, causal training |
 | **Parameter count** | ~5 000 | ~200 000 |
 | **What it demonstrates** | the full forward-PINN + inverse-PINN pipeline | operational engineering — joint inversion, modern fixes, GPU scaling |
 
@@ -565,24 +736,25 @@ Both tasks share §9.7 (forward solve) and [§9.11 toy
 ladder](#sec-toy-tasks). The remainder of this unit is each
 task's full spec.
 
-## 9.9 Task A — single-site inverse (laptop CPU; GPU optional) {#sec-task-a}
+## 9.9 Task A — single-site inverse (CPU; GPU optional) {#sec-task-a}
 
 > **The required capstone.** Recover the storm wind-stress
 > envelope $\tau(t)$ from a *single* mooring's data using a small
-> PINN that trains in 10–30 minutes on a laptop CPU — faster still if
+> PINN that trains in 10–30 minutes on a CPU — faster still if
 > you use the course GPU.
 
 The goal is to see the full forward-PINN + inverse-PINN pipeline
 end-to-end. Everything is kept small enough that an L-BFGS run
-finishes in coffee-break time on a laptop; the same code runs
+finishes in coffee-break time on a CPU; the same code runs
 unchanged (and faster) on the course GPU hub if you have access —
 **a GPU is optional here, not required**.
 
 ### 9.9.1 Spec
 
-- **Site.** Cleveland Bay only ($H = 15$ m, $\mathrm{Pe} \ll 1$ —
-  diffusion-dominated, the simplest of the three regimes). 5
-  sensors at $z = -1, -4, -8, -12, -14$ m.
+- **Site.** **Site A** (Cleveland Bay) only — $H = 15$ m,
+  $\mathrm{Pe} \ll 1$, diffusion-dominated; the shallowest and
+  simplest of the three §9.1 sites. 5 sensors at
+  $z = -1, -4, -8, -12, -14$ m.
 - **Data.** `data/mooring_A.csv` (synthetic, $\sigma = 0.05\,°\text{C}$
   Gaussian noise on hourly samples for 30 days = 5 × 720 = 3 600 data points).
 - **Unknown.** A single scalar function $\tau(t)$ — the local
@@ -601,27 +773,30 @@ unchanged (and faster) on the course GPU hub if you have access —
 Follow these seven steps in order. Each maps directly onto a block of
 the starter skeleton below.
 
-1. **Generate the synthetic data** (if not already present) with
-   `scripts/generate_mooring_csvs.jl --site A` — produces
-   `data/mooring_A.csv` (5 sensors × 720 hourly samples). Load it and
-   plot all five depths first ([§9.1 exercise](#ex-9-1)) so you know
-   what the storm looks like before you model it.
+1. **Get hold of the data.** The synthetic mooring record is already
+   in the repo — `data/mooring_A.csv` (5 sensors × 720 hourly
+   samples); just load it. Plot all five depths first
+   ([§9.1 exercise](#ex-9-1)) so you know what the storm looks like
+   before you model it. (It was produced once by
+   `scripts/generate_mooring_csvs.jl --site A`; you don't need to
+   regenerate it.)
 2. **Build the column constants and forcings** from §9.5–§9.6: the
    diffusivity $\kappa(z)$, the Beer–Lambert source shape, the
    initial profile $T_0(z)$, and the deep reservoir $T_{\text{deep}}$.
-   (Working non-dimensionally — as the shipped solution does — folds
-   these into a Péclet number $\mathrm{Pe}$ and a heating shape
-   $S(\zeta)$; see [Unit 10 §10.2](../unit_10/unit_10.qmd).)
 3. **Define the two networks.** $T_\theta(z, t)$ recovers the
    temperature field; $\tau_\phi(t)$ recovers the unknown storm
    envelope. Bake the **hard deep BC** ($T = T_{\text{deep}}$ at
    $z = -H$) and the **hard IC** into the field ansatz so those two
    constraints hold *for free* and only the surface flux BC stays a
    soft penalty ([Unit 7 §7.3](../unit_07/unit_07.qmd)).
-4. **Solve the forward problem first** with a *known* $\tau$, scoring
-   the field network against the `MethodOfLines.jl` reference (§9.7).
-   Certify the forward solve (target $L^2 < 0.05\,°\text{C}$) *before*
-   trusting any inverse on top of it.
+4. **Get the forward solve working before the inverse.** Recovering an
+   *unknown* $\tau$ is hard to debug, so first check the machinery on a
+   *known* one: pick a known storm $\tau$, produce the temperature
+   field with the trusted `MethodOfLines.jl` finite-difference solver
+   (§9.7), and train the field network $T_\theta$ to reproduce it. Only
+   once that forward fit lands within the noise floor (target
+   $L^2 < 0.05\,°\text{C}$ against the FD reference) should you stack an
+   inverse on top.
 5. **Assemble the joint inverse loss**
    $\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_d \mathcal{L}_{\text{data}} + \lambda_b \mathcal{L}_{\text{surf-BC}} + \lambda_{\text{reg}} \int |\tau_\phi'|^2\,dt$
    (the hard IC + deep BC mean no separate $\mathcal{L}_{\text{IC}}$
@@ -630,22 +805,24 @@ the starter skeleton below.
    $\lambda_{\text{reg}}$ are what keep the recovered storm peak from
    collapsing; see the weight-sweep table in
    [Unit 10 §10.2](../unit_10/unit_10.qmd).
-6. **Train the inverse PINN.** Adam(1e-3) on the field network,
-   Adam(3e-3) on the (smaller) $\tau$ network. A few thousand steps
-   on CPU shows the method working; more steps (and/or the GPU) tighten
-   the peak toward the §9.9.3 target.
-7. **Diagnose and report** — overlay $\hat\tau(t)$ on the truth,
-   plot the residual histogram vs $t$ ([Unit 7 §7.5](../unit_07/unit_07.qmd)),
-   and check heat-budget closure at each sensor depth.
+6. **Train the inverse PINN.** A few thousand steps already show the
+   method working; more steps (and/or the GPU) tighten the recovered
+   peak toward the §9.9.3 target.
+7. **Diagnose and report** — overlay $\hat\tau(t)$ on the truth and
+   write the honest assessment of where the recovery fails. Optionally
+   add the residual histogram vs $t$
+   ([Unit 7 §7.5](../unit_07/unit_07.qmd)) and a heat-budget closure
+   check at each sensor depth.
 
 #### Starter skeleton (Task A) {#sec-task-a-skeleton}
 
 A scaffold for steps 3–6, distilled from the shipped solution
 [`task_a_inverse_pinn.jl`](../unit_10/unit_10.qmd). Fill in the
-`# TODO` lines from the equations in §9.3–§9.5; the full worked
-version (with the FD reference, metrics, and the validated weights) is
-in [Unit 10 §10.2](../unit_10/unit_10.qmd) behind the solution gate.
-This block is for reading, not for `quarto render` to execute.
+`# TODO` (load and non-dimensionalise the mooring data) from the
+equations in §9.3–§9.6; the full worked version — FD reference,
+metrics, and the validated weights — is in
+[Unit 10 §10.2](../unit_10/unit_10.qmd) behind the solution gate. It is
+for reading, not running.
 
 ```julia
 using Lux, Optimisers, Zygote, Random, Statistics
@@ -708,11 +885,10 @@ end
 | Forward PINN $L^2$ vs FD reference | < $0.05\,°\text{C}$ |
 | Recovered $\hat\tau$ peak-amplitude error | < 15% |
 | Storm-day timing error | < 2 h |
-| Residual histogram monotonically decreasing in $t$ | yes |
 
 ### 9.9.4 Expected runtime
 
-| Stage | Wall-clock (M2 MacBook) |
+| Stage | Wall-clock (CPU) |
 |---|---|
 | MethodOfLines FD reference (1 site, 30 days) | ~5 s |
 | Forward PINN training (Adam 2 000 + L-BFGS 500) | ~3 min |
@@ -723,19 +899,27 @@ $\lambda_r / \lambda_d$ adds ~10 minutes per pass.
 
 ### 9.9.5 Deliverables
 
+Required:
+
 1. Plot of $\hat\tau(t)$ overlaid on the synthetic truth.
-2. **Mechanism partition plot** at $z = -10\,\text{m}$ (Site A's
-   diagnostic depth, two-thirds down its 15 m column) showing the
-   three integrated cooling contributions
-   $\Delta T_{\text{adv}}(t), \Delta T_{\text{mix}}(t),
-   \Delta T_{\text{flux}}(t)$ over the storm window. This is what
-   actually answers the §9.1 question "which hypothesis dominated"
-   for Cleveland Bay.
-3. Residual-histogram-vs-time diagnostic.
-4. Heat-budget closure plot for each sensor depth.
-5. A one-paragraph honest assessment of where the recovery fails
+2. A one-paragraph honest assessment of where the recovery fails
    (typically the rising edge — smoothed by the $H^1$ penalty —
    and the tail — over-relaxed).
+
+Optional extras (good practice, not needed to clear the task):
+
+- Residual-histogram-vs-time diagnostic
+  ([Unit 7 §7.5](../unit_07/unit_07.qmd)).
+- Heat-budget closure plot for each sensor depth.
+
+The **mechanism partition** — decomposing the cooling into advection,
+mixing, and source contributions to answer the §9.1 "which hypothesis
+dominated" question — is **deferred to Task B**
+([§9.10.5](#sec-task-b)). Task A's diffusion-only source column has no
+advection term to attribute, so the partition is degenerate here; Task
+B's advection + wind-mixing columns at the three sites are where it
+becomes meaningful (see
+[Unit 10 §10.3](../unit_10/unit_10.qmd#sec-mechanism-partition)).
 
 ### 9.9.6 What you don't do here
 
@@ -756,7 +940,7 @@ operational-scale problem**. You do not need it to complete the
 capstone — Task A ([§9.9](#sec-task-a)) is the required piece. Take
 Task B on if you have GPU access (the course hub) and want to see
 joint multi-site inversion and the modern-PINN toolkit at full
-scale. The sub-scale prototype steps below still run on a laptop CPU.
+scale. The sub-scale prototype steps below still run on a CPU.
 :::
 
 > **The advanced capstone.** Recover a *single* shared wind-stress
@@ -895,7 +1079,7 @@ end
 The course GPU hub is an **NVIDIA A10G** (g5.2xlarge); the worked
 solution's measured times are in [Unit 10 §10.3](../unit_10/unit_10.qmd).
 
-| Stage | CPU (M-series laptop) | GPU (A10G) |
+| Stage | CPU | GPU (A10G) |
 |---|---|---|
 | Sub-scale prototype (Task A column, Task B architecture) | ~30 min | ~2 min |
 | Two-site joint inverse (A + B) | ~7 min | ~2 min |

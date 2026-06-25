@@ -30,7 +30,7 @@
 # Unit 5 §5.3 trick — one reverse-mode pass, runs cleanly on the GPU.
 #
 # CPU vs GPU. The operating point needs a wide network trained for ~28k steps —
-# minutes on a GPU, far longer on a laptop CPU. So the CPU run here is a
+# minutes on a GPU, far longer on a CPU. So the CPU run here is a
 # sub-scale DEMO (smaller net, fewer steps): it shows the method working and the
 # peak starting to rise, but only the GPU full-scale run reaches the ≤15%
 # criterion. That gap is the motivation for the GPU.

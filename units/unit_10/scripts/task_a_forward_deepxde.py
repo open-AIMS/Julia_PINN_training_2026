@@ -5,7 +5,7 @@
 # reservoir, same Adam -> L-BFGS schedule.  See unit_10 §10.4.
 #
 # This is a *forward* solve (tau known); it is the Python-ecosystem analogue,
-# not part of the Julia inverse pipeline.  Runtime ~5 min on a laptop CPU with
+# not part of the Julia inverse pipeline.  Runtime ~5 min on a CPU with
 # the PyTorch backend.
 #
 #   pip install deepxde[torch]

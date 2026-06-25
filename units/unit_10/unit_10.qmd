@@ -119,12 +119,19 @@ imposed via a ghost cell. The full source listing is in §10.6;
 below we work through the four scenarios from
 [Unit 9 §9.11](../unit_09/unit_09.qmd#sec-toy-tasks) of increasing complexity.
 
+These four scenario plots all run on the **generic reference column**
+(the §9.6 reference parameters, $H = 100$ m) so each mechanism shows
+cleanly in isolation — they are **not** the per-site mooring records
+(Sites A/B/C). Those site records are produced separately, each at its
+own depth, by `generate_mooring_csvs.jl` (which runs this same solver
+through the scenario-4 storm per site).
+
 #### Scenario 1 — pure diffusion to steady state
 
 $w = 0$, $\mathcal{S} = 0$, $\kappa$ constant, $Q_{\text{np}}$
 constant. After ~365 days the column reaches a near-steady state.
 
-![Scenario 1 output — `scenario_1()` from `scripts/column_fd.jl`. MOL final profile matches the analytic steady state to ≈ 4 × 10⁻³ °C.](output/scn1_steady.png)
+![Scenario 1 — pure diffusion to a (near-)steady state, from `scenario_1()` in `scripts/column_fd.jl`. The grey **IC** is the initial $\tanh$ thermocline: a warm (~28 °C) mixed layer over an 18 °C deep reservoir, with the sharp transition near $z=-30$ m. With no advection, no source, and a constant surface cooling $Q_{\text{np}}=-200$ W/m², diffusion erases that thermocline and the column relaxes toward the **straight-line** steady profile — heat conducts up the gradient from the fixed deep reservoir to be lost at the surface, so the surface ends up *colder* (~13 °C) than the deep (18 °C). The blue **MOL final** curve is the finite-difference solution after ~365 days; the dashed black **analytic** line $T(z)=T_{\text{deep}}-\tfrac{Q_{\text{cool}}}{\kappa_m \rho_0 c_p}(z+H)$ is drawn on top of it. The two are indistinguishable — they agree to $\approx 4\times10^{-3}$ °C, so the dashes ride directly along the blue line, and *that overlap is the validation* of the solver. (Derived by hand in [§10.1 exercise](#ex-10-1).)](output/scn1_steady.png)
 
 #### Scenario 2 — diurnal cycle
 
@@ -333,7 +340,7 @@ The operating point trains a wide field network (48 wide × 6 deep) for
 The script runs a **CPU sub-scale demo** first (small 4×24 net, 2 500 steps):
 it shows the method working, but only recovers the peak to ~31% — it *misses*
 the $\leq15\%$ bar. Clearing the criterion needs the wide net and ~28 k steps,
-which is **~10 minutes on the course GPU but ~1–2 hours on a laptop CPU**.
+which is **~10 minutes on the course GPU but ~1–2 hours on a CPU**.
 That gap — same method, just scale — is why Task A ships a GPU run. (This is a
 shift from Task A's original CPU-only framing: the physics is unchanged, but
 at this noise level the $\leq15\%$ target is GPU-scale.)
@@ -507,7 +514,7 @@ Step 6 uses the *same* static recipe at three sites and a wider
 network — the Fourier / adaptive / causal machinery of Step 1 is the
 menu you reach for when the deep $H=100$ m column forces genuinely
 separated time-scales, not something this problem needs to clear the
-bar.) It performs three inversions — each ~4–7 min on a laptop CPU at
+bar.) It performs three inversions — each ~4–7 min on a CPU at
 12 000 Adam steps, $N_r = 4\,000$ per site:
 
 1. **Site A alone** — peak-amplitude error **~16%**.
@@ -578,7 +585,7 @@ sites at the wider $64\times5$ network. These are
 
 | Run | Config | Wall-clock | $\hat\tau$ peak error |
 |---|---|---|---|
-| CPU 2-site prototype (laptop) | 2 sites, $32\times4$, 12k steps | ~7 min (joint) | 6.8% |
+| CPU 2-site prototype | 2 sites, $32\times4$, 12k steps | ~7 min (joint) | 6.8% |
 | **GPU 3-site full-scale (A10G)** | 3 sites, $64\times5$, 3k steps | **~5 min (joint), ~10 min (all four inversions)** | **6.7%** |
 
 The per-site GPU breakdown tells the joint-inversion story directly:
@@ -590,7 +597,7 @@ the joint.
 
 The headline is that the GPU does the *harder* three-site /
 wider-network / deeper-column problem in **less** wall-clock than the
-laptop spent on the two-site prototype — that is what "GPU buys you
+CPU spent on the two-site prototype — that is what "GPU buys you
 full scale" means here. (The raw training-step throughput behind that
 is benchmarked in [Unit 7 §7.6 ▸ *Why a GPU changes which PINNs you
 can afford*](../unit_07/unit_07.qmd#sec-gpu): on the A10G the batched
@@ -690,7 +697,7 @@ model.compile("L-BFGS"); model.train()
 
 Available as
 [`scripts/task_a_forward_deepxde.py`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_forward_deepxde.py){target="_blank"}.
-Runtime: ~5 min on a laptop CPU with the PyTorch backend.
+Runtime: ~5 min on a CPU with the PyTorch backend.
 
 The structural one-to-one with the Julia version:
 

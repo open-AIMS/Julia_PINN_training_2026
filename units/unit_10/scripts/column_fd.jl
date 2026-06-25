@@ -193,9 +193,13 @@ function plot_scn1(r; outpath=joinpath(@__DIR__, "..", "output", "scn1_steady.pn
     fig = Figure(size=(700, 500))
     ax = Axis(fig[1,1], xlabel="T (°C)", ylabel="z (m)",
               title="Scenario 1: pure diffusion to (near-)steady state")
+    # Draw the MOL solution first (solid), then the analytic steady state
+    # as a dashed overlay ON TOP, in a contrasting colour — otherwise the
+    # solid MOL line hides the dashes entirely (the two agree to ~4e-3 °C,
+    # so the visible dashes riding on the orange line ARE the validation).
+    lines!(ax, Tf, zg; linewidth=3, label="MOL final")
     lines!(ax, T_analytic_scn1.(zg), zg;
-           linestyle=:dash, linewidth=2, label="analytic")
-    lines!(ax, Tf, zg; linewidth=2, label="MOL final")
+           linestyle=:dash, linewidth=2, color=:black, label="analytic")
     lines!(ax, T0.(zg), zg;
            color=:gray, linewidth=1, label="IC")
     axislegend(ax, position=:rb)

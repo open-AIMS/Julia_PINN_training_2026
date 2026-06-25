@@ -58,6 +58,6 @@ spectral-bias/weight-balancing machinery are added.
 ## Expected runtime (A10G)
 
 Order-of-minutes for the forward sanity solve, tens-of-minutes for the full
-joint inverse — compared with hours on a laptop CPU. The exact numbers the run
+joint inverse — compared with hours on a CPU. The exact numbers the run
 prints are what §10.3 Step 6 reports; treat the table there as measured, not
 extrapolated, once this has run.
