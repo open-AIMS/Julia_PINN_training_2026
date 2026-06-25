@@ -164,9 +164,10 @@ non-penetrating heat input $Q_{\text{np}}$ (positive = heating).
 
 The payoff is dimensionality: a 1-D problem in $(z, t)$ instead of a
 3-D one in $(x, y, z, t)$. The price is that you must *prescribe*
-$w(z, t)$ rather than solve for it — which is why the capstone reads
-$w$ off a separate, cheaper 2-D shallow-water model
-([Unit 9](../unit_09/unit_09.qmd)).
+$w(z, t)$ rather than solve for it — for the capstone, $w$ is a
+prescribed linear-in-$z$ upwelling profile that a cheaper 2-D
+shallow-water balance justifies (no shallow-water solve is actually
+run; see [Unit 9 §9.2](../unit_09/unit_09.qmd#sec-w-coupling) and §8.3).
 :::
 
 ::: {.callout-note}

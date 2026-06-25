@@ -10,7 +10,7 @@
 #
 # This is the GPU full-scale sibling of the CPU sub-scale prototype
 # (task_b_subscale_prototype.jl): the SAME proven static-weight recipe
-# (large λ_d, tiny H¹ λ_reg, hard IC + hard deep BC θ = ζ·τ·N, FD-in-input
+# (large λ_d, tiny H¹ λ_reg, hard IC + hard deep BC T̃ = ζ·τ·N, FD-in-input
 # derivative stencil) at a wider network, more collocation, more steps, and a
 # third advection-dominated site — run on the GPU where it is minutes not hours.
 #
@@ -23,8 +23,8 @@
 using Lux, LuxCUDA, CUDA, Optimisers, Zygote, Random, Printf, Statistics
 
 # ── per-site nondimensional column models ───────────────────────────────────
-# ∂τθ = -Wadv·w(ζ)·∂ζθ + Pe·∂ζζθ + S(ζ)·τ(t),  ζ∈[0,1], τ∈[0,1]
-#   θ(0,τ)=0 (deep reservoir), ∂ζθ(1,τ)=0 (insulating surface), θ(ζ,0)=0.
+# ∂τT̃ = -Wadv·w(ζ)·∂ζT̃ + Pe·∂ζζT̃ + S(ζ)·τ(t),  ζ∈[0,1], τ∈[0,1]
+#   T̃(0,τ)=0 (deep reservoir), ∂ζT̃(1,τ)=0 (insulating surface), T̃(ζ,0)=0.
 # "Pe" here is the (nondim) diffusion coefficient; the classical Péclet number
 # advection/diffusion = Wadv/Pe rises A → C, so A is diffusion-only, C is
 # advection-dominated — the three regimes the joint inverse must straddle.
@@ -51,30 +51,30 @@ function fd_reference(s::Site; NT_FD = 40001)
     ζ = Float32.(range(0f0, 1f0; length = NZ)); dζ = ζ[2] - ζ[1]
     t = Float32.(range(0f0, 1f0; length = NT_FD)); dt = t[2] - t[1]
     S = S_shape(s, ζ); w = w_shape(ζ)
-    θ = zeros(Float32, NZ, NT_FD)
+    T̃ = zeros(Float32, NZ, NT_FD)
     @inbounds for k in 1:NT_FD-1
-        f = τstar(t[k]); col = @view θ[:, k]
+        f = τstar(t[k]); col = @view T̃[:, k]
         for i in 2:NZ-1
             lap = (col[i+1] - 2col[i] + col[i-1]) / dζ^2
             adv = w[i] * (col[i+1] - col[i-1]) / (2dζ)
-            θ[i, k+1] = col[i] + dt * (-s.Wadv * adv + s.Pe * lap + S[i] * f)
+            T̃[i, k+1] = col[i] + dt * (-s.Wadv * adv + s.Pe * lap + S[i] * f)
         end
         lapN = (2col[NZ-1] - 2col[NZ]) / dζ^2
         advN = w[NZ] * (col[NZ] - col[NZ-1]) / dζ
-        θ[NZ, k+1] = col[NZ] + dt * (-s.Wadv * advN + s.Pe * lapN + S[NZ] * f)
-        θ[1, k+1] = 0f0
+        T̃[NZ, k+1] = col[NZ] + dt * (-s.Wadv * advN + s.Pe * lapN + S[NZ] * f)
+        T̃[1, k+1] = 0f0
     end
-    (; ζ, t, θ, NT_FD)
+    (; ζ, t, T̃, NT_FD)
 end
 
-function θstar_of(FD)
+function T̃star_of(FD)
     (ζv, τv) -> begin
         out = similar(ζv)
         @inbounds for n in eachindex(ζv)
             iz = clamp(round(Int, ζv[n] * (NZ - 1)) + 1, 1, NZ)
             ft = clamp(τv[n] * (FD.NT_FD - 1), 0f0, Float32(FD.NT_FD - 1))
             k = clamp(floor(Int, ft) + 1, 1, FD.NT_FD - 1); fr = ft - (k - 1)
-            out[n] = (1 - fr) * FD.θ[iz, k] + fr * FD.θ[iz, k+1]
+            out[n] = (1 - fr) * FD.T̃[iz, k] + fr * FD.T̃[iz, k+1]
         end
         out
     end
@@ -90,7 +90,7 @@ function mechanism_partition(s::Site, FD, zdiag)
     khi = min(FD.NT_FD-1, ceil(Int, (τ0+3σstm)*(FD.NT_FD-1))+1)
     Iadv=0.0; Imix=0.0; Isrc=0.0
     @inbounds for k in klo:khi
-        col = @view FD.θ[:,k]
+        col = @view FD.T̃[:,k]
         lap = (col[id+1]-2col[id]+col[id-1])/dζ^2
         adv = ζ[id]*(col[id+1]-col[id-1])/(2dζ)
         Iadv += abs(s.Wadv*adv)*dt; Imix += abs(s.Pe*lap)*dt; Isrc += abs(S[id]*τstar(t[k]))*dt
@@ -100,11 +100,11 @@ function mechanism_partition(s::Site, FD, zdiag)
 end
 
 const N_T = 720; const σ_obs = 0.005f0
-function observations(s::Site, θstar; seed = 20260617)
+function observations(s::Site, T̃star; seed = 20260617)
     τs = Float32.(range(0f0, 1f0; length = N_T)); zc = ζsens(s)
     ζcol = repeat(zc, inner = N_T); τcol = repeat(τs, outer = length(zc))
-    noisy = θstar(ζcol, τcol) .+ σ_obs .* randn(Xoshiro(seed), Float32, length(ζcol))
-    (; ζ = reshape(ζcol, 1, :), τ = reshape(τcol, 1, :), θ = reshape(noisy, 1, :))
+    noisy = T̃star(ζcol, τcol) .+ σ_obs .* randn(Xoshiro(seed), Float32, length(ζcol))
+    (; ζ = reshape(ζcol, 1, :), τ = reshape(τcol, 1, :), T̃ = reshape(noisy, 1, :))
 end
 
 # ── networks (plain (ζ,τ) input, static weights — the proven recipe) ─────────
@@ -114,7 +114,7 @@ make_τ()     = Chain(Dense(1 => 48, tanh), Dense(48 => 48, tanh), Dense(48 => 1
 const HZ = 2f-3; const HT = 2f-3
 const λ_d = 6000f0; const λ_b = 10f0; const λ_reg = 1f-5
 
-function solve_joint(sites, FDs, θstars, dev; Ncol, iters, Tw, Td, seed = 1)
+function solve_joint(sites, FDs, T̃stars, dev; Ncol, iters, Tw, Td, seed = 1)
     Tms = [make_T(Tw, Td) for _ in sites]; τm = make_τ()
     pTs = Vector{Any}(undef, length(sites)); sTs = Vector{Any}(undef, length(sites))
     for (i, Tm) in enumerate(Tms)
@@ -129,25 +129,25 @@ function solve_joint(sites, FDs, θstars, dev; Ncol, iters, Tw, Td, seed = 1)
     τc = [dev(rand(rng, Float32, 1, Ncol)) for _ in sites]
     τb = [dev(rand(rng, Float32, 1, Ncol ÷ 5)) for _ in sites]
     ζ1 = [dev(ones(Float32, 1, Ncol ÷ 5)) for _ in sites]
-    obs = [observations(s, θstars[i]) for (i, s) in enumerate(sites)]
-    od = [(ζ = dev(o.ζ), τ = dev(o.τ), θ = dev(o.θ)) for o in obs]
+    obs = [observations(s, T̃stars[i]) for (i, s) in enumerate(sites)]
+    od = [(ζ = dev(o.ζ), τ = dev(o.τ), T̃ = dev(o.T̃)) for o in obs]
     τg = dev(reshape(Float32.(range(0f0, 1f0; length = 400)), 1, :))
 
     NT_(Tm, p, sT, ζ, τ) = first(Tm(vcat(ζ, τ), p, sT))
-    θnet(Tm, p, sT, ζ, τ) = ζ .* τ .* NT_(Tm, p, sT, ζ, τ)
+    T̃net(Tm, p, sT, ζ, τ) = ζ .* τ .* NT_(Tm, p, sT, ζ, τ)
     τφ(q, τ) = first(τm(τ, q, sτ))
 
     function loss(pTs, pτ)
         L = 0f0
         for i in eachindex(sites)
             s = sites[i]; Tm = Tms[i]; sT = sTs[i]; ζi = ζc[i]; τi = τc[i]; pTi = pTs[i]
-            θt  = (θnet(Tm, pTi, sT, ζi, τi .+ HT) .- θnet(Tm, pTi, sT, ζi, τi .- HT)) ./ (2HT)
-            θz  = (θnet(Tm, pTi, sT, ζi .+ HZ, τi) .- θnet(Tm, pTi, sT, ζi .- HZ, τi)) ./ (2HZ)
-            θzz = (θnet(Tm, pTi, sT, ζi .+ HZ, τi) .- 2f0 .* θnet(Tm, pTi, sT, ζi, τi) .+ θnet(Tm, pTi, sT, ζi .- HZ, τi)) ./ HZ^2
-            Lr  = mean(abs2, θt .+ s.Wadv .* w_shape(ζi) .* θz .- s.Pe .* θzz .- S_shape(s, ζi) .* τφ(pτ, τi))
-            Ld  = mean(abs2, θnet(Tm, pTi, sT, od[i].ζ, od[i].τ) .- od[i].θ)
-            θzs = (θnet(Tm, pTi, sT, ζ1[i], τb[i]) .- θnet(Tm, pTi, sT, ζ1[i] .- HZ, τb[i])) ./ HZ
-            Lb  = mean(abs2, θzs)
+            T̃t  = (T̃net(Tm, pTi, sT, ζi, τi .+ HT) .- T̃net(Tm, pTi, sT, ζi, τi .- HT)) ./ (2HT)
+            T̃z  = (T̃net(Tm, pTi, sT, ζi .+ HZ, τi) .- T̃net(Tm, pTi, sT, ζi .- HZ, τi)) ./ (2HZ)
+            T̃zz = (T̃net(Tm, pTi, sT, ζi .+ HZ, τi) .- 2f0 .* T̃net(Tm, pTi, sT, ζi, τi) .+ T̃net(Tm, pTi, sT, ζi .- HZ, τi)) ./ HZ^2
+            Lr  = mean(abs2, T̃t .+ s.Wadv .* w_shape(ζi) .* T̃z .- s.Pe .* T̃zz .- S_shape(s, ζi) .* τφ(pτ, τi))
+            Ld  = mean(abs2, T̃net(Tm, pTi, sT, od[i].ζ, od[i].τ) .- od[i].T̃)
+            T̃zs = (T̃net(Tm, pTi, sT, ζ1[i], τb[i]) .- T̃net(Tm, pTi, sT, ζ1[i] .- HZ, τb[i])) ./ HZ
+            Lb  = mean(abs2, T̃zs)
             L += Lr + λ_d * Ld + λ_b * Lb
         end
         dτ = (τφ(pτ, τg .+ HT) .- τφ(pτ, τg .- HT)) ./ (2HT)
@@ -184,10 +184,10 @@ dev = have_gpu ? gpu_device() : identity
 @printf("GPU available: %s%s\n", have_gpu, have_gpu ? "  ($(CUDA.name(CUDA.device())))" : " — running on CPU (slow)")
 
 FD_A = fd_reference(SITE_A); FD_B = fd_reference(SITE_B); FD_C = fd_reference(SITE_C)
-θs_A = θstar_of(FD_A); θs_B = θstar_of(FD_B); θs_C = θstar_of(FD_C)
+T̃s_A = T̃star_of(FD_A); T̃s_B = T̃star_of(FD_B); T̃s_C = T̃star_of(FD_C)
 for (s, FD) in ((SITE_A, FD_A), (SITE_B, FD_B), (SITE_C, FD_C))
-    @printf("Site %-18s Pe=%.1f Wadv=%.1f  max|θ*|=%.2f (SNR≈%.0f)\n",
-            s.name, s.Pe, s.Wadv, maximum(abs, FD.θ), maximum(abs, FD.θ)/σ_obs)
+    @printf("Site %-18s Pe=%.1f Wadv=%.1f  max|T̃*|=%.2f (SNR≈%.0f)\n",
+            s.name, s.Pe, s.Wadv, maximum(abs, FD.T̃), maximum(abs, FD.T̃)/σ_obs)
 end
 @printf("weights: λ_r=1, λ_d=%.0f, λ_b=%.0f, λ_reg=%.0e\n", λ_d, λ_b, λ_reg)
 
@@ -204,16 +204,16 @@ cfg = (Ncol = parse(Int, get(ENV, "TASKB_NCOL", "4000")),
        Tw = 64, Td = 5)
 
 print("Site A alone … "); flush(stdout)
-rA = solve_joint([SITE_A], [FD_A], [θs_A], dev; cfg...)
+rA = solve_joint([SITE_A], [FD_A], [T̃s_A], dev; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rA.elapsed, 100rA.peak_err, rA.timing_h, rA.rel_l2)
 print("Site B alone … "); flush(stdout)
-rB = solve_joint([SITE_B], [FD_B], [θs_B], dev; cfg...)
+rB = solve_joint([SITE_B], [FD_B], [T̃s_B], dev; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rB.elapsed, 100rB.peak_err, rB.timing_h, rB.rel_l2)
 print("Site C alone … "); flush(stdout)
-rC = solve_joint([SITE_C], [FD_C], [θs_C], dev; cfg...)
+rC = solve_joint([SITE_C], [FD_C], [T̃s_C], dev; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rC.elapsed, 100rC.peak_err, rC.timing_h, rC.rel_l2)
 print("JOINT A+B+C  … "); flush(stdout)
-rJ = solve_joint([SITE_A, SITE_B, SITE_C], [FD_A, FD_B, FD_C], [θs_A, θs_B, θs_C], dev; cfg...)
+rJ = solve_joint([SITE_A, SITE_B, SITE_C], [FD_A, FD_B, FD_C], [T̃s_A, T̃s_B, T̃s_C], dev; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rJ.elapsed, 100rJ.peak_err, rJ.timing_h, rJ.rel_l2)
 
 println("\n", "-"^74)

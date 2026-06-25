@@ -230,14 +230,16 @@ The shipped capstone does **not** make you run a shallow-water solve.
 The column scripts take $w$ as a *prescribed* storm envelope (toy
 scenario 4 of §9.11); replacing it with a genuine SWE-derived
 $w(z, t)$ through the formula above is the scenario-5 design written up
-in [Unit 10 §10.1](../unit_10/unit_10.qmd). The synthetic mooring
-**data you actually invert** —
-`units/unit_10/data/mooring_{A,B,C}.csv` — is generated once for you by
-`units/unit_10/scripts/generate_mooring_csvs.jl` (which calls the
+in [Unit 10 §10.1](../unit_10/unit_10.qmd). The committed
+`units/unit_10/data/mooring_{A,B,C}.csv` (generated once by
+`units/unit_10/scripts/generate_mooring_csvs.jl`, which calls the
 finite-difference column solver
-`units/unit_10/scripts/column_fd.jl`). Those CSVs are already in the
-repo, so for the capstone you simply load them — no SWE run, no data
-generation, required.
+`units/unit_10/scripts/column_fd.jl`) are realistic records to **look
+at** ([Exercise 9.1](#ex-9-1)). The array each inverse task actually
+inverts is one it generates *itself* from a planted, known
+$\tau^\star(t)$, so the recovery can be scored against the truth — the
+**twin experiment** of §9.7. No SWE run, and no committed CSV, enters
+the solution.
 :::
 
 ::: {#ex-9-2 .callout-note .section-exercise icon="false" collapse="true"}
@@ -773,7 +775,7 @@ Pick by your hardware, time budget, and goals:
 | **Time budget** | ~4 min on a CPU | ~30 min on GPU per run; hours on CPU |
 | **Geometry** | one site (Davies Reef, $H = 60$ m) | three sites jointly (Cleveland Bay + Davies Reef + Myrmidon Reef, $H$ up to 100 m) |
 | **PINN toolkit** | small MLP, static hand-tuned weights | + Fourier features, adaptive weights, causal training |
-| **Parameter count** | ~5 000 | ~200 000 |
+| **Parameter count** | ~5 000 | ~53 000 |
 | **What it demonstrates** | the full forward-PINN + inverse-PINN pipeline | operational engineering — joint inversion, modern fixes, GPU scaling |
 
 Both tasks share §9.7 (forward solve) and [§9.11 toy
@@ -799,8 +801,12 @@ unchanged (and faster) on the course GPU hub if you have access —
   (upwelling) on top of diffusion, the classical thermocline of the
   three §9.1 sites, where the storm leaves a sharp, depth-structured
   fingerprint. 5 sensors at $z = -2, -10, -25, -45, -58$ m.
-- **Data.** `data/mooring_B.csv` (synthetic, $\sigma = 0.05\,°\text{C}$
-  Gaussian noise on hourly samples for 30 days = 5 × 720 = 3 600 data points).
+- **Data.** Synthetic Site-B mooring you generate *yourself*: a known
+  $\tau^\star(t)$ forward-solved, then sampled at the 5 sensor depths ×
+  720 hourly steps with $\sigma = 0.05\,°\text{C}$ Gaussian noise =
+  3 600 points — so the recovered $\hat\tau$ scores against a known
+  truth (twin experiment, §9.7). The committed `data/mooring_B.csv` is
+  the realistic look-only counterpart ([Exercise 9.1](#ex-9-1)).
 - **Unknown.** A single scalar function $\tau(t)$ — the local
   wind-stress envelope — over the 30-day window.
 - **Given.** $\kappa(z)$ (profile closure), the upwelling profile
@@ -823,28 +829,33 @@ the starter skeleton below.
    site. Treat this as *orientation*: the array you actually invert is
    one you generate yourself in step 4 from a **known** storm, so the
    recovery can be scored against the truth (a twin experiment, §9.7).
-   (The CSV was produced once by
-   `scripts/generate_mooring_csvs.jl --site B`.)
+   (The CSV was produced once by `scripts/generate_mooring_csvs.jl`,
+   which writes all three sites' files.)
 2. **Build the column constants and forcings** from §9.5–§9.6: the
    diffusivity $\kappa(z)$, the upwelling profile $w(z)$, the
    Beer–Lambert source shape, the initial profile $T_0(z)$, and the
-   deep reservoir $T_{\text{deep}}$.
+   deep reservoir $T_{\text{deep}}$ — then non-dimensionalise into the
+   handful of numbers the solver actually uses: $\mathrm{Pe}$,
+   $W_\text{adv}$, the heating shape $S(\zeta)$, and $w(\zeta)=\zeta$
+   (see [Unit 10 §10.2](../unit_10/unit_10.qmd)).
 3. **Define the two networks.** $T_\theta(z, t)$ recovers the
    temperature field; $\tau_\phi(t)$ recovers the unknown storm
    envelope. Bake the **hard deep BC** ($T = T_{\text{deep}}$ at
    $z = -H$) and the **hard IC** into the field ansatz so those two
    constraints hold *for free* and only the surface flux BC stays a
    soft penalty ([Unit 7 §7.3](../unit_07/unit_07.qmd)).
-4. **Run the forward solver to make your data — and get it working
-   before the inverse.** Pick a **known** storm $\tau^\star$ and run the
-   forward solver (the trusted `MethodOfLines.jl` reference, §9.7) to
-   produce $T(z,t)$; sampling its five sensor depths and adding noise
-   gives the synthetic mooring you will invert. Train the field network
-   $T_\theta$ to reproduce that field first — only once the forward fit
-   lands within the noise floor (target $L^2 < 0.05\,°\text{C}$ against
-   the FD reference) should you stack the inverse on top. Because you
-   planted $\tau^\star$, the recovered $\hat\tau$ scores against a known
-   truth.
+4. **Make your data with a known storm — and trust the forward solve
+   first.** Pick a **known** storm $\tau^\star$ and run a forward solver
+   to produce $T(z,t)$; sampling its five sensor depths and adding noise
+   gives the synthetic mooring you will invert. Use the
+   `MethodOfLines.jl` reference of §9.7, or — as the shipped solution
+   does — a short hand-coded explicit finite-difference integrator for
+   the same column. Because you planted $\tau^\star$, the recovered
+   $\hat\tau$ can be scored against a known truth — the **twin
+   experiment** (§9.7). Both networks then train *jointly* (steps 5–6),
+   not in two stages; the forward field is certified afterwards by
+   checking $T_\theta$ lands within the noise floor (target
+   $L^2 < 0.05\,°\text{C}$ against the reference).
 5. **Assemble the joint inverse loss**
    $\mathcal{L} = \lambda_r \mathcal{L}_{\text{PDE}} + \lambda_d \mathcal{L}_{\text{data}} + \lambda_b \mathcal{L}_{\text{surf-BC}} + \lambda_{\text{reg}} \int |\tau_\phi'|^2\,dt$
    (the hard IC + deep BC mean no separate $\mathcal{L}_{\text{IC}}$
@@ -882,29 +893,30 @@ const Wadv = 1.2f0                      # advection number (upwelling) → Pécl
 S_shape(ζ) = exp.((ζ .- 1f0) ./ 0.25f0)  # known Beer–Lambert heating shape S(ζ)
 w_shape(ζ) = ζ                            # upwelling: 0 at depth, max at surface
 # TODO: forward-solve a known τ★ (FD reference, §9.7) → sample 5 depths + noise
-#       → (ζ_obs, τ_obs, T_obs)  [non-dimensionalise z,t,T]. Twin experiment, not a CSV load.
+#       → (ζ_obs, τ_obs, T̃_obs)  [non-dimensionalise z,t,T]. Twin experiment, not a CSV load.
 
 # ── two networks ──────────────────────────────────────────────────────
-T_net = Chain(Dense(2=>32, tanh), Dense(32=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # field T_θ(ζ,t)
+T_net = Chain(Dense(2=>32, tanh), Dense(32=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # field T̃_θ(ζ,t)
 τ_net = Chain(Dense(1=>32, tanh), Dense(32=>32, tanh), Dense(32=>1))  # storm τ_φ(t)
 
-# Hard IC (t=0 ⇒ 0) and hard deep BC (ζ=0 ⇒ 0) baked into the ansatz:
-θ(p, ζ, t) = ζ .* t .* first(T_net(vcat(ζ, t), p, stT))   # θ(0,·)=0, θ(·,0)=0 for free
+# Hard IC (t=0 ⇒ 0) and hard deep BC (ζ=0 ⇒ 0) baked into the ansatz
+# (T̃ = non-dimensional temperature; the NN weights are p, not θ):
+T̃(p, ζ, t) = ζ .* t .* first(T_net(vcat(ζ, t), p, stT))   # T̃(0,·)=0, T̃(·,0)=0 for free
 τφ(q, t)   = first(τ_net(t, q, stτ))                       # recovered forcing
 
 # Derivatives by finite-difference-in-input (no nested AD; Unit 5 §5.3):
 h = 2f-3
-∂t(p,ζ,t)  = (θ(p,ζ,t.+h) .- θ(p,ζ,t.-h)) ./ (2h)
-∂ζ(p,ζ,t)  = (θ(p,ζ.+h,t) .- θ(p,ζ.-h,t)) ./ (2h)
-∂ζζ(p,ζ,t) = (θ(p,ζ.+h,t) .- 2 .* θ(p,ζ,t) .+ θ(p,ζ.-h,t)) ./ h^2
+∂t(p,ζ,t)  = (T̃(p,ζ,t.+h) .- T̃(p,ζ,t.-h)) ./ (2h)
+∂ζ(p,ζ,t)  = (T̃(p,ζ.+h,t) .- T̃(p,ζ.-h,t)) ./ (2h)
+∂ζζ(p,ζ,t) = (T̃(p,ζ.+h,t) .- 2 .* T̃(p,ζ,t) .+ T̃(p,ζ.-h,t)) ./ h^2
 
 # ── loss: the WEIGHTS are the lesson (large λ_d, tiny λ_reg) ───────────
 λ_d, λ_b, λ_reg = 6000f0, 10f0, 1f-5
 function loss(pT, pτ)
     L_pde  = mean(abs2, ∂t(pT,ζc,tc) .+ Wadv .* w_shape(ζc) .* ∂ζ(pT,ζc,tc)
                         .- Pe .* ∂ζζ(pT,ζc,tc) .- S_shape(ζc) .* τφ(pτ,tc))
-    L_data = mean(abs2, θ(pT, ζ_obs, τ_obs) .- T_obs)
-    L_bc   = mean(abs2, ( θ(pT,ζ1,tb) .- θ(pT,ζ1 .- h,tb) ) ./ h)  # surface ∂ζθ(1,·)=0
+    L_data = mean(abs2, T̃(pT, ζ_obs, τ_obs) .- T̃_obs)
+    L_bc   = mean(abs2, ( T̃(pT,ζ1,tb) .- T̃(pT,ζ1 .- h,tb) ) ./ h)  # surface ∂ζT̃(1,·)=0
     L_reg  = mean(abs2, (τφ(pτ,tg.+h) .- τφ(pτ,tg.-h)) ./ (2h))     # H¹ smoothness on τ
     return L_pde + λ_d*L_data + λ_b*L_bc + λ_reg*L_reg
 end
@@ -1006,10 +1018,10 @@ scale. The sub-scale prototype steps below still run on a CPU.
 > GPU-launch checklist.
 
 Task B exploits the three mooring regimes — Cleveland Bay's
-diffusion-dominated column constrains $\kappa$, Davies Reef's
-mid-Pe column constrains the timing, and Myrmidon's
-advection-dominated column constrains $\tau$'s amplitude. A
-single coherent storm signal explains all three.
+diffusion-only column pins the storm *amplitude* through its mixing
+response, Myrmidon's advection-dominated column reveals the *shape* of
+the deep upwelling pulse, and Davies Reef sits between, anchoring the
+*timing*. A single coherent storm signal must explain all three at once.
 
 ### 9.10.1 Spec
 
@@ -1017,13 +1029,16 @@ single coherent storm signal explains all three.
   $T^{(i)}_\theta(z, t)$, $i \in \{A, B, C\}$. Shared parameters
   for the wind-stress envelope $\tau_\phi(t)$; separate
   parameters for each site's temperature network.
-- **Data.** `data/mooring_{A,B,C}.csv`, totalling 3 × 3 600 =
-  10 800 data points.
+- **Data.** Self-generated per site (twin experiment, §9.7): one
+  shared known $\tau^\star(t)$, three FD reference solves, each sampled
+  at 5 sensors × 720 steps + noise = 3 × 3 600 = 10 800 points. The
+  committed `data/mooring_{A,B,C}.csv` are the look-only counterparts
+  ([Exercise 9.1](#ex-9-1)).
 - **Unknown.** $\tau(t)$ — one shared scalar function, three
   moorings' worth of data constraining it.
-- **Networks.** $T^{(i)}_\theta(z, t)$ as a 6-layer 128-neuron
-  MLP per site; $\tau_\phi(t)$ as a 4-layer 64-neuron MLP. ~200 000
-  parameters total.
+- **Networks.** $T^{(i)}_\theta(z, t)$ as a 6-layer 64-neuron
+  MLP per site (~17 k parameters each); $\tau_\phi(t)$ as a 3-layer
+  48-neuron MLP. ~53 000 parameters total.
 - **Modern PINN toolkit ([Unit 7 §7.3](../unit_07/unit_07.qmd)).**
   Fourier-feature embedding $\gamma(z, t) = [\sin(B(z,t)), \cos(B(z,t))]$
   for the diurnal cycle; hard BC at $z = -H$ and at the IC;
@@ -1035,9 +1050,13 @@ single coherent storm signal explains all three.
 
 ### 9.10.2 Workflow
 
-1. **Get hold of the three sites' synthetic data** — the committed
+1. **Look at the three sites' data first.** Read the committed
    `data/mooring_{A,B,C}.csv` (produced once by
-   `scripts/generate_mooring_csvs.jl`); just load them.
+   `scripts/generate_mooring_csvs.jl`) to see the three regimes
+   ([Exercise 9.1](#ex-9-1)). As in Task A, treat this as orientation:
+   the arrays you actually invert are ones you generate yourself in
+   the prototype below, from a single **known** shared $\tau^\star$, so
+   the joint recovery scores against a known truth (twin experiment, §9.7).
 2. **Sub-scale prototype on a single column.** Run Task B's
    architecture (Fourier features, hard BC, adaptive weights) on
    one site alone with $N_r = 5\,000$. ~30 min on CPU.
@@ -1076,7 +1095,7 @@ add the shared-$\tau$ loop. Display-only; not executed by `render`.
 struct Site; Pe::Float32; Wadv::Float32; ℓS::Float32; end
 S_shape(s, ζ) = exp.((ζ .- 1f0) ./ s.ℓS)
 w_shape(ζ)    = ζ     # linear surface-intensified upwelling, the §9.2 form w∝(z+H):
-                      # 0 at depth (ζ=0), max at surface (ζ=1). (§9.5's sine is an alternative.)
+                      # 0 at depth (ζ=0), max at surface (ζ=1): linear w from the SWE (§9.2/§9.5; the toy scenario-3 figure uses sin)
 
 sites  = [Site(1.5f0, 0f0, 0.20f0),        # A — Cleveland Bay  (diffusion only)
           Site(1.0f0, 1.2f0, 0.25f0)]      # B — Davies Reef    (advection + diffusion)
@@ -1086,7 +1105,7 @@ sites  = [Site(1.5f0, 0f0, 0.20f0),        # A — Cleveland Bay  (diffusion onl
 T_nets  = [Chain(Dense(2=>64, tanh), Dense(64=>64, tanh), Dense(64=>1)) for _ in sites]
 
 # Per-site residual now carries the advection term too (cf. §9.3 term (b)):
-function site_residual(s, θ, ∂t, ∂ζ, ∂ζζ, τφ, ζc, tc)
+function site_residual(s, T̃, ∂t, ∂ζ, ∂ζζ, τφ, ζc, tc)
     ∂t(ζc,tc) .+ s.Wadv .* w_shape(ζc) .* ∂ζ(ζc,tc) .-           # advection
         s.Pe .* ∂ζζ(ζc,tc) .- S_shape(s,ζc) .* τφ(tc)            # diffusion + shared source
 end

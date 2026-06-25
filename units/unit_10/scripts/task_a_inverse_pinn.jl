@@ -17,23 +17,23 @@
 # Physics — SOURCE RECOVERY (unit_07 §7.4). A known vertical heating shape S(ζ)
 # (surface-weighted, Beer–Lambert-like) times an UNKNOWN time signal τ(t), on a
 # column with vertical advection (upwelling) and diffusion. Non-dimensionalised:
-#   ∂τ θ = -Wadv·w(ζ)·∂ζ θ + Pe·∂ζζ θ + S(ζ)·τ(t),   ζ ∈ [0,1], τ_t ∈ [0,1],
-#   θ(0,τ) = 0  (deep reservoir),  ∂ζ θ(1,τ) = 0  (no surface conductive flux),
-#   θ(ζ,0) = 0,   w(ζ) = ζ  (upwelling: zero at depth, max at surface).
+#   ∂τ T̃ = -Wadv·w(ζ)·∂ζ T̃ + Pe·∂ζζ T̃ + S(ζ)·τ(t),   ζ ∈ [0,1], τ_t ∈ [0,1],
+#   T̃(0,τ) = 0  (deep reservoir),  ∂ζ T̃(1,τ) = 0  (no surface conductive flux),
+#   T̃(ζ,0) = 0,   w(ζ) = ζ  (upwelling: zero at depth, max at surface).
 # The unknown is the scalar-in-time forcing τ(t); S(ζ), Pe, Wadv and the BCs
 # are given.
 #
 # THE KEY LESSON (loss weighting in a deconvolution). τ(t) enters ONLY the PDE
-# residual, so the τ-network regresses to a combination of θ's time- and
+# residual, so the τ-network regresses to a combination of T̃'s time- and
 # space-derivatives divided by S — it is driven by *derivatives* of the
 # temperature field. The column low-pass-filters τ (response time ≈ storm
 # width), so a network that merely matches the noisy data in *value* can do so
-# with a too-smooth θ whose derivatives — and hence the recovered storm peak —
+# with a too-smooth T̃ whose derivatives — and hence the recovered storm peak —
 # collapse well below truth. The cure is NOT fancier collocation; it is the loss
 # weights: a large data weight λ_d and a tiny H¹ smoothing weight λ_reg force
-# θ's derivatives to stay sharp, which lifts the recovered peak to within the
+# T̃'s derivatives to stay sharp, which lifts the recovered peak to within the
 # §9.9.3 ≤15% criterion. (Validated by a weight sweep: λ_d=100/λ_reg=1e-2 gives
-# ~80% peak error, while λ_d≈6000/λ_reg≈1e-5 lands near the deconvolution floor
+# ~92% peak error (only ~8% of truth recovered), while λ_d≈6000/λ_reg≈1e-5 lands near the deconvolution floor
 # at this SNR — see §10.2.)
 #
 # Derivatives use the finite-difference-in-input stencil (no nested AD), the
@@ -56,6 +56,15 @@ const H     = 60f0            # column depth (m)
 S_shape(ζ)  = exp.((ζ .- 1f0) ./ ℓ_S)        # known vertical heating shape S(ζ), peak at surface
 w_shape(ζ)  = ζ                              # upwelling shape: 0 at depth, max at surface
 
+# ===========================================================================
+# PART 1 — GENERATE THE TWIN'S SYNTHETIC DATA (this is NOT the solution).
+# We PLANT a known storm τ*(t), forward-solve the column for the truth field,
+# then sample it at the sensors and add noise. In the wild this would be real
+# mooring data we don't get to choose; here we choose it so the recovered τ̂
+# can be scored against a KNOWN truth — an identical-twin experiment (§9.7).
+# The committed mooring_*.csv are generated separately (column_fd.jl); this
+# in-file solve is the scorable twin the inverse in Part 2 actually uses.
+# ===========================================================================
 # ── ground-truth storm time signal τ*(t) ────────────────────────────────────
 const τ0    = 1.0f0 / 3.0f0     # storm centre: day 10 of 30  →  τ = 1/3
 const σstm  = 0.05f0            # storm width (~1.5 days in a 30-day window)
@@ -68,32 +77,32 @@ function fd_reference()
     ζ = Float32.(range(0f0, 1f0; length = NZ)); dζ = ζ[2] - ζ[1]
     t = Float32.(range(0f0, 1f0; length = NT_FD)); dt = t[2] - t[1]
     S = S_shape(ζ); w = w_shape(ζ)
-    θ = zeros(Float32, NZ, NT_FD)                        # θ(ζ,0)=0; θ(0,·)=0 (deep)
+    T̃ = zeros(Float32, NZ, NT_FD)                        # T̃(ζ,0)=0; T̃(0,·)=0 (deep)
     @inbounds for k in 1:NT_FD-1
-        f = τstar(t[k]); col = @view θ[:, k]
+        f = τstar(t[k]); col = @view T̃[:, k]
         for i in 2:NZ-1
             lap = (col[i+1] - 2col[i] + col[i-1]) / dζ^2
             adv = w[i] * (col[i+1] - col[i-1]) / (2dζ)   # central; upwelling carries deep water up
-            θ[i, k+1] = col[i] + dt * (-Wadv * adv + Pe * lap + S[i] * f)
+            T̃[i, k+1] = col[i] + dt * (-Wadv * adv + Pe * lap + S[i] * f)
         end
-        # surface ζ=1 insulating (∂ζθ=0): ghost θ[NZ+1]=θ[NZ-1]
+        # surface ζ=1 insulating (∂ζT̃=0): ghost T̃[NZ+1]=T̃[NZ-1]
         lapN = (2col[NZ-1] - 2col[NZ]) / dζ^2
         advN = w[NZ] * (col[NZ] - col[NZ-1]) / dζ
-        θ[NZ, k+1] = col[NZ] + dt * (-Wadv * advN + Pe * lapN + S[NZ] * f)
-        θ[1, k+1] = 0f0
+        T̃[NZ, k+1] = col[NZ] + dt * (-Wadv * advN + Pe * lapN + S[NZ] * f)
+        T̃[1, k+1] = 0f0
     end
-    (; ζ, t, θ)
+    (; ζ, t, T̃)
 end
 const FD = fd_reference()
 
-# bilinear-ish lookup of θ*(ζ,τ) from the FD grid (nearest in ζ, linear in τ)
-function θstar(ζv, τv)
+# bilinear-ish lookup of T̃*(ζ,τ) from the FD grid (nearest in ζ, linear in τ)
+function T̃star(ζv, τv)
     out = similar(ζv)
     @inbounds for n in eachindex(ζv)
         iz = clamp(round(Int, ζv[n] * (NZ - 1)) + 1, 1, NZ)
         ft = clamp(τv[n] * (NT_FD - 1), 0f0, Float32(NT_FD - 1))
         k = clamp(floor(Int, ft) + 1, 1, NT_FD - 1); fr = ft - (k - 1)
-        out[n] = (1 - fr) * FD.θ[iz, k] + fr * FD.θ[iz, k+1]
+        out[n] = (1 - fr) * FD.T̃[iz, k] + fr * FD.T̃[iz, k+1]
     end
     out
 end
@@ -105,13 +114,17 @@ const σ_obs  = 0.005f0                                           # 0.015 °C / 
 function make_observations(; seed = 20260617)
     τs = Float32.(range(0f0, 1f0; length = N_T))
     ζcol = repeat(Z_SENS, inner = N_T); τcol = repeat(τs, outer = length(Z_SENS))
-    clean = θstar(ζcol, τcol)
+    clean = T̃star(ζcol, τcol)
     noisy = clean .+ σ_obs .* randn(Xoshiro(seed), Float32, length(clean))
-    (; ζ = reshape(ζcol, 1, :), τ = reshape(τcol, 1, :), θ = reshape(noisy, 1, :))
+    (; ζ = reshape(ζcol, 1, :), τ = reshape(τcol, 1, :), T̃ = reshape(noisy, 1, :))
 end
 
+# ===========================================================================
+# PART 2 — THE INVERSE PINN (the actual solution). Recover τ̂(t) from the noisy
+# data made in Part 1; the planted τ* is used ONLY to score the result.
+# ===========================================================================
 # ── networks ────────────────────────────────────────────────────────────────
-# T-network: enough capacity to keep θ's derivatives sharp at the storm.
+# T-network: enough capacity to keep T̃'s derivatives sharp at the storm.
 make_T(w, d) = Chain(Dense(2 => w, tanh), [Dense(w => w, tanh) for _ in 1:d-1]..., Dense(w => 1))
 make_τ()     = Chain(Dense(1 => 32, tanh), Dense(32 => 32, tanh), Dense(32 => 1))
 
@@ -123,7 +136,7 @@ const λ_d = 6000f0; const λ_b = 10f0; const λ_reg = 1f-5
 
 function solve_inverse(Ncol; iters, Tw, Td, seed = 1)
     obs = make_observations()
-    od_ζ, od_τ, od_θ = obs.ζ, obs.τ, obs.θ
+    od_ζ, od_τ, od_T̃ = obs.ζ, obs.τ, obs.T̃
 
     Tm = make_T(Tw, Td); τm = make_τ()
     pT, sT = Lux.setup(Xoshiro(seed), Tm); pτ, sτ = Lux.setup(Xoshiro(seed + 1), τm)
@@ -135,18 +148,18 @@ function solve_inverse(Ncol; iters, Tw, Td, seed = 1)
     τg = reshape(Float32.(range(0f0, 1f0; length = 400)), 1, :)          # for H¹ prior
 
     NT_(p, ζ, τ) = first(Tm(vcat(ζ, τ), p, sT))
-    # hard IC (τ=0 ⇒ 0) and hard deep BC (ζ=0 ⇒ 0): θ = ζ·τ·N
-    θnet(p, ζ, τ) = ζ .* τ .* NT_(p, ζ, τ)
+    # hard IC (τ=0 ⇒ 0) and hard deep BC (ζ=0 ⇒ 0): T̃ = ζ·τ·N
+    T̃net(p, ζ, τ) = ζ .* τ .* NT_(p, ζ, τ)
     τφ(q, τ) = first(τm(τ, q, sτ))                                       # recovered forcing (signed)
 
     function loss(pT, pτ)
-        θt  = (θnet(pT, ζc, τc .+ HT) .- θnet(pT, ζc, τc .- HT)) ./ (2HT)
-        θz  = (θnet(pT, ζc .+ HZ, τc) .- θnet(pT, ζc .- HZ, τc)) ./ (2HZ)
-        θzz = (θnet(pT, ζc .+ HZ, τc) .- 2f0 .* θnet(pT, ζc, τc) .+ θnet(pT, ζc .- HZ, τc)) ./ HZ^2
-        Lr  = mean(abs2, θt .+ Wadv .* w_shape(ζc) .* θz .- Pe .* θzz .- S_shape(ζc) .* τφ(pτ, τc))
-        Ld  = mean(abs2, θnet(pT, od_ζ, od_τ) .- od_θ)                    # data misfit
-        θzs = (θnet(pT, ζ1, τb) .- θnet(pT, ζ1 .- HZ, τb)) ./ HZ
-        Lb  = mean(abs2, θzs)                                             # surface insulating ∂ζθ(1)=0
+        T̃t  = (T̃net(pT, ζc, τc .+ HT) .- T̃net(pT, ζc, τc .- HT)) ./ (2HT)
+        T̃z  = (T̃net(pT, ζc .+ HZ, τc) .- T̃net(pT, ζc .- HZ, τc)) ./ (2HZ)
+        T̃zz = (T̃net(pT, ζc .+ HZ, τc) .- 2f0 .* T̃net(pT, ζc, τc) .+ T̃net(pT, ζc .- HZ, τc)) ./ HZ^2
+        Lr  = mean(abs2, T̃t .+ Wadv .* w_shape(ζc) .* T̃z .- Pe .* T̃zz .- S_shape(ζc) .* τφ(pτ, τc))
+        Ld  = mean(abs2, T̃net(pT, od_ζ, od_τ) .- od_T̃)                    # data misfit
+        T̃zs = (T̃net(pT, ζ1, τb) .- T̃net(pT, ζ1 .- HZ, τb)) ./ HZ
+        Lb  = mean(abs2, T̃zs)                                             # surface insulating ∂ζT̃(1)=0
         dτ  = (τφ(pτ, τg .+ HT) .- τφ(pτ, τg .- HT)) ./ (2HT)
         Lreg = mean(abs2, dτ)                                             # H¹ smoothness prior on τ
         return Lr + λ_d * Ld + λ_b * Lb + λ_reg * Lreg
@@ -170,9 +183,9 @@ function solve_inverse(Ncol; iters, Tw, Td, seed = 1)
     rel_l2_τ = sqrt(sum((τrec .- τtru).^2) / sum(τtru.^2))  # whole-envelope relative L2
     gr = Float32.(range(0.05f0, 1f0; length = 60))
     ζf = vec(repeat(gr, inner = 60)); τf = vec(repeat(gr, outer = 60))
-    θp = vec(θnet(pT, reshape(ζf,1,:), reshape(τf,1,:))); θe = θstar(ζf, τf)
-    l2 = sqrt(mean((θp .- θe).^2)); l2_C = l2 * ΔT_B
-    return (; pT, pτ, Tm, sT, τm, sτ, θnet, τφ, elapsed,
+    T̃p = vec(T̃net(pT, reshape(ζf,1,:), reshape(τf,1,:))); T̃e = T̃star(ζf, τf)
+    l2 = sqrt(mean((T̃p .- T̃e).^2)); l2_C = l2 * ΔT_B
+    return (; pT, pτ, Tm, sT, τm, sτ, T̃net, τφ, elapsed,
               peak_err, timing_h, rel_l2_τ, peak_rec, peak_tru, l2, l2_C,
               finalloss = loss(pT, pτ), τe, τrec, τtru)
 end
@@ -181,10 +194,10 @@ println("="^70)
 println("Task A — single-site inverse PINN: recover storm forcing τ(t)")
 println("Site B (Davies Reef), H = $(Int(H)) m, Pe = $Pe, Wadv = $Wadv")
 println("="^70)
-@printf("nondim: ∂τθ = -%.1f·w(ζ)·∂ζθ + %.2f·∂ζζθ + S(ζ)·τ(t) ;  %d sensors × %d samples, σ_obs = %.3f (%.3f °C)\n",
+@printf("nondim: ∂τT̃ = -%.1f·w(ζ)·∂ζT̃ + %.2f·∂ζζT̃ + S(ζ)·τ(t) ;  %d sensors × %d samples, σ_obs = %.3f (%.3f °C)\n",
         Wadv, Pe, length(Z_SENS), N_T, σ_obs, σ_obs * ΔT_B)
-@printf("data signal: max|θ*| = %.3f (%.2f °C), storm SNR ≈ %.1f×\n",
-        maximum(abs, FD.θ), maximum(abs, FD.θ) * ΔT_B, maximum(abs, FD.θ) / σ_obs)
+@printf("data signal: max|T̃*| = %.3f (%.2f °C), storm SNR ≈ %.1f×\n",
+        maximum(abs, FD.T̃), maximum(abs, FD.T̃) * ΔT_B, maximum(abs, FD.T̃) / σ_obs)
 @printf("weights: λ_r=1, λ_d=%.0f, λ_b=%.0f, λ_reg=%.0e\n\n", λ_d, λ_b, λ_reg)
 
 cfg = (Ncol = parse(Int, get(ENV, "TASKA_NCOL", "4000")),
@@ -213,14 +226,14 @@ try
     lines!(a1, days, res.τrec; linewidth = 2, label = "recovered τ̂(t)")
     axislegend(a1, position = :rt)
     a2 = Axis(f[1,2], title = "Sensor temperatures: PINN vs noisy data",
-              xlabel = "t (days)", ylabel = "θ (nondim)")
+              xlabel = "t (days)", ylabel = "T̃ (nondim)")
     obs = make_observations(); cols = (:navy, :teal, :seagreen, :darkorange, :firebrick)
     for (k, zc) in enumerate(Z_SENS)
         sl = (k-1)*N_T+1 : k*N_T
         td = collect(range(0f0, 30f0, length = N_T))
-        scatter!(a2, td, vec(obs.θ)[sl]; color = (cols[k], 0.25), markersize = 3)
+        scatter!(a2, td, vec(obs.T̃)[sl]; color = (cols[k], 0.25), markersize = 3)
         ζrow = fill(zc, 1, N_T); τrow = reshape(Float32.(range(0f0,1f0,length=N_T)),1,:)
-        pinn = vec(res.θnet(res.pT, ζrow, τrow))
+        pinn = vec(res.T̃net(res.pT, ζrow, τrow))
         lines!(a2, td, pinn; color = cols[k], linewidth = 2)
     end
     figdir = get(ENV, "GPU_FIG_DIR", joinpath(@__DIR__, "..", "output")); isdir(figdir) || mkpath(figdir)

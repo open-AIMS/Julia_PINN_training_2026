@@ -11,7 +11,7 @@
 #
 # Recipe. This is the SAME proven static-weight recipe as Task A
 # (task_a_inverse_pinn.jl) — large data weight λ_d, tiny H¹ smoothing λ_reg,
-# hard IC + hard deep BC baked into θ = ζ·τ·N, FD-in-input derivative stencil
+# hard IC + hard deep BC baked into T̃ = ζ·τ·N, FD-in-input derivative stencil
 # (Unit 5 §5.3) — extended minimally to two sites that share ONE τ-network.
 # The "modern toolkit" (Fourier features, adaptive weighting, causal training)
 # is for the GPU full-scale 3-site launch; at this CPU sub-scale the simpler
@@ -25,8 +25,8 @@
 using Lux, Optimisers, Zygote, Random, Printf, Statistics
 
 # ── per-site nondimensional column models ───────────────────────────────────
-# Each site: ∂τθ = -Wadv·w(ζ)·∂ζθ + Pe·∂ζζθ + S(ζ)·τ(t),  ζ∈[0,1], τ∈[0,1]
-#   θ(0,τ)=0 (deep reservoir), ∂ζθ(1,τ)=0 (insulating surface), θ(ζ,0)=0.
+# Each site: ∂τT̃ = -Wadv·w(ζ)·∂ζT̃ + Pe·∂ζζT̃ + S(ζ)·τ(t),  ζ∈[0,1], τ∈[0,1]
+#   T̃(0,τ)=0 (deep reservoir), ∂ζT̃(1,τ)=0 (insulating surface), T̃(ζ,0)=0.
 # Site A is diffusion-dominated (Wadv=0); Site B adds surface-intensified
 # upwelling (Wadv>0) so its Péclet is ~1 and the storm leaves a different mark.
 struct Site
@@ -55,42 +55,42 @@ function fd_reference(s::Site; NT_FD = 40001)
     ζ = Float32.(range(0f0, 1f0; length = NZ)); dζ = ζ[2] - ζ[1]
     t = Float32.(range(0f0, 1f0; length = NT_FD)); dt = t[2] - t[1]
     S = S_shape(s, ζ); w = w_shape(ζ)
-    θ = zeros(Float32, NZ, NT_FD)
+    T̃ = zeros(Float32, NZ, NT_FD)
     @inbounds for k in 1:NT_FD-1
-        f = τstar(t[k]); col = @view θ[:, k]
+        f = τstar(t[k]); col = @view T̃[:, k]
         for i in 2:NZ-1
             lap = (col[i+1] - 2col[i] + col[i-1]) / dζ^2
             adv = w[i] * (col[i+1] - col[i-1]) / (2dζ)        # central; upwelling carries deep water up
-            θ[i, k+1] = col[i] + dt * (-s.Wadv * adv + s.Pe * lap + S[i] * f)
+            T̃[i, k+1] = col[i] + dt * (-s.Wadv * adv + s.Pe * lap + S[i] * f)
         end
         lapN = (2col[NZ-1] - 2col[NZ]) / dζ^2                  # insulating surface ghost
         advN = w[NZ] * (col[NZ] - col[NZ-1]) / dζ
-        θ[NZ, k+1] = col[NZ] + dt * (-s.Wadv * advN + s.Pe * lapN + S[NZ] * f)
-        θ[1, k+1] = 0f0
+        T̃[NZ, k+1] = col[NZ] + dt * (-s.Wadv * advN + s.Pe * lapN + S[NZ] * f)
+        T̃[1, k+1] = 0f0
     end
-    (; ζ, t, θ, NT_FD)
+    (; ζ, t, T̃, NT_FD)
 end
 
-function θstar_of(FD)
+function T̃star_of(FD)
     (ζv, τv) -> begin
         out = similar(ζv)
         @inbounds for n in eachindex(ζv)
             iz = clamp(round(Int, ζv[n] * (NZ - 1)) + 1, 1, NZ)
             ft = clamp(τv[n] * (FD.NT_FD - 1), 0f0, Float32(FD.NT_FD - 1))
             k = clamp(floor(Int, ft) + 1, 1, FD.NT_FD - 1); fr = ft - (k - 1)
-            out[n] = (1 - fr) * FD.θ[iz, k] + fr * FD.θ[iz, k+1]
+            out[n] = (1 - fr) * FD.T̃[iz, k] + fr * FD.T̃[iz, k+1]
         end
         out
     end
 end
 
 const N_T = 720; const σ_obs = 0.005f0
-function observations(s::Site, θstar; seed = 20260617)
+function observations(s::Site, T̃star; seed = 20260617)
     τs = Float32.(range(0f0, 1f0; length = N_T))
     zc = ζsens(s)
     ζcol = repeat(zc, inner = N_T); τcol = repeat(τs, outer = length(zc))
-    noisy = θstar(ζcol, τcol) .+ σ_obs .* randn(Xoshiro(seed), Float32, length(ζcol))
-    (; ζ = reshape(ζcol, 1, :), τ = reshape(τcol, 1, :), θ = reshape(noisy, 1, :))
+    noisy = T̃star(ζcol, τcol) .+ σ_obs .* randn(Xoshiro(seed), Float32, length(ζcol))
+    (; ζ = reshape(ζcol, 1, :), τ = reshape(τcol, 1, :), T̃ = reshape(noisy, 1, :))
 end
 
 # ── networks (plain (ζ,τ) input, as Task A — no Fourier at sub-scale) ────────
@@ -103,7 +103,7 @@ const λ_d = 6000f0; const λ_b = 10f0; const λ_reg = 1f-5
 
 # ── joint inverse over a list of sites (1 = single-site, 2 = joint) ──────────
 # One T-network per site (separate params); ONE shared τ-network across sites.
-function solve_joint(sites, FDs, θstars; Ncol, iters, Tw, Td, seed = 1)
+function solve_joint(sites, FDs, T̃stars; Ncol, iters, Tw, Td, seed = 1)
     Tms = [make_T(Tw, Td) for _ in sites]
     τm  = make_τ()
     pTs = Vector{Any}(undef, length(sites)); sTs = Vector{Any}(undef, length(sites))
@@ -119,24 +119,24 @@ function solve_joint(sites, FDs, θstars; Ncol, iters, Tw, Td, seed = 1)
     τc = [rand(rng, Float32, 1, Ncol) for _ in sites]
     τb = [rand(rng, Float32, 1, Ncol ÷ 5) for _ in sites]
     ζ1 = [ones(Float32, 1, Ncol ÷ 5) for _ in sites]
-    obs = [observations(s, θstars[i]) for (i, s) in enumerate(sites)]
+    obs = [observations(s, T̃stars[i]) for (i, s) in enumerate(sites)]
     τg = reshape(Float32.(range(0f0, 1f0; length = 400)), 1, :)
 
     NT_(Tm, p, sT, ζ, τ) = first(Tm(vcat(ζ, τ), p, sT))
-    θnet(Tm, p, sT, ζ, τ) = ζ .* τ .* NT_(Tm, p, sT, ζ, τ)    # hard IC + hard deep BC
+    T̃net(Tm, p, sT, ζ, τ) = ζ .* τ .* NT_(Tm, p, sT, ζ, τ)    # hard IC + hard deep BC
     τφ(q, τ) = first(τm(τ, q, sτ))                            # shared recovered forcing
 
     function loss(pTs, pτ)
         L = 0f0
         for i in eachindex(sites)
             s = sites[i]; Tm = Tms[i]; sT = sTs[i]; ζi = ζc[i]; τi = τc[i]; pTi = pTs[i]
-            θt  = (θnet(Tm, pTi, sT, ζi, τi .+ HT) .- θnet(Tm, pTi, sT, ζi, τi .- HT)) ./ (2HT)
-            θz  = (θnet(Tm, pTi, sT, ζi .+ HZ, τi) .- θnet(Tm, pTi, sT, ζi .- HZ, τi)) ./ (2HZ)
-            θzz = (θnet(Tm, pTi, sT, ζi .+ HZ, τi) .- 2f0 .* θnet(Tm, pTi, sT, ζi, τi) .+ θnet(Tm, pTi, sT, ζi .- HZ, τi)) ./ HZ^2
-            Lr  = mean(abs2, θt .+ s.Wadv .* w_shape(ζi) .* θz .- s.Pe .* θzz .- S_shape(s, ζi) .* τφ(pτ, τi))
-            Ld  = mean(abs2, θnet(Tm, pTi, sT, obs[i].ζ, obs[i].τ) .- obs[i].θ)
-            θzs = (θnet(Tm, pTi, sT, ζ1[i], τb[i]) .- θnet(Tm, pTi, sT, ζ1[i] .- HZ, τb[i])) ./ HZ
-            Lb  = mean(abs2, θzs)
+            T̃t  = (T̃net(Tm, pTi, sT, ζi, τi .+ HT) .- T̃net(Tm, pTi, sT, ζi, τi .- HT)) ./ (2HT)
+            T̃z  = (T̃net(Tm, pTi, sT, ζi .+ HZ, τi) .- T̃net(Tm, pTi, sT, ζi .- HZ, τi)) ./ (2HZ)
+            T̃zz = (T̃net(Tm, pTi, sT, ζi .+ HZ, τi) .- 2f0 .* T̃net(Tm, pTi, sT, ζi, τi) .+ T̃net(Tm, pTi, sT, ζi .- HZ, τi)) ./ HZ^2
+            Lr  = mean(abs2, T̃t .+ s.Wadv .* w_shape(ζi) .* T̃z .- s.Pe .* T̃zz .- S_shape(s, ζi) .* τφ(pτ, τi))
+            Ld  = mean(abs2, T̃net(Tm, pTi, sT, obs[i].ζ, obs[i].τ) .- obs[i].T̃)
+            T̃zs = (T̃net(Tm, pTi, sT, ζ1[i], τb[i]) .- T̃net(Tm, pTi, sT, ζ1[i] .- HZ, τb[i])) ./ HZ
+            Lb  = mean(abs2, T̃zs)
             L += Lr + λ_d * Ld + λ_b * Lb
         end
         dτ = (τφ(pτ, τg .+ HT) .- τφ(pτ, τg .- HT)) ./ (2HT)
@@ -170,11 +170,11 @@ println("="^74)
 println("Task B sub-scale prototype — two-site JOINT inverse (Sites A + B)")
 println("="^74)
 FD_A = fd_reference(SITE_A); FD_B = fd_reference(SITE_B)
-θs_A = θstar_of(FD_A); θs_B = θstar_of(FD_B)
-@printf("Site A: Pe=%.1f, no advection, H=%.0f m, max|θ*|=%.2f (SNR≈%.0f)\n",
-        SITE_A.Pe, SITE_A.H, maximum(abs, FD_A.θ), maximum(abs, FD_A.θ)/σ_obs)
-@printf("Site B: Pe=%.1f, Wadv=%.1f,    H=%.0f m, max|θ*|=%.2f (SNR≈%.0f)\n",
-        SITE_B.Pe, SITE_B.Wadv, SITE_B.H, maximum(abs, FD_B.θ), maximum(abs, FD_B.θ)/σ_obs)
+T̃s_A = T̃star_of(FD_A); T̃s_B = T̃star_of(FD_B)
+@printf("Site A: Pe=%.1f, no advection, H=%.0f m, max|T̃*|=%.2f (SNR≈%.0f)\n",
+        SITE_A.Pe, SITE_A.H, maximum(abs, FD_A.T̃), maximum(abs, FD_A.T̃)/σ_obs)
+@printf("Site B: Pe=%.1f, Wadv=%.1f,    H=%.0f m, max|T̃*|=%.2f (SNR≈%.0f)\n",
+        SITE_B.Pe, SITE_B.Wadv, SITE_B.H, maximum(abs, FD_B.T̃), maximum(abs, FD_B.T̃)/σ_obs)
 println("shared storm τ*(t): peak ", A_stm, " at day ", round(Int, τ0*30), " of 30")
 @printf("weights: λ_r=1, λ_d=%.0f, λ_b=%.0f, λ_reg=%.0e\n\n", λ_d, λ_b, λ_reg)
 
@@ -183,15 +183,15 @@ cfg = (Ncol = parse(Int, get(ENV, "TASKB_NCOL", "4000")),
        Tw = 32, Td = 4)
 
 print("Site A alone … "); flush(stdout)
-rA = solve_joint([SITE_A], [FD_A], [θs_A]; cfg...)
+rA = solve_joint([SITE_A], [FD_A], [T̃s_A]; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rA.elapsed, 100rA.peak_err, rA.timing_h, rA.rel_l2)
 
 print("Site B alone … "); flush(stdout)
-rB = solve_joint([SITE_B], [FD_B], [θs_B]; cfg...)
+rB = solve_joint([SITE_B], [FD_B], [T̃s_B]; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rB.elapsed, 100rB.peak_err, rB.timing_h, rB.rel_l2)
 
 print("JOINT A+B   … "); flush(stdout)
-rJ = solve_joint([SITE_A, SITE_B], [FD_A, FD_B], [θs_A, θs_B]; cfg...)
+rJ = solve_joint([SITE_A, SITE_B], [FD_A, FD_B], [T̃s_A, T̃s_B]; cfg...)
 @printf("%.0fs | peak err %.1f%% | timing %.1f h | env relL2 %.2f\n", rJ.elapsed, 100rJ.peak_err, rJ.timing_h, rJ.rel_l2)
 
 println("\n", "-"^74)

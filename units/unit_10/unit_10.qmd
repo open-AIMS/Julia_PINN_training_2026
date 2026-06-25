@@ -241,12 +241,15 @@ one the inverse uses, so forward and inverse stay consistent.
 
 The storm modulates the column's heating: a *known* surface-weighted
 vertical shape $S(\zeta)$ (Beer–Lambert-like) times an *unknown* time signal
-$\tau(t)$. Non-dimensionalising the column ($\theta = (T-T_\text{deep})/\Delta
-T$, $\zeta = (z+H)/H$, $\tau_t = t/T_f$) gives
+$\tau(t)$. Non-dimensionalising the column — temperature
+$\tilde T = (T-T_\text{deep})/\Delta T$ (with $\Delta T$ the fixed
+surface-to-deep temperature scale, $\approx 3\,°$C at Site B; this is a
+*temperature* scale, not a timestep $\Delta t$), depth $\zeta = (z+H)/H$,
+and time $\tau_t = t/T_f$ — gives
 
 $$
-\partial_{\tau}\theta = -W_\text{adv}\,w(\zeta)\,\partial_\zeta\theta + \mathrm{Pe}\,\partial_{\zeta\zeta}\theta + S(\zeta)\,\tau(t),
-\quad \theta(0,\tau)=0,\ \ \partial_\zeta\theta(1,\tau)=0,\ \ \theta(\zeta,0)=0,
+\partial_{\tau}\tilde T = -W_\text{adv}\,w(\zeta)\,\partial_\zeta\tilde T + \mathrm{Pe}\,\partial_{\zeta\zeta}\tilde T + S(\zeta)\,\tau(t),
+\quad \tilde T(0,\tau)=0,\ \ \partial_\zeta\tilde T(1,\tau)=0,\ \ \tilde T(\zeta,0)=0,
 $$
 
 with the upwelling shape $w(\zeta)=\zeta$ (zero at depth, maximal at the
@@ -259,11 +262,12 @@ hide the forcing inside the temperature field (the failure mode a
 *mixing-* or *coefficient*-recovery setup hits when the column sits near
 steady state). Two networks:
 
-- $T_\theta(\zeta,\tau)$ — the temperature field, with the hard IC and deep
-  BC baked into the ansatz $\theta = \zeta\,\tau\,N_\theta(\zeta,\tau)$, so
-  $\theta(\zeta,0)=0$ and $\theta(0,\tau)=0$ hold for free
+- $\tilde T_\theta(\zeta,\tau)$ — the temperature field (weights $\theta$),
+  with the hard IC and deep
+  BC baked into the ansatz $\tilde T = \zeta\,\tau\,N_\theta(\zeta,\tau)$, so
+  $\tilde T(\zeta,0)=0$ and $\tilde T(0,\tau)=0$ hold for free
   ([Unit 7 §7.3](../unit_07/unit_07.qmd)). The insulating surface flux
-  $\partial_\zeta\theta(1,\tau)=0$ stays a soft penalty.
+  $\partial_\zeta\tilde T(1,\tau)=0$ stays a soft penalty.
 - $\tau_\phi(\tau)$ — a small MLP for the storm envelope (signed).
 
 Derivatives use the finite-difference-in-input stencil (no nested AD,
@@ -276,26 +280,26 @@ trains on a CPU.
 $$
 \mathcal{L}(\theta,\phi) =
 \underbrace{\lambda_r\,\mathcal{L}_\text{PDE}}_{\lambda_r=1}
-+ \underbrace{\lambda_d\,\tfrac{1}{N_d}\!\sum_k|T_\theta(\zeta_k,\tau_k)-T_\text{obs}|^2}_{\lambda_d=6000}
++ \underbrace{\lambda_d\,\tfrac{1}{N_d}\!\sum_k|\tilde T_\theta(\zeta_k,\tau_k)-\tilde T_\text{obs}|^2}_{\lambda_d=6000}
 + \underbrace{\lambda_b\,\mathcal{L}_\text{surf-BC}}_{\lambda_b=10}
 + \underbrace{\lambda_\text{reg}\!\int_0^1|\tau_\phi'|^2}_{\lambda_\text{reg}=10^{-5}}.
 $$
 
 The recovered forcing $\tau_\phi$ enters **only** the PDE residual, so it
-regresses to $(\partial_\tau\theta + W_\text{adv}\,w\,\partial_\zeta\theta - \mathrm{Pe}\,\partial_{\zeta\zeta}\theta)/S$
+regresses to $(\partial_\tau\tilde T + W_\text{adv}\,w\,\partial_\zeta\tilde T - \mathrm{Pe}\,\partial_{\zeta\zeta}\tilde T)/S$
 — it is driven by *derivatives* of the temperature field. Here is the
 trap: the column low-pass-filters $\tau$ (response time ≈ storm width), so a
-network can match the noisy data *in value* with a too-smooth $\theta$ whose
+network can match the noisy data *in value* with a too-smooth $\tilde T$ whose
 derivatives — and hence the recovered storm peak — collapse well below
 truth. **The cure is not fancier collocation; it is the loss weights.** A
-large data weight $\lambda_d$ forces $\theta$ to honour the sharp data, which
+large data weight $\lambda_d$ forces $\tilde T$ to honour the sharp data, which
 keeps its derivatives sharp and lifts the recovered peak; the tiny $H^1$
 weight $\lambda_\text{reg}$ only removes single-hour-sample ringing. A weight
 sweep makes the effect concrete:
 
 | $\lambda_d$ | $\lambda_\text{reg}$ | Recovered peak | Comment |
 |---|---|---|---|
-| 100 | $10^{-2}$ | 8% of truth (92% err) | too-smooth $\theta$; storm collapses |
+| 100 | $10^{-2}$ | 8% of truth (92% err) | too-smooth $\tilde T$; storm collapses |
 | 500 | $10^{-4}$ | 56% | sharper, but data weight still too low |
 | 2000 | $3\times10^{-5}$ | 78% | approaching the floor |
 | **6000** | $10^{-5}$ | **90% (9.6% err)** | the chosen operating point |
@@ -313,8 +317,9 @@ Adam steps — **about four minutes on a CPU**. Measured recovery:
 - **Peak-amplitude error 9.6%** — comfortably inside the
   [§9.9.3 criterion](../unit_09/unit_09.qmd#sec-task-a) of $\leq 15\%$.
 - **Storm-day timing exact** (well under the 2-hour bar).
-- **Forward field** $\|T_\theta - T_\text{FD}\|_{L^2} = 0.002\,°\text{C}$,
-  far below the $0.05\,°\text{C}$ noise scale.
+- **Forward field** — reconstructed as $T = T_\text{deep} + \Delta T\,\tilde T_\theta$,
+  it matches the FD reference to $\|T - T_\text{FD}\|_{L^2} = 0.002\,°\text{C}$,
+  far below the $0.015\,°\text{C}$ sensor noise the twin injects.
 - **Whole-envelope relative $L^2$ ≈ 0.09**, with the rising edge slightly
   smoothed and the tail over-relaxed by a few percent — the classic
   Tikhonov pull toward zero, the cost of the $H^1$ regulariser.
@@ -337,9 +342,9 @@ forward solve.
 [`column_pinn_gpu.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_pinn_gpu.jl){target="_blank"}
 does exactly this on the column's pure-diffusion relaxation, where a
 single-eigenmode initial condition has an **exact closed-form** solution
-$\theta^*(\zeta,\tau) = g\,\zeta + A\sin(\tfrac{\pi}{2}\zeta)\,e^{-\mathrm{Pe}(\pi/2)^2\tau}$
+$\tilde T^*(\zeta,\tau) = g\,\zeta + A\sin(\tfrac{\pi}{2}\zeta)\,e^{-\mathrm{Pe}(\pi/2)^2\tau}$
 to score against. Measured: the CPU sub-scale fit reaches
-$\|\theta_\theta-\theta^*\|_{L^2} = 6\times10^{-4}$, the A10G full-scale run
+$\|\tilde T_\theta-\tilde T^*\|_{L^2} = 6\times10^{-4}$, the A10G full-scale run
 (30× the collocation, ~85× the throughput) $2\times10^{-3}$ — both far inside
 any noise scale, confirming the field operator and the FD-in-input derivative
 stencil before any inversion.
@@ -362,7 +367,7 @@ good exercises — they don't ship here:
 
 ### Files
 
-- [`scripts/task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"} — source-recovery inverse PINN: FD reference solve, synthetic mooring data, joint $T_\theta + \tau_\phi$ training; clears the §9.9.3 targets on a CPU in about four minutes.
+- [`scripts/task_a_inverse_pinn.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/task_a_inverse_pinn.jl){target="_blank"} — source-recovery inverse PINN: FD reference solve, synthetic mooring data, joint $\tilde T_\theta + \tau_\phi$ training; clears the §9.9.3 targets on a CPU in about four minutes.
 - [`scripts/column_pinn_gpu.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_pinn_gpu.jl){target="_blank"} — forward sanity check: pure-diffusion forward PINN scored against the closed-form solution, CPU sub-scale + A10G full-scale.
 - [`scripts/column_fd.jl`](https://github.com/open-AIMS/Julia_PINN_training_2026/blob/main/units/unit_10/scripts/column_fd.jl){target="_blank"} — the finite-difference column solver used as the forward reference.
 
@@ -408,7 +413,7 @@ and GPU vectorisation (3).
 
 ### Step 1 — The field network and the modern-PINN toolkit
 
-- **Network:** 6-layer MLP, 128 neurons / layer, $\tanh$.
+- **Network:** 6-layer MLP, 64 neurons / layer, $\tanh$.
 - **Fourier feature embedding** at the input:
   $\gamma(z, t) = [\sin(B\,(z, t)), \cos(B\,(z, t))]$ with
   $B \sim \mathcal{N}(0, \sigma_B^2 I)$ — two banks, $\sigma_B$
@@ -444,7 +449,7 @@ four are needed to clear the §9.10 bar.
 
 Three column networks $T^{(i)}_\theta(z, t)$, $i \in \{A, B, C\}$,
 each with the architecture above and *separate* parameters.
-**Shared:** a single 4-layer × 64-neuron MLP $\tau_\phi(t)$ for
+**Shared:** a single 3-layer × 48-neuron MLP $\tau_\phi(t)$ for
 the storm wind-stress envelope all three sites feel.
 
 **Joint loss:**
@@ -492,7 +497,7 @@ runs the **two-site joint inverse** at CPU sub-scale: Site A
 sharing **one** storm envelope $\tau(t)$. It deliberately uses the
 *same proven static-weight recipe as Task A* — large data weight
 $\lambda_d = 6000$, tiny $H^1$ smoothing $\lambda_\text{reg} = 10^{-5}$,
-hard IC + hard deep BC baked into $\theta = \zeta\,\tau\,N$, and the
+hard IC + hard deep BC baked into $\tilde T = \zeta\,\tau\,N$, and the
 FD-in-input derivative stencil — extended minimally to two sites
 with a single shared $\tau$-network. (The GPU full-scale run in
 Step 6 uses the *same* static recipe at three sites and a wider
@@ -538,8 +543,8 @@ two moorings genuinely constrain different parts of the same signal.
 
 The §9.1 multi-site story made quantitative. For the *toy* nondim
 column the three right-hand-side terms — vertical advection
-$-W_\text{adv}\,w(\zeta)\,\partial_\zeta\theta$, vertical mixing
-$\mathrm{Pe}\,\partial_{\zeta\zeta}\theta$, and the storm source
+$-W_\text{adv}\,w(\zeta)\,\partial_\zeta\tilde T$, vertical mixing
+$\mathrm{Pe}\,\partial_{\zeta\zeta}\tilde T$, and the storm source
 $S(\zeta)\,\tau(t)$ — *are* the mechanisms. Integrating each term's
 magnitude over the storm window at each site's diagnostic depth (from
 the FD reference, computed in `task_b_joint_inverse.jl`) gives a real
