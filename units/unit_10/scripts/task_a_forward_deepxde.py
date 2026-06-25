@@ -49,8 +49,8 @@ bc_surface = dde.icbc.OperatorBC(
     lambda zt, on_boundary: on_boundary and np.isclose(zt[0], 0.0),
 )
 
-# IC: initial thermocline tanh profile (Site B: thermocline at z = -30 m)
-def T0(z): return 25.0 + 3.0 * np.tanh((z + 30.0) / 5.0)
+# IC: initial thermocline tanh profile (Site B: thermocline at z = -25 m)
+def T0(z): return 25.0 + 3.0 * np.tanh((z + 25.0) / 5.0)
 ic = dde.icbc.IC(geomtime, lambda zt: T0(zt[:, 0:1]),
                  lambda _, on_initial: on_initial)
 

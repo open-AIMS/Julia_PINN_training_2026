@@ -109,9 +109,23 @@ This section is deliberately **not** behind a solution gate like §10.2–§10.3
 it is shared setup you need to *start* either task, not the answer to one.
 The gated sections below are the actual inverse solutions.
 
-The five scenarios match the §9.11 ladder one-to-one: scenarios 1–4 ship
-with worked figures below; scenario 5 (the full SWE driver) is the design
-for the headline extension (§10.5), not shipped with the solution.
+The five scenarios here **are** the
+[§9.11 toy-task ladder](../unit_09/unit_09.qmd#sec-toy-tasks), in the same
+order and numbering — §9.11 *describes* each step and what mechanism it
+isolates; this section *works* it with the solver and shows the figure.
+Each one just switches on one more term of the column PDE:
+
+| # | §9.11 ladder step | what it adds |
+|---|---|---|
+| 1 | pure diffusion, steady forcing | $\kappa\,\partial_{zz}T$ only → linear steady profile |
+| 2 | + diurnal cycle | time-varying $Q_{\text{SW}}(t)$ + body source |
+| 3 | + upwelling | advection $w\,\partial_z T$ (and the depth-varying $\kappa$) |
+| 4 | + storm gust (prescribed) | a Gaussian storm modulating $w$ and cloud |
+| 5 | + SWE-driven storm | $w(t)$ from a shallow-water solve (the design, §10.5) |
+
+Scenarios 1–4 ship with worked figures below; scenario 5 (the full SWE
+driver) is the design for the headline extension (§10.5), not shipped
+with the solution.
 
 ### Finite-difference reference solver
 
@@ -131,21 +145,21 @@ cleanly in isolation — they are **not** the per-site mooring records
 own depth, by `generate_mooring_csvs.jl` (which runs this same solver
 through the scenario-4 storm per site).
 
-#### Scenario 1 — pure diffusion to steady state
+#### Scenario 1 — pure diffusion to steady state (§9.11 step 1)
 
 $w = 0$, $\mathcal{S} = 0$, $\kappa$ constant, $Q_{\text{np}}$
 constant. After ~365 days the column reaches a near-steady state.
 
 ![Scenario 1 — pure diffusion to a (near-)steady state, from `scenario_1()` in `scripts/column_fd.jl`. The grey **IC** is the initial $\tanh$ thermocline: a warm (~28 °C) mixed layer over an 18 °C deep reservoir, with the sharp transition near $z=-30$ m. With no advection, no source, and a constant surface cooling $Q_{\text{np}}=-200$ W/m², diffusion erases that thermocline and the column relaxes toward the **straight-line** steady profile — heat conducts up the gradient from the fixed deep reservoir to be lost at the surface, so the surface ends up *colder* (~13 °C) than the deep (18 °C). The blue **MOL final** curve is the finite-difference solution after ~365 days; the dashed black **analytic** line $T(z)=T_{\text{deep}}-\tfrac{Q_{\text{cool}}}{\kappa_m \rho_0 c_p}(z+H)$ is drawn on top of it. The two are indistinguishable — they agree to $\approx 4\times10^{-3}$ °C, so the dashes ride directly along the blue line, and *that overlap is the validation* of the solver. The analytic line is $T(z)=T_{\text{deep}}+\tfrac{Q_{\text{np}}}{\rho_0 c_p\kappa_m}(z+H)$ — steady, no advection or source, so $\partial_z(\kappa\partial_z T)=0$ gives a straight line whose slope the surface flux sets and whose intercept the deep reservoir pins.](output/scn1_steady.png)
 
-#### Scenario 2 — diurnal cycle
+#### Scenario 2 — diurnal cycle (§9.11 step 2)
 
 Adds $Q_{\text{SW}}(t)$ (smooth half-cosine, mean 400 W/m²) and the
 Beer–Lambert body source $\mathcal{S}$.
 
 ![Scenario 2 output — near-surface traces (top) make the daily warm/cool cycle plain: ten diurnal oscillations ride on the slow relaxation toward the scenario-1 steady state, with the amplitude largest at $z=-1$ m and damped by $z=-7$ m. The top-10 m $(z,t)$ heatmap (bottom) shows the same field.](output/scn2_diurnal.png)
 
-#### Scenario 3 — upwelling
+#### Scenario 3 — upwelling (§9.11 step 3)
 
 Adds an upwelling profile $w(z) = w_0 \sin(\pi(z+H)/H)$ with
 $w_0 = 10^{-5}\,\text{m/s}$. (This toy scenario uses a $\sin$ shape to
@@ -155,7 +169,7 @@ is the linear-in-$z$ profile derived in
 
 ![Scenario 3 output — five-mooring traces (top) and full $(z, t)$ heatmap (bottom). SST drops 28 → 22 °C; mid-column warms via diffusion (Pe ≈ 1).](output/upwelling_mooring.png)
 
-#### Scenario 4 — storm fingerprint (prescribed gust)
+#### Scenario 4 — storm fingerprint (prescribed gust) (§9.11 step 4)
 
 Gaussian gust at $t_{\text{storm}} = 10$ days, $\sigma = 1$ day,
 modulating both $w_0$ (×5 at peak) and $Q_{\text{SW}}^{\max}$ (×0.5
@@ -236,6 +250,17 @@ $\tau^\star$ and recovers it, so the truth is known. For self-containment
 it hand-codes the finite-difference forward solve rather than calling
 `MethodOfLines.jl`; the column model (same $w(z)$, $\kappa$, $S$) is the
 one the inverse uses, so forward and inverse stay consistent.
+
+So the script reads as two clearly-marked parts. **Part 1 — generate the
+twin's data:** plant a known $\tau^\star$, forward-solve, sample the
+sensors, add noise. This is *test-data generation*, not the answer — it
+looks like it lives "inside the solution," and it does, on purpose.
+**Part 2 — the inverse PINN:** it sees only that noisy data and recovers
+$\hat\tau$; the planted $\tau^\star$ is used at the very end *only* to
+score the result. Generating the data in-file is exactly what makes the
+error measurable: with a real mooring you would not know $\tau^\star$, so
+you could never report a "9.6% recovery error." This is the standard way
+to validate an inverse method before trusting it on real data.
 
 ### Step 1 — The problem: source recovery
 
@@ -669,8 +694,8 @@ bc_surface = dde.icbc.OperatorBC(
     lambda zt, on_boundary: on_boundary and np.isclose(zt[0], 0.0),
 )
 
-# IC: initial thermocline tanh profile (Site B: thermocline at z = -30 m)
-def T0(z): return 25.0 + 3.0 * np.tanh((z + 30.0) / 5.0)
+# IC: initial thermocline tanh profile (Site B: thermocline at z = -25 m)
+def T0(z): return 25.0 + 3.0 * np.tanh((z + 25.0) / 5.0)
 ic = dde.icbc.IC(geomtime, lambda zt: T0(zt[:, 0:1]),
                  lambda _, on_initial: on_initial)
 
