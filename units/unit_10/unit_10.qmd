@@ -119,7 +119,7 @@ Each one just switches on one more term of the column PDE:
 |---|---|---|
 | 1 | pure diffusion, steady forcing | $\kappa\,\partial_{zz}T$ only → linear steady profile |
 | 2 | + diurnal cycle | time-varying $Q_{\text{SW}}(t)$ + body source |
-| 3 | + upwelling | advection $w\,\partial_z T$ (and the depth-varying $\kappa$) |
+| 3 | + upwelling | advection $w\,\partial_z T$ (κ stays constant) |
 | 4 | + storm gust (prescribed) | a Gaussian storm modulating $w$ and cloud |
 | 5 | + SWE-driven storm | $w(t)$ from a shallow-water solve (the design, §10.5) |
 
@@ -652,7 +652,10 @@ interface that takes a PDE definition and a collocation strategy,
 produces a trained network. Here's the Task A forward column
 problem (Davies Reef, $H = 60$ m, fixed $\tau$) as a DeepXDE
 sketch — same architecture (4 × 32 tanh MLP), same hard-BC
-ansatz at the deep reservoir, same Adam → L-BFGS schedule:
+ansatz at the deep reservoir, same Adam → L-BFGS schedule. It conveys the
+*shape* of a DeepXDE port, not a byte-for-byte match to the Julia twin:
+the forcing constants are round illustrative values and the diffusion is
+written non-conservatively ($\kappa\,\partial_{zz}T$) for brevity:
 
 ```{.python filename="units/unit_10/scripts/task_a_forward_deepxde.py"}
 # pip install deepxde[torch]

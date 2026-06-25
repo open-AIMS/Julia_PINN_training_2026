@@ -100,7 +100,7 @@ depth $z$ and time $t$ — assuming nothing varies horizontally
 summarise their effect on the column through a single quantity, the
 vertical velocity $w(z, t)$ they induce.
 
-![Schematic of the 1-D thermistor column. Five sensors at fixed depths $z_1, \ldots, z_5$ sample temperature $T(z_k, t)$ while the column evolves under vertical advection $w(z, t)$ (green), turbulent diffusion $\kappa(z, t)$ (purple), three surface fluxes (red — $Q_{\text{SW}}$ penetrating, $Q_{\text{LW}}$, $Q_{\text{lat}} + Q_{\text{sens}}$ non-penetrating), penetrating shortwave decaying through the water (orange), and a fixed deep reservoir at $z = -H$. The right-hand panels collect the governing PDE, its boundary conditions, and the externally prescribed forcings.](figures/column_diagram.svg){#fig-column width=92%}
+![Schematic of the 1-D thermistor column. Five sensors at fixed depths $z_1, \ldots, z_5$ sample temperature $T(z_k, t)$ while the column evolves under vertical advection $w(z, t)$ (green), turbulent diffusion $\kappa(z, t)$ (purple), the surface heat inputs (red — penetrating $Q_{\text{SW}}$, which enters as a body source, and non-penetrating $Q_{\text{LW}}$ and $Q_{\text{lat}} + Q_{\text{sens}}$), penetrating shortwave decaying through the water (orange), and a fixed deep reservoir at $z = -H$. The right-hand panels collect the governing PDE, its boundary conditions, and the externally prescribed forcings.](figures/column_diagram.svg){#fig-column width=92%}
 
 The governing equation is the 1-D advection–diffusion equation:
 
@@ -251,8 +251,8 @@ note appears in Unit 9 — keep the two conventions aligned.
 For the capstone, $w(z, t)$ is *given* — a prescribed linear-in-$z$
 upwelling profile, the form a shallow-water balance justifies (see
 [Unit 9 §9.2](../unit_09/unit_09.qmd#sec-w-coupling); deriving $w$ from
-an actual shallow-water solve is the optional scenario-5 design there,
-not something the capstone runs). What *isn't*
+an actual shallow-water solve is the optional scenario-5 design
+(Unit 9 §9.2 → Unit 10 §10.1), not something the capstone runs). What *isn't*
 given — the one thing the capstone recovers — is the **wind-stress
 envelope** $\tau(t)$: the strength over time of the storm's wind drag on
 the sea surface. A real wind stress acts on the column several ways at
@@ -575,7 +575,9 @@ Those three facts explain almost every behaviour you'll see in the
 daily warm layer is thin, why a 3-day storm leaves a fingerprint
 deeper than naive cooling suggests, why upwelling cools the surface
 only slowly, and why true steady state takes months. The three sites
-(15 m, 60 m, 100 m deep) sit at different $\mathrm{Pe}$, which is why
+(15 m, 60 m, 100 m deep) sit at different $\mathrm{Pe}$ — set in the
+capstone by per-site advection strength (Site A is run diffusion-only)
+and the interior-vs-mixed-layer $\kappa$, not depth alone — which is why
 each records a different fingerprint of the *same* storm.
 
 ::: {#ex-8-6 .callout-note .section-exercise icon="false" collapse="true"}
@@ -640,8 +642,9 @@ deeper. A few entry points, grouped by what they justify:
   today. This is the line of work the capstone is closest to.
 
 The capstone deliberately simplifies relative to all of these:
-prescribed $\kappa$ (not a live closure), prescribed $w$ from an
-offline driver, synthetic data with known truth, and a single scalar
+prescribed $\kappa$ (not a live closure), prescribed $w$ (linear-in-$z$,
+its shape justified by a shallow-water balance — no solve run), synthetic
+data with known truth, and a single scalar
 unknown $\tau(t)$ instead of a full forcing field — so the focus
 stays on the inverse-problem mechanics.
 
@@ -761,5 +764,5 @@ or word in the capstone spec is unfamiliar, it's here.
 | **Diffusive time $T_\kappa = H^2/\kappa$** | How long diffusion takes to mix the whole column (§8.6). |
 | **Wind-stress envelope $\tau(t)$** | The storm's strength over time — the *unknown* the capstone inverse problem recovers. Physically the storm's wind stress drives upwelling, mixing, and cloud cover together; the capstone collapses these into one forcing it recovers as a heating source (§8.3, Unit 9 §9.1). |
 | **Ekman pumping** | Wind-driven vertical motion: how a storm's wind stress $\tau$ produces upwelling $w$ (§8.3). |
-| **Shallow-water driver** | A separate, cheap 2-D model that supplies the column's $w(z, t)$ from horizontal currents (§8.2, Unit 9 §9.2). |
+| **Shallow-water driver** | A cheap 2-D shallow-water *balance* that justifies the prescribed linear-in-$z$ shape of $w(z, t)$; it is not actually solved in the capstone — $w$ is prescribed (§8.2, Unit 9 §9.2). |
 | **Forward vs inverse problem** | *Forward*: given the forcings, predict $T(z, t)$. *Inverse*: given the measured $T$, recover an unknown forcing ($\tau(t)$) (Unit 9 §9.7–§9.9). |

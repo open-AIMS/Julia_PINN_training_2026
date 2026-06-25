@@ -74,7 +74,7 @@ responses.
 
 So the recovered $\hat\tau(t)$ doesn't *by itself* answer "which
 hypothesis dominated". The mechanism-discrimination step is the
-**partition deliverable of Task B** ([§9.10.5](#sec-task-b)): run the
+**partition deliverable of Task B** ([§9.10](#sec-task-b)): run the
 calibrated forward model with $\hat\tau$, then decompose the cooling at
 each site's diagnostic depth (near its local thermocline) into the
 three terms
@@ -278,7 +278,7 @@ $z = -10, -50, -90$ m. Then read three things off your result:
 💡 Hint
 
 ::: {.exercise-hint-text}
-Code it directly: `div_h(t) = -2e-7*exp(-((t-10)/1)^2)` and `w(z,t) = -(z+H)*div_h(t)` with $H=100$; evaluate at $z = -10, -50, -90$ over a day-grid and plot `w.*86400` (m/day). For the sign, don't eyeball it — integrate continuity $\partial_z w = -\nabla_h\cdot \mathbf{u}_h$ upward from $w(-H)=0$: the trace is *negative* (convergence), so $\partial_z w > 0$ and $w > 0$ everywhere above the floor (converging water has nowhere to go but up ⇒ upwelling). Peak near the surface is $|z+H|\times|\nabla\cdot u| = 90\times2\times10^{-7} \approx 1.6$ m/day — compare with the §9.6 $w_0 \sim 1$ m/day. The linear-in-$z$ shape assumes a depth-uniform (barotropic) horizontal flow — exactly what a shallow-water solver gives.
+Code it directly: `div_h(t) = -2e-7*exp(-((t-10)/1)^2)` and `w(z,t) = -(z+H)*div_h(t)` with $H=100$; evaluate at $z = -10, -50, -90$ over a day-grid and plot `w.*86400` (m/day). For the sign, don't eyeball it — integrate continuity $\partial_z w = -\nabla_h\cdot \mathbf{u}_h$ upward from $w(-H)=0$: the trace is *negative* (convergence), so $\partial_z w > 0$ and $w > 0$ everywhere above the floor (converging water has nowhere to go but up ⇒ upwelling). Peak near the surface is $|z+H|\times|\nabla\cdot u| = 90\times2\times10^{-7} = 1.8\times10^{-5}$ m/s $\approx 1.6$ m/day (×86 400) — compare with the §9.6 $w_0 \sim 1$ m/day. The linear-in-$z$ shape assumes a depth-uniform (barotropic) horizontal flow — exactly what a shallow-water solver gives.
 :::
 :::
 
@@ -804,15 +804,19 @@ unchanged (and faster) on the course GPU hub if you have access —
   fingerprint. 5 sensors at $z = -2, -10, -25, -45, -58$ m.
 - **Data.** Synthetic Site-B mooring you generate *yourself*: a known
   $\tau^\star(t)$ forward-solved, then sampled at the 5 sensor depths ×
-  720 hourly steps with $\sigma = 0.05\,°\text{C}$ Gaussian noise =
+  720 hourly steps with $\sigma = 0.015\,°\text{C}$ Gaussian noise (a
+  quality mooring; the committed CSVs use the noisier 0.05 °C) =
   3 600 points — so the recovered $\hat\tau$ scores against a known
   truth (twin experiment, §9.7). The committed `data/mooring_B.csv` is
   the realistic look-only counterpart ([Exercise 9.1](#ex-9-1)).
 - **Unknown.** A single scalar function $\tau(t)$ — the local
   wind-stress envelope — over the 30-day window.
-- **Given.** $\kappa(z)$ (profile closure), the upwelling profile
-  $w(z)$, $Q_{\text{np}}(t)$, $Q_{\text{SW}}(t)$, $T_0(z)$,
-  $T_{\text{deep}}$, all of the reference parameter values from §9.6.
+- **Given.** Constant diffusivity $\kappa_m$ (→ the diffusion number
+  Pe), the upwelling profile $w(\zeta)=\zeta$ (→ $W_\text{adv}$), the
+  Beer–Lambert heating shape $S(\zeta)$, the deep reservoir
+  $T_{\text{deep}}$, and the reference parameters from §9.6 — which
+  step 2 folds into Pe, $W_\text{adv}$, $S(\zeta)$, the only numbers the
+  solver uses.
 - **Networks.** $T_\theta(z, t)$ as a 4-layer 32-neuron MLP
   ($\tanh$); $\tau_\phi(t)$ as a 32-neuron MLP. ~5 000
   parameters total.
@@ -958,7 +962,7 @@ end
 | Stage | Wall-clock (CPU) |
 |---|---|
 | Finite-difference reference solve (1 site, 30 days) | ~1 s |
-| Forward PINN sanity check (Adam) | ~2 min |
+| Forward-solve certification (optional, separate; §10.2) | ~2 min |
 | Inverse PINN training (Adam, 12 000 steps) | ~4 min |
 
 Total: under 10 minutes from a cold cache (measured on a CPU — the
@@ -983,7 +987,7 @@ Optional extras (good practice, not needed to clear the task):
 The **mechanism partition** — decomposing the cooling into advection,
 mixing, and source contributions to answer the §9.1 "which hypothesis
 dominated" question — is **deferred to Task B**
-([§9.10.5](#sec-task-b)). A single site gives you only one column's
+([§9.10](#sec-task-b)). A single site gives you only one column's
 breakdown; the story the §9.1 question really asks for is the
 *contrast* — how the advection share climbs across the three regimes —
 which only the three-site study resolves (see
@@ -1235,10 +1239,9 @@ one-to-one. Task A and Task B both start from these.
 3. **Add upwelling.** Turn on $w(z)$ with
    $w_0 = 10^{-5}\,\text{m/s}$. *Expected:* cold water from depth
    invades the bulk; SST drops slowly over weeks. The diurnal warm
-   layer survives but sits on top of cooler water. (At the same time,
-   switch $\kappa$ from constant to the §9.5 profile closure with
-   mixed-layer scale $h_m$ — a deeper mixed layer gives a thicker,
-   cooler warm layer; this depth-varying $\kappa$ is used from here on.)
+   layer survives but sits on top of cooler water. (The shipped toy
+   scenarios keep $\kappa$ constant at $\kappa_m$; the §9.5 depth-varying
+   profile closure is taught but not wired into these illustrations.)
 
 4. **Storm fingerprint (prescribed gust).** A Gaussian gust on day 10
    (~3 days wide) modulating the upwelling $w$ (×5 at peak) and
