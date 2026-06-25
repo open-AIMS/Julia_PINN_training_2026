@@ -279,7 +279,13 @@ $$
 
 with the upwelling shape $w(\zeta)=\zeta$ (zero at depth, maximal at the
 surface). The unknown is the scalar-in-time forcing $\tau(t)$ (one storm
-bump); $S(\zeta)$, Pe, $W_\text{adv}$ and the BCs are given. This
+bump); $S(\zeta)$, Pe, $W_\text{adv}$ and the BCs are given. (Two roles
+for $\tau$ to keep straight: as a derivative or subscript —
+$\partial_\tau$, $\tau_t = t/T_f$ — it is non-dimensional *time*; the
+standalone $\tau(t)$ is the storm *forcing*, the unknown we recover.
+And the coefficient here written $\mathrm{Pe}$ is the normalised
+*diffusion* term, $=1$; the actual Péclet number is
+$W_\text{adv}\approx1.2$ — see §9.6.) This
 **source-recovery** form is the most *identifiable* inverse: the source
 over-determines $\tau(t)$ across all depths at each instant, and a
 $\tau\equiv0$ field cannot fit source-driven data — so the network can't

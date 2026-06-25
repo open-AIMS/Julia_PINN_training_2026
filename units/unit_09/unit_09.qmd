@@ -633,7 +633,11 @@ The accompanying dimensionless groups —
 $\mathrm{Pe} = w_0 H / \kappa_m \approx 1$,
 $T_\kappa = H^2/\kappa_m \approx 116$ days,
 $\tau_d / T_\kappa \sim 10^{-2}$ — are tabulated and interpreted in
-[Unit 8](../unit_08/unit_08.qmd) §8.6.
+[Unit 8](../unit_08/unit_08.qmd) §8.6. (Naming caution: this Péclet
+number $\mathrm{Pe} = w_0 H/\kappa_m$ appears in the non-dimensional PDE
+as the *advection* coefficient $W_\text{adv}\approx1.2$; the code's
+variable `Pe` ($=1$) is the normalised *diffusion-term* coefficient, not
+the Péclet number.)
 
 ::: {#ex-9-6 .callout-note .section-exercise icon="false" collapse="true"}
 ## ✏️ Section exercise — the daily heat budget, by hand
