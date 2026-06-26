@@ -794,41 +794,54 @@ For inverse problems of Workflow 2 or 3 type:
 
 ### The two-network source-recovery paradigm
 
-Workflow 3 has a recurring shape, independent of the physics — worth
-seeing once in the abstract, because every source-recovery PINN (the
-Unit 1 river-mouth $\psi(t)$, the capstone storm envelope, a spatial
-source $g(\mathbf{x})$, a closure law) is an instance of it. Write the
-forward problem so the unknown enters linearly through a *known* shape,
+Workflow 3 has a recurring shape that does not depend on the physics,
+and it is worth seeing once in the abstract: every source-recovery PINN
+is the same problem in different clothes — the Unit 1 river-mouth
+$\psi(t)$, the capstone storm envelope, a spatial source $g(\mathbf{x})$,
+a closure law. The trick is to write the forward problem so the unknown
+enters **linearly**, multiplying a *known* shape:
 
-$$\partial_t u = \mathcal{L}u + s(\mathbf{x})\,f(t),$$
+$$\partial_t u = \mathcal{A}\,u + s(\mathbf{x})\,f(t),$$
 
-with $\mathcal{L}$ the known spatial operator, $s$ a known source
-*shape*, and $f$ the unknown *driver* you want back. Three structural
-choices define the paradigm:
+where $\mathcal{A}$ is the known spatial operator (for the capstone
+column, advection plus diffusion), $s(\mathbf{x})$ is the known source
+*shape*, and $f(t)$ is the unknown *driver* we want back. Three
+structural choices define the paradigm:
 
 - **Two networks, trained jointly.** A field network
-  $u_\theta(\mathbf{x}, t)$ and a *small* auxiliary network $f_\phi$ for
-  the unknown function — optimised together in one loss, not in two
-  stages.
-- **Hard-wire the IC and BCs into the field ansatz** (§7.3), so the only
-  soft terms left are the residual and the data misfit (plus any flux
-  BC). Fewer terms is fewer ways for the optimiser to cheat.
-- **The driver enters *only* the residual.** Rearranged, the residual
-  pins $f_\phi \approx (\partial_t u_\theta - \mathcal{L}u_\theta)/s$:
-  the recovered driver is read off *derivatives of the field network*.
-  Source recovery is deconvolution wearing a PINN costume.
+  $u_\theta(\mathbf{x}, t)$ approximates the solution, and a *small*
+  second network $f_\phi$ stands in for the unknown driver. The two are
+  optimised together in a single loss — never in two separate stages.
+- **Hard-wire the IC and BCs into the field ansatz** (§7.3). With the
+  initial and boundary conditions built in for free, the only *soft* loss
+  terms left are the PDE residual and the data misfit (plus a flux BC if
+  there is one). Fewer soft terms means fewer ways for the optimiser to
+  cheat.
+- **The driver enters *only* through the residual.** Rearrange the PDE
+  and the residual pins the driver to derivatives of the field network,
+  $f_\phi \approx (\partial_t u_\theta - \mathcal{A}\,u_\theta)/s$. So the
+  recovered $f$ is never measured directly — it is *reconstructed* from
+  how the fitted field bends in space and time. Source recovery is
+  deconvolution wearing a PINN costume.
 
-That last fact is the whole difficulty, and the sharpest amendment the
-recipe needs. The forward operator *smooths* the driver (diffusion is a
-low-pass filter), so a field that matches the data *in value* can have
-derivatives — and therefore a recovered peak — that collapse far below
-the truth. **The cure is not finer collocation; it is the loss
-weights.** Make the data term dominate at the operating point
-($\lambda_d \gg \lambda_r$, reached by ramping up from the gentle start
-of step 3 above): forcing $u_\theta$ to honour sharp data keeps its
-derivatives sharp and lifts the recovered peak. Add only a *whisper* of
-smoothness on the driver, $\lambda_\text{reg}\int|f_\phi'|^2$ — enough to
-kill sample-to-sample ringing, far too small to flatten the signal. Too
+That last point is the whole difficulty, and where the recipe needs its
+sharpest amendment. The forward operator **smooths** the driver —
+diffusion is a low-pass filter — so a sharp spike in $f$ leaves only a
+broad, low-amplitude smudge in $u$. Recovering $f$ means running that
+backwards: *un-smoothing*, i.e. amplifying exactly the fine detail the
+forward map damped out. Here is the trap. Because $f$ is read off the
+field's derivatives, a field that matches the sensor data *in value* can
+still have **flattened gradients** — and then the recovered peak
+collapses far below the truth while the data loss still looks healthy.
+
+**The cure is not finer collocation; it is the loss weights.** Make the
+data term dominate at the operating point ($\lambda_d \gg \lambda_r$,
+reached by ramping $\lambda_d$ up from the gentle start of step 3 above):
+forcing $u_\theta$ to honour the *sharp* data forces its derivatives to
+stay sharp, and that is what lifts the recovered peak. Then add only a
+*whisper* of smoothness on the driver itself,
+$\lambda_\text{reg}\int|f_\phi'|^2$ — just enough to kill
+sample-to-sample ringing, far too little to flatten the signal. Too
 gentle a data weight is the single most common way a W3 PINN silently
 under-recovers.
 
