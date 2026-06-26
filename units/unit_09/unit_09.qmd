@@ -893,6 +893,49 @@ metrics, and the validated weights — is in
 [Unit 10 §10.2](../unit_10/unit_10.qmd) behind the solution gate. It is
 for reading, not running.
 
+::: {.callout-note}
+## Non-dimensional form — what the skeleton solves
+
+§9.3–§9.6 set up the column in **dimensional** variables ($z \in [-H,0]$ in
+metres, $T$ in °C, a tanh stratified start, a surface cooling flux, the
+diurnal $Q_\text{SW}$). The skeleton below solves that same column after the
+change of variables step 2 of the workflow asks you to build (worked in full
+in [Unit 10 §10.2](../unit_10/unit_10.qmd)):
+
+$$
+\zeta = \frac{z + H}{H}, \qquad \tau_t = \frac{t}{T_f}, \qquad
+\tilde T = \frac{T - T_\text{deep}}{\Delta T},
+$$
+
+with $\zeta = 0$ the deep bottom and $\zeta = 1$ the surface (the *opposite*
+orientation to $z$). This $\zeta$ is the non-dimensional depth coordinate; it
+is **not** the §9.5 light-penetration scale, a different quantity that happens
+to reuse the symbol. Here $\Delta T$ is the fixed surface-to-deep temperature
+**scale** ($\approx 3\,°$C at Site B — distinct from a timestep $\Delta t$;
+the §9.6 reference column has a larger $\approx 10\,°$C span). This gives the
+non-dimensional column the skeleton integrates,
+
+$$
+\partial_{\tau} \tilde T = -W_\text{adv}\,w(\zeta)\,\partial_\zeta \tilde T
+  + \mathrm{Pe}\,\partial_{\zeta\zeta}\tilde T + S(\zeta)\,\tau(t),
+\qquad \mathrm{Pe} = 1,\ \ W_\text{adv} = 1.2,\ \ w(\zeta) = \zeta,
+$$
+
+where $\partial_\tau$ is the derivative in non-dimensional time
+$\tau_t = t/T_f$ and the standalone $\tau(t)$ is the storm forcing — the two
+uses of $\tau$ kept distinct as in §10.2.
+
+Task A runs the clean **source-only reduction**: a flat start at
+$T_\text{deep}$ and an insulating surface, so the §9.4 tanh initial profile,
+the surface cooling flux, and the diurnal cycle all fold out, and the storm
+enters **only** through $S(\zeta)\,\tau(t)$ (the source the §9.1 callout
+already asserts). Because $\tilde T$ is the **anomaly** from that flat
+reference, the hard IC $\tilde T(\zeta,0) = 0$ and deep BC
+$\tilde T(0,\tau) = 0$ baked into the ansatz $\tilde T = \zeta\,\tau\,N$ are
+zero *by construction* — not a clash with the §9.4 stratified profile — and
+the surface condition is the insulating $\partial_\zeta \tilde T(1,\tau) = 0$.
+:::
+
 ```julia
 using Lux, Optimisers, Zygote, Random, Statistics
 
