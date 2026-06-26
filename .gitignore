@@ -42,3 +42,6 @@ __pycache__/
 _booklet/
 booklet/header.tex
 _freeze/**/execute-results/tex.json
+
+# macOS Finder metadata
+.DS_Store
