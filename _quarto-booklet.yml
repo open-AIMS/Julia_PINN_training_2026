@@ -32,3 +32,5 @@ format:
     geometry: [margin=1in]
     include-in-header: [booklet/header.tex]
     fig-format: svg
+    filters:
+      - booklet/fix-refs.lua
