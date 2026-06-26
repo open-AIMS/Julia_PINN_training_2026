@@ -5,7 +5,6 @@ project:
 book:
   title: "Physics-Informed Neural Networks — Course Notes"
   subtitle: "2026 AIMS PINNs Workshop"
-  author: "Yoni Nazarathy · Accumulation Point Pty Ltd"
   date: today
   date-format: "D MMMM YYYY"
   chapters:
