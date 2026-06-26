@@ -1,0 +1,34 @@
+# Activated with: quarto render --profile booklet --to pdf  (see booklet/build.sh)
+project:
+  type: book
+  output-dir: _booklet
+book:
+  title: "Physics-Informed Neural Networks — Course Notes"
+  subtitle: "2026 AIMS PINNs Workshop"
+  chapters:
+    - index.qmd
+    - units/unit_01/unit_01.qmd
+    - units/unit_02/unit_02.qmd
+    - units/unit_03/unit_03.qmd
+    - units/unit_04/unit_04.qmd
+    - units/unit_05/unit_05.qmd
+    - units/unit_06/unit_06.qmd
+    - units/unit_07/unit_07.qmd
+    - units/unit_08/unit_08.qmd
+    - units/unit_09/unit_09.qmd
+    - units/unit_10/unit_10.qmd
+  appendices:
+    - units/pinn_env/pinn_env.qmd
+    - units/setup/setup.qmd
+    - units/exercise_solutions/exercise_solutions.qmd
+    - units/references/references.qmd
+    - units/software/software.qmd
+    - units/math_review/math_review.qmd
+    - units/physical_review/physical_review.qmd
+format:
+  pdf:
+    pdf-engine: xelatex
+    documentclass: scrbook
+    geometry: [margin=1in]
+    include-in-header: [booklet/header.tex]
+    fig-format: svg
